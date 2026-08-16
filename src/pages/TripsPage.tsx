@@ -1,0 +1,128 @@
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { draftTrip, useStore } from '../store/useStore'
+import { dayCount, shortDate } from '../lib/date'
+import { importSetouchi } from '../seed/importSetouchi'
+
+export default function TripsPage() {
+  // selector 必須回傳穩定參照，過濾留給 useMemo，否則每次重繪都是新陣列。
+  const allTrips = useStore((s) => s.data.trips)
+  const trips = useMemo(() => allTrips.filter((t) => !t.deleted), [allTrips])
+  const createTrip = useStore((s) => s.createTrip)
+  const navigate = useNavigate()
+  const [form, setForm] = useState(draftTrip())
+  const [open, setOpen] = useState(false)
+
+  const submit = () => {
+    if (!form.name.trim()) return
+    const { trip } = createTrip({ ...form, name: form.name.trim() })
+    setForm(draftTrip())
+    setOpen(false)
+    navigate(`/trip/${trip.id}`)
+  }
+
+  return (
+    <div className="app">
+      <div className="topbar">
+        <strong style={{ flex: 1, fontSize: 16, fontWeight: 500 }}>我的旅程</strong>
+        <button className="btn btn-sm" onClick={() => setOpen((v) => !v)}>
+          {open ? '取消' : '新增旅程'}
+        </button>
+      </div>
+
+      <div className="sec">
+        <button className="btn btn-sm" onClick={() => navigate(`/trip/${importSetouchi()}`)}>
+          匯入瀨戶內海 9 日遊（Day 1–2 試算表資料）
+        </button>
+      </div>
+
+      {open && (
+        <div className="sec" style={{ display: 'grid', gap: 10 }}>
+          <div>
+            <label className="label" htmlFor="t-name">
+              旅程名稱
+            </label>
+            <input
+              id="t-name"
+              className="field"
+              value={form.name}
+              placeholder="瀨戶內海9日遊"
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label className="label" htmlFor="t-start">
+                出發日
+              </label>
+              <input
+                id="t-start"
+                type="date"
+                className="field"
+                value={form.startDate}
+                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="label" htmlFor="t-end">
+                回程日
+              </label>
+              <input
+                id="t-end"
+                type="date"
+                className="field"
+                value={form.endDate}
+                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+              />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label className="label" htmlFor="t-cur">
+                外幣
+              </label>
+              <input
+                id="t-cur"
+                className="field"
+                value={form.foreignCurrency}
+                onChange={(e) => setForm({ ...form, foreignCurrency: e.target.value.toUpperCase() })}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="label" htmlFor="t-rate">
+                匯率（換台幣）
+              </label>
+              <input
+                id="t-rate"
+                type="number"
+                step="0.001"
+                className="field mono"
+                value={form.rate}
+                onChange={(e) => setForm({ ...form, rate: Number(e.target.value) })}
+              />
+            </div>
+          </div>
+          <button className="btn btn-primary" onClick={submit}>
+            建立
+          </button>
+        </div>
+      )}
+
+      {trips.length === 0 && !open && (
+        <div className="empty">還沒有旅程。按右上角「新增旅程」開始。</div>
+      )}
+
+      {trips.map((t) => (
+        <button key={t.id} className="row" onClick={() => navigate(`/trip/${t.id}`)}>
+          <span className="rowtitle">
+            <span style={{ fontSize: 15 }}>{t.name}</span>
+            <div className="dim" style={{ fontSize: 12, marginTop: 2 }}>
+              {shortDate(t.startDate)} – {shortDate(t.endDate)} · {dayCount(t.startDate, t.endDate)} 天 ·{' '}
+              {t.foreignCurrency} {t.rate}
+            </div>
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
