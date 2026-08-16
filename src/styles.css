@@ -21,6 +21,11 @@
   --cat-娛樂: #3f9142;
   --cat-購物: #c7538c;
   --cat-其他: #8b8a84;
+  --actual-bg: #f6f2e8;
+  --actual-surface: #fffdf7;
+  --actual-surface-2: #efe8d6;
+  --actual-chip: #f2e3bd;
+  --actual-ink: #7a5a10;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -39,6 +44,11 @@
     --danger-bg: #3a1f1c;
     --ok: #6cc48d;
     --ok-bg: #17301f;
+    --actual-bg: #1d1a12;
+    --actual-surface: #272318;
+    --actual-surface-2: #332e20;
+    --actual-chip: #4a3d18;
+    --actual-ink: #f0d492;
   }
 }
 
@@ -142,6 +152,14 @@ a { color: var(--accent); }
   white-space: nowrap;
 }
 .chip-accent { background: var(--accent-bg); color: var(--accent); border-color: transparent; }
+.chip-actual { background: var(--actual-chip); color: var(--actual-ink); border-color: transparent; }
+
+/* 實際版整體換一層暖色底，讓你一眼知道自己在改哪一版 */
+.app[data-actual='true'] {
+  --bg: var(--actual-bg);
+  --surface: var(--actual-surface);
+  --surface-2: var(--actual-surface-2);
+}
 
 /* 日期橫條 */
 .daystrip {
@@ -306,21 +324,10 @@ a { color: var(--accent); }
   .costline .cl-sub { flex: none; width: 78px; }
 }
 
-.undo {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 70px;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: var(--text);
-  color: var(--bg);
-  padding: 9px 14px;
-  border-radius: var(--radius);
-  font-size: 14px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+/* 手機版詳細頁是蓋在上面的固定層，開著時鎖住底下的頁面捲動，
+   不然手勢會捲到背後的行程，捲動軸自己在跑但內容不動。 */
+@media (max-width: 859px) {
+  body.detail-open { overflow: hidden; }
 }
 
 .fab {

@@ -6,6 +6,7 @@ import { makeLink } from '../lib/maps'
 import { formatMoney, lineTotal, sumByCurrency, toHome } from '../lib/money'
 import { normalizeTime, shortDate } from '../lib/date'
 import { isSubmitEnter } from '../lib/keys'
+import ConfirmButton from './ConfirmButton'
 
 interface Props {
   trip: Trip
@@ -63,16 +64,14 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
         <strong style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>
           {shortDate(item.date)} {item.startTime ?? ''}
         </strong>
-        <button
-          className="btn btn-sm"
-          style={{ color: 'var(--danger)' }}
-          onClick={() => {
+        <ConfirmButton
+          label="刪除"
+          question="刪除這個項目？"
+          onConfirm={() => {
             removeItem(item.id)
             onClose()
           }}
-        >
-          刪除
-        </button>
+        />
       </div>
 
       <div className="sec">

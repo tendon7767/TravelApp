@@ -1,9 +1,8 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import ItineraryTab from '../components/ItineraryTab'
 import ItemDetail from '../components/ItemDetail'
-import UndoToast from '../components/UndoToast'
 import PlanSwitcher from '../components/PlanSwitcher'
 
 const TABS = [
@@ -28,7 +27,14 @@ export default function TripPage() {
   const tab = params.get('tab') ?? 'itinerary'
   const selectedId = params.get('sel')
   const planId = params.get('plan') ?? plans[0]?.id
-  const plan = useMemo(() => plans.find((p) => p.id === planId), [plans, planId])
+  // 刪掉版本後網址參數會指向已消失的版本，退回第一個可用的，不要留白畫面。
+  const plan = useMemo(() => plans.find((p) => p.id === planId) ?? plans[0], [plans, planId])
+
+  // 手機版詳細頁是覆蓋在上面的固定層，底下的行程仍會跟著手勢捲動。
+  useEffect(() => {
+    document.body.classList.toggle('detail-open', Boolean(selectedId))
+    return () => document.body.classList.remove('detail-open')
+  }, [selectedId])
 
   const setParam = (key: string, value?: string) => {
     const next = new URLSearchParams(params)
@@ -40,7 +46,7 @@ export default function TripPage() {
   if (!trip) return <div className="empty">找不到這趟旅程。</div>
 
   return (
-    <div className="app">
+    <div className="app" data-actual={plan?.kind === 'actual'}>
       <div className="topbar">
         <button className="btn btn-sm" onClick={() => navigate('/')} aria-label="回到旅程列表">
           ‹
@@ -91,7 +97,6 @@ export default function TripPage() {
         ))}
       </div>
 
-      <UndoToast />
     </div>
   )
 }

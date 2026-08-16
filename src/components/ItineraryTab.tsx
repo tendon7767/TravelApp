@@ -54,6 +54,7 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect }: Props
       startTime: draft.startTime || undefined,
     })
     setDraft({ startTime: '', title: '' })
+    setAddingOn(null)
   }
 
   return (

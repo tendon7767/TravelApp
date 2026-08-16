@@ -4,20 +4,11 @@ import { newId } from '../lib/id'
 import { addDays, dayCount, todayISO } from '../lib/date'
 import { defaultSettings, loadData, loadSettings, saveData, saveSettings, type Settings } from './db'
 
-type Collection = keyof AppData
-
-interface UndoEntry {
-  label: string
-  collection: Collection
-  id: string
-  expiresAt: number
-}
 
 interface State {
   data: AppData
   settings: Settings
   ready: boolean
-  undo: UndoEntry | null
 
   init: () => Promise<void>
   setMemberName: (name: string) => void
@@ -28,15 +19,12 @@ interface State {
 
   duplicatePlan: (planId: string, name: string, kind: Plan['kind']) => Plan | undefined
   updatePlan: (id: string, patch: Partial<Plan>) => void
+  removePlan: (id: string) => void
 
   createItem: (input: Partial<Item> & { planId: string; date: string; title: string }) => Item
   updateItem: (id: string, patch: Partial<Item>) => void
   removeItem: (id: string) => void
-  runUndo: () => void
-  clearUndo: () => void
 }
-
-const UNDO_WINDOW_MS = 10_000
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -68,7 +56,6 @@ export const useStore = create<State>((setState, getState) => {
     data: emptyData(),
     settings: defaultSettings(),
     ready: false,
-    undo: null,
 
     init: async () => {
       const [data, settings] = await Promise.all([loadData(), loadSettings()])
@@ -124,6 +111,20 @@ export const useStore = create<State>((setState, getState) => {
 
     updatePlan: (id, patch) => mutate((d) => ({ ...d, plans: patchIn(d.plans, id, patch) })),
 
+    /** 版本連同底下的項目一起下墓碑，否則同步後會留下沒有歸屬的孤兒項目。 */
+    removePlan: (id) =>
+      mutate((d) => {
+        const now = Date.now()
+        const by = getState().settings.memberName
+        return {
+          ...d,
+          plans: patchIn(d.plans, id, { deleted: true } as Partial<Plan>),
+          items: d.items.map((i) =>
+            i.planId === id && !i.deleted ? { ...i, deleted: true, updatedAt: now, updatedBy: by } : i,
+          ),
+        }
+      }),
+
     createItem: (input) => {
       const item: Item = { notes: [], links: [], costs: [], ...input, ...stamp() }
       mutate((d) => ({ ...d, items: [...d.items, item] }))
@@ -132,28 +133,9 @@ export const useStore = create<State>((setState, getState) => {
 
     updateItem: (id, patch) => mutate((d) => ({ ...d, items: patchIn(d.items, id, patch) })),
 
-    /** 軟刪除：墓碑同時服務 M4 的同步，也讓 10 秒內可以反悔。 */
-    removeItem: (id) => {
-      const item = getState().data.items.find((i) => i.id === id)
-      mutate((d) => ({ ...d, items: patchIn(d.items, id, { deleted: true } as Partial<Item>) }))
-      setState({
-        undo: {
-          label: item?.title ? `已刪除「${item.title}」` : '已刪除項目',
-          collection: 'items',
-          id,
-          expiresAt: Date.now() + UNDO_WINDOW_MS,
-        },
-      })
-    },
-
-    runUndo: () => {
-      const u = getState().undo
-      if (!u) return
-      mutate((d) => ({ ...d, items: patchIn(d.items, u.id, { deleted: false } as Partial<Item>) }))
-      setState({ undo: null })
-    },
-
-    clearUndo: () => setState({ undo: null }),
+    /** 軟刪除：墓碑是 M4 同步用的，刪除前由介面負責跟使用者確認。 */
+    removeItem: (id) =>
+      mutate((d) => ({ ...d, items: patchIn(d.items, id, { deleted: true } as Partial<Item>) })),
   }
 })
 
