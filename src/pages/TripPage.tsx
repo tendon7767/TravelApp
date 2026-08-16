@@ -4,6 +4,7 @@ import { useStore } from '../store/useStore'
 import ItineraryTab from '../components/ItineraryTab'
 import ItemDetail from '../components/ItemDetail'
 import PlanSwitcher from '../components/PlanSwitcher'
+import SearchPanel from '../components/SearchPanel'
 
 const TABS = [
   { key: 'itinerary', label: '行程', icon: '☰' },
@@ -26,6 +27,7 @@ export default function TripPage() {
 
   const tab = params.get('tab') ?? 'itinerary'
   const selectedId = params.get('sel')
+  const searching = params.get('q') === '1'
   const planId = params.get('plan') ?? plans[0]?.id
   // 刪掉版本後網址參數會指向已消失的版本，退回第一個可用的，不要留白畫面。
   const plan = useMemo(() => plans.find((p) => p.id === planId) ?? plans[0], [plans, planId])
@@ -59,12 +61,26 @@ export default function TripPage() {
             {trip.foreignCurrency} 匯率 {trip.rate}
           </div>
         </div>
+        <button
+          className="btn btn-sm"
+          onClick={() => setParam('q', searching ? undefined : '1')}
+          aria-label="搜尋"
+        >
+          {searching ? '✕' : '⌕'}
+        </button>
         <PlanSwitcher trip={trip} plans={plans} activeId={plan?.id} onPick={(id) => setParam('plan', id)} />
       </div>
 
       <div className="split">
         <div className="pane-list">
-          {tab === 'itinerary' && plan && (
+          {searching && plan && (
+            <SearchPanel
+              plan={plan}
+              onPick={(id) => setParam('sel', id)}
+              onClose={() => setParam('q')}
+            />
+          )}
+          {!searching && tab === 'itinerary' && plan && (
             <ItineraryTab
               trip={trip}
               plan={plan}
@@ -72,7 +88,7 @@ export default function TripPage() {
               onSelect={(id) => setParam('sel', id)}
             />
           )}
-          {tab !== 'itinerary' && (
+          {!searching && tab !== 'itinerary' && (
             <div className="empty">
               「{TABS.find((t) => t.key === tab)?.label}」在後續里程碑製作。
             </div>

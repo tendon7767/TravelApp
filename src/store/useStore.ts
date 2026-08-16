@@ -16,6 +16,7 @@ interface State {
 
   createTrip: (input: Omit<Trip, keyof SyncFields>) => { trip: Trip; plan: Plan }
   updateTrip: (id: string, patch: Partial<Trip>) => void
+  removeTrip: (id: string) => void
 
   duplicatePlan: (planId: string, name: string, kind: Plan['kind']) => Plan | undefined
   updatePlan: (id: string, patch: Partial<Plan>) => void
@@ -83,6 +84,20 @@ export const useStore = create<State>((setState, getState) => {
     },
 
     updateTrip: (id, patch) => mutate((d) => ({ ...d, trips: patchIn(d.trips, id, patch) })),
+
+    /** 旅程、底下的版本與項目一起下墓碑，不留孤兒資料。 */
+    removeTrip: (id) =>
+      mutate((d) => {
+        const now = Date.now()
+        const by = getState().settings.memberName
+        const planIds = new Set(d.plans.filter((p) => p.tripId === id).map((p) => p.id))
+        const kill = <T extends SyncFields>(r: T) => ({ ...r, deleted: true, updatedAt: now, updatedBy: by })
+        return {
+          trips: d.trips.map((t) => (t.id === id && !t.deleted ? kill(t) : t)),
+          plans: d.plans.map((p) => (p.tripId === id && !p.deleted ? kill(p) : p)),
+          items: d.items.map((i) => (planIds.has(i.planId) && !i.deleted ? kill(i) : i)),
+        }
+      }),
 
     duplicatePlan: (planId, name, kind) => {
       const { data } = getState()

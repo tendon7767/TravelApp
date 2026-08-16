@@ -3,12 +3,27 @@ import { useNavigate } from 'react-router-dom'
 import { draftTrip, useStore } from '../store/useStore'
 import { dayCount, shortDate } from '../lib/date'
 import { importSetouchi } from '../seed/importSetouchi'
+import ConfirmButton from '../components/ConfirmButton'
 
 export default function TripsPage() {
   // selector 必須回傳穩定參照，過濾留給 useMemo，否則每次重繪都是新陣列。
   const allTrips = useStore((s) => s.data.trips)
   const trips = useMemo(() => allTrips.filter((t) => !t.deleted), [allTrips])
   const createTrip = useStore((s) => s.createTrip)
+  const removeTrip = useStore((s) => s.removeTrip)
+  const allPlans = useStore((s) => s.data.plans)
+  const allItems = useStore((s) => s.data.items)
+
+  // 刪除前先告訴使用者會連帶刪掉幾筆，光說「確定刪除？」不足以判斷代價。
+  const itemCounts = useMemo(() => {
+    const planToTrip = new Map(allPlans.filter((p) => !p.deleted).map((p) => [p.id, p.tripId]))
+    const counts: Record<string, number> = {}
+    for (const i of allItems) {
+      const tripId = planToTrip.get(i.planId)
+      if (!i.deleted && tripId) counts[tripId] = (counts[tripId] ?? 0) + 1
+    }
+    return counts
+  }, [allPlans, allItems])
   const navigate = useNavigate()
   const [form, setForm] = useState(draftTrip())
   const [open, setOpen] = useState(false)
@@ -32,7 +47,7 @@ export default function TripsPage() {
 
       <div className="sec">
         <button className="btn btn-sm" onClick={() => navigate(`/trip/${importSetouchi()}`)}>
-          匯入瀨戶內海 9 日遊（Day 1–2 試算表資料）
+          匯入瀨戶內海 9 日遊（試算表方案 A）
         </button>
       </div>
 
@@ -113,15 +128,23 @@ export default function TripsPage() {
       )}
 
       {trips.map((t) => (
-        <button key={t.id} className="row" onClick={() => navigate(`/trip/${t.id}`)}>
-          <span className="rowtitle">
+        <div key={t.id} className="row" style={{ alignItems: 'center' }}>
+          <button
+            style={{ flex: 1, textAlign: 'left', minWidth: 0 }}
+            onClick={() => navigate(`/trip/${t.id}`)}
+          >
             <span style={{ fontSize: 15 }}>{t.name}</span>
             <div className="dim" style={{ fontSize: 12, marginTop: 2 }}>
               {shortDate(t.startDate)} – {shortDate(t.endDate)} · {dayCount(t.startDate, t.endDate)} 天 ·{' '}
               {t.foreignCurrency} {t.rate}
             </div>
-          </span>
-        </button>
+          </button>
+          <ConfirmButton
+            label="刪除"
+            question={`連同整趟 ${itemCounts[t.id] ?? 0} 筆行程刪除？`}
+            onConfirm={() => removeTrip(t.id)}
+          />
+        </div>
       ))}
     </div>
   )
