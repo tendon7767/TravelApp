@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import type { Item, Plan, Trip } from '../types'
-import { addDays, eachDay, shortDate, timeSortKey, todayISO } from '../lib/date'
+import { eachDay, shortDate, timeSortKey, todayISO } from '../lib/date'
 import { formatMoney, formatTotals, isUncategorized, itemTotals, mergeTotals, toHome } from '../lib/money'
 
 interface Props {
@@ -9,12 +9,6 @@ interface Props {
   plan: Plan
   selectedId: string | null
   onSelect: (id: string) => void
-}
-
-/** 住宿佔多晚，後續日期顯示但不重複計價。 */
-interface DayRow {
-  item: Item
-  nightIndex: number
 }
 
 export default function ItineraryTab({ trip, plan, selectedId, onSelect }: Props) {
@@ -31,26 +25,18 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect }: Props
   const [draft, setDraft] = useState({ startTime: '', title: '' })
 
   const byDay = useMemo(() => {
-    const map = new Map<string, DayRow[]>()
+    const map = new Map<string, Item[]>()
     for (const day of days) map.set(day, [])
-    for (const item of items) {
-      const nights = Math.max(1, item.nights ?? 1)
-      for (let n = 0; n < nights; n++) {
-        const day = addDays(item.date, n)
-        map.get(day)?.push({ item, nightIndex: n })
-      }
-    }
+    for (const item of items) map.get(item.date)?.push(item)
     for (const rows of map.values()) {
-      rows.sort((a, b) => timeSortKey(a.item.startTime) - timeSortKey(b.item.startTime))
+      rows.sort((a, b) => timeSortKey(a.startTime) - timeSortKey(b.startTime))
     }
     return map
   }, [days, items])
 
   const dayTotals = (day: string): Record<string, number> => {
     const acc: Record<string, number> = {}
-    for (const { item, nightIndex } of byDay.get(day) ?? []) {
-      if (nightIndex === 0) mergeTotals(acc, itemTotals(item))
-    }
+    for (const item of byDay.get(day) ?? []) mergeTotals(acc, itemTotals(item))
     return acc
   }
 
@@ -99,41 +85,28 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect }: Props
               </span>
             </div>
 
-            {rows.map(({ item, nightIndex }) => {
-              const nights = Math.max(1, item.nights ?? 1)
-              const totalsForItem = itemTotals(item)
-              return (
-                <button
-                  key={`${item.id}-${nightIndex}`}
-                  className="row"
-                  data-sel={item.id === selectedId}
-                  onClick={() => onSelect(item.id)}
-                >
-                  <span
-                    className="dot"
-                    style={{ background: item.category ? `var(--cat-${item.category})` : 'transparent' }}
-                  />
-                  <span className="rowtime">{item.startTime ?? ''}</span>
-                  <span className="rowtitle">
-                    {item.title}
-                    {nights > 1 && (
-                      <span className="dim" style={{ fontSize: 12 }}>
-                        （第 {nightIndex + 1}/{nights} 晚）
-                      </span>
-                    )}
-                    {item.links.length > 0 && nightIndex === 0 && (
-                      <span className="dim" style={{ fontSize: 12, marginLeft: 4 }}>◎</span>
-                    )}
-                    {isUncategorized(item) && nightIndex === 0 && (
-                      <span className="warn" style={{ marginLeft: 6 }}>缺類型</span>
-                    )}
-                  </span>
-                  <span className="rowmoney">
-                    {nightIndex === 0 ? formatTotals(totalsForItem) : ''}
-                  </span>
-                </button>
-              )
-            })}
+            {rows.map((item) => (
+              <button
+                key={item.id}
+                className="row"
+                data-sel={item.id === selectedId}
+                onClick={() => onSelect(item.id)}
+              >
+                <span
+                  className="dot"
+                  style={{ background: item.category ? `var(--cat-${item.category})` : 'transparent' }}
+                />
+                <span className="rowtime">{item.startTime ?? ''}</span>
+                <span className="rowtitle">
+                  {item.title}
+                  {item.links.length > 0 && (
+                    <span className="dim" style={{ fontSize: 12, marginLeft: 4 }}>◎</span>
+                  )}
+                  {isUncategorized(item) && <span className="warn" style={{ marginLeft: 6 }}>缺類型</span>}
+                </span>
+                <span className="rowmoney">{formatTotals(itemTotals(item))}</span>
+              </button>
+            ))}
 
             {addingOn === day ? (
               <div className="sec" style={{ display: 'flex', gap: 8 }}>

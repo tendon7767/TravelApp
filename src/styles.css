@@ -270,14 +270,18 @@ a { color: var(--accent); }
 }
 
 @media (min-width: 860px) {
+  /* 詳細頁自己黏在視窗上，左邊行程怎麼捲都不影響它 */
   .pane-detail {
-    position: static;
+    position: sticky;
+    inset: auto;
+    top: 53px;
+    align-self: flex-start;
     z-index: auto;
     width: 400px;
     flex: none;
+    height: calc(100vh - 53px);
     border-left: 0.5px solid var(--border);
   }
-  .tabbar { position: sticky; }
 }
 
 .sec {

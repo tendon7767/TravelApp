@@ -77,46 +77,16 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
           onChange={(e) => updateItem(item.id, { title: e.target.value })}
           aria-label="標題"
         />
-        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <div style={{ flex: 1 }}>
-            <label className="label" htmlFor="d-start">開始</label>
-            <input
-              id="d-start"
-              type="time"
-              className="field mono"
-              value={item.startTime ?? ''}
-              onChange={(e) => updateItem(item.id, { startTime: e.target.value || undefined })}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label className="label" htmlFor="d-end">結束</label>
-            <input
-              id="d-end"
-              type="time"
-              className="field mono"
-              value={item.endTime ?? ''}
-              onChange={(e) => updateItem(item.id, { endTime: e.target.value || undefined })}
-            />
-          </div>
-          <div style={{ width: 78 }}>
-            <label className="label" htmlFor="d-nights">住幾晚</label>
-            <input
-              id="d-nights"
-              type="number"
-              min={1}
-              className="field mono"
-              value={item.nights ?? 1}
-              onChange={(e) =>
-                updateItem(item.id, { nights: Math.max(1, Number(e.target.value) || 1) })
-              }
-            />
-          </div>
+        <div style={{ marginTop: 8, width: 132 }}>
+          <label className="label" htmlFor="d-start">時間</label>
+          <input
+            id="d-start"
+            type="time"
+            className="field mono"
+            value={item.startTime ?? ''}
+            onChange={(e) => updateItem(item.id, { startTime: e.target.value || undefined })}
+          />
         </div>
-        {(item.nights ?? 1) > 1 && (
-          <p className="dim" style={{ fontSize: 12, margin: '6px 0 0' }}>
-            會顯示在接下來 {item.nights} 天，但只計價一次。
-          </p>
-        )}
       </div>
 
       <div className="sec">

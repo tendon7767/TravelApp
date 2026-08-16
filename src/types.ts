@@ -54,13 +54,9 @@ export interface LinkRef {
 
 export interface Item extends SyncFields {
   planId: string
-  /** 住宿類的區間項目，這裡是入住日 */
   date: string
   /** HH:mm，留空代表純支出、不佔時間軸位置 */
   startTime?: string
-  endTime?: string
-  /** 住幾晚。>1 時在後續日期顯示但只計價一次。 */
-  nights?: number
   title: string
   /** 遊玩說明：這裡有什麼好吃好玩好看的 */
   guide?: string

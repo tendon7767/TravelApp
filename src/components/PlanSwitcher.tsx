@@ -14,11 +14,9 @@ export default function PlanSwitcher({ trip, plans, activeId, onPick }: Props) {
   const active = plans.find((p) => p.id === activeId)
   const hasActual = plans.some((p) => p.kind === 'actual')
 
-  const fork = () => {
+  const createActual = () => {
     if (!active) return
-    const name = hasActual ? `方案 ${String.fromCharCode(64 + plans.length)}` : '實際版'
-    const kind = hasActual ? 'planning' : 'actual'
-    const created = duplicatePlan(active.id, name, kind)
+    const created = duplicatePlan(active.id, '實際版', 'actual')
     if (created) onPick(created.id)
   }
 
@@ -36,9 +34,11 @@ export default function PlanSwitcher({ trip, plans, activeId, onPick }: Props) {
           </option>
         ))}
       </select>
-      <button className="btn btn-sm" onClick={fork} title="複製目前版本">
-        複製
-      </button>
+      {!hasActual && (
+        <button className="btn btn-sm" onClick={createActual} title="從目前版本複製一份實際版">
+          建立實際版
+        </button>
+      )}
     </div>
   )
 }

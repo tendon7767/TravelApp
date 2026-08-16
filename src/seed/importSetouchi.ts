@@ -21,7 +21,6 @@ export const importSetouchi = (): string => {
       date: addDays(SETOUCHI.startDate, s.day - 1),
       title: s.title,
       startTime: s.time,
-      nights: s.nights,
       notes: s.notes ?? [],
       links: (s.links ?? []).map((l) => ({ id: newId(), label: l.label, url: l.url, kind: 'web' as const })),
       costs: (s.costs ?? []).map((c) => ({

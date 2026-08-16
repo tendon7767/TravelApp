@@ -23,7 +23,6 @@ export interface SeedItem {
   cat?: ExpenseCategory
   pay?: PaymentStatus
   chargeDay?: number
-  nights?: number
 }
 
 const ITEMS: SeedItem[] = [
