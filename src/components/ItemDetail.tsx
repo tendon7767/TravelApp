@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { EXPENSE_CATEGORIES, PAYMENT_STATUSES, type CostLine, type Trip } from '../types'
 import { newId } from '../lib/id'
 import { makeLink } from '../lib/maps'
 import { formatMoney, lineTotal, sumByCurrency, toHome } from '../lib/money'
-import { shortDate } from '../lib/date'
+import { normalizeTime, shortDate } from '../lib/date'
+import { isSubmitEnter } from '../lib/keys'
 
 interface Props {
   trip: Trip
@@ -18,6 +19,11 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
   const removeItem = useStore((s) => s.removeItem)
   const [linkDraft, setLinkDraft] = useState('')
   const [noteDraft, setNoteDraft] = useState('')
+  const [timeDraft, setTimeDraft] = useState(item?.startTime ?? '')
+
+  useEffect(() => {
+    setTimeDraft(item?.startTime ?? '')
+  }, [itemId, item?.startTime])
 
   if (!item || item.deleted) return <div className="empty">項目已刪除。</div>
 
@@ -79,12 +85,20 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
         />
         <div style={{ marginTop: 8, width: 132 }}>
           <label className="label" htmlFor="d-start">時間</label>
+          {/* 用文字欄而非 type="time"，一來永遠 24 小時制不出現上午下午，
+              二來航班、船班那種 09:10、18:50 才填得進去。 */}
           <input
             id="d-start"
-            type="time"
             className="field mono"
-            value={item.startTime ?? ''}
-            onChange={(e) => updateItem(item.id, { startTime: e.target.value || undefined })}
+            inputMode="numeric"
+            placeholder="09:10"
+            value={timeDraft}
+            onChange={(e) => setTimeDraft(e.target.value)}
+            onBlur={() => {
+              const t = normalizeTime(timeDraft)
+              updateItem(item.id, { startTime: t })
+              setTimeDraft(t ?? '')
+            }}
           />
         </div>
       </div>
@@ -130,7 +144,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
             placeholder="實務提醒，例如取車在土庄港"
             value={noteDraft}
             onChange={(e) => setNoteDraft(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addNote()}
+            onKeyDown={(e) => isSubmitEnter(e) && addNote()}
           />
           <button className="btn" onClick={addNote}>加入</button>
         </div>
@@ -161,7 +175,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
             placeholder="貼上 Google Maps 或任何網址"
             value={linkDraft}
             onChange={(e) => setLinkDraft(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addLink()}
+            onKeyDown={(e) => isSubmitEnter(e) && addLink()}
           />
           <button className="btn" onClick={addLink}>加入</button>
         </div>

@@ -37,6 +37,24 @@ export const shortDate = (iso: string): string => {
 
 export const todayISO = (): string => toISO(new Date())
 
+/** 快速新增用的 30 分鐘刻度，對應你試算表裡那份 0:00–23:30 的下拉清單。 */
+export const HALF_HOUR_SLOTS: string[] = Array.from({ length: 48 }, (_, i) => {
+  const h = Math.floor(i / 2)
+  return `${String(h).padStart(2, '0')}:${i % 2 ? '30' : '00'}`
+})
+
+/** 接受 9:10、0910、09:10，統一成 HH:mm；無法解讀就回 undefined。 */
+export const normalizeTime = (raw: string): string | undefined => {
+  const v = raw.trim()
+  if (!v) return undefined
+  const m = v.match(/^(\d{1,2})[:.]?(\d{2})$/)
+  if (!m) return undefined
+  const h = Number(m[1])
+  const min = Number(m[2])
+  if (h > 23 || min > 59) return undefined
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+}
+
 /** 時間排序用；沒填時間的排最後，因為那是純支出、不佔時間軸位置。 */
 export const timeSortKey = (t?: string): number => {
   if (!t) return 24 * 60 + 1

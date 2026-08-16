@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import type { Item, Plan, Trip } from '../types'
-import { eachDay, shortDate, timeSortKey, todayISO } from '../lib/date'
+import { eachDay, HALF_HOUR_SLOTS, shortDate, timeSortKey, todayISO } from '../lib/date'
+import { isSubmitEnter } from '../lib/keys'
 import { formatMoney, formatTotals, isUncategorized, itemTotals, mergeTotals, toHome } from '../lib/money'
 
 interface Props {
@@ -110,28 +111,34 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect }: Props
 
             {addingOn === day ? (
               <div className="sec" style={{ display: 'flex', gap: 8 }}>
-                <input
+                <select
                   className="field mono"
-                  style={{ width: 92 }}
-                  type="time"
+                  style={{ width: 92, flex: 'none' }}
                   value={draft.startTime}
                   onChange={(e) => setDraft({ ...draft, startTime: e.target.value })}
                   aria-label="時間"
-                />
+                >
+                  <option value="">--:--</option>
+                  {HALF_HOUR_SLOTS.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
                 <input
                   className="field"
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minWidth: 0 }}
                   placeholder="做什麼"
                   autoFocus
                   value={draft.title}
                   onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                  onKeyDown={(e) => e.key === 'Enter' && submitDraft(day)}
+                  onKeyDown={(e) => isSubmitEnter(e) && submitDraft(day)}
                 />
                 <button className="btn btn-primary" onClick={() => submitDraft(day)}>
                   加入
                 </button>
-                <button className="btn" onClick={() => setAddingOn(null)}>
-                  完成
+                <button className="btn" onClick={() => setAddingOn(null)} aria-label="關閉新增">
+                  ✕
                 </button>
               </div>
             ) : (
