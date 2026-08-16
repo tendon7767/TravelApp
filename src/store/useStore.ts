@@ -1,5 +1,14 @@
 import { create } from 'zustand'
-import { emptyData, type AppData, type Item, type Plan, type SyncFields, type Trip } from '../types'
+import {
+  emptyData,
+  type AppData,
+  type Item,
+  type PaymentMethod,
+  type Plan,
+  type SyncFields,
+  type TransportOption,
+  type Trip,
+} from '../types'
 import { newId } from '../lib/id'
 import { addDays, dayCount, todayISO } from '../lib/date'
 import { defaultSettings, loadData, loadSettings, saveData, saveSettings, type Settings } from './db'
@@ -25,6 +34,15 @@ interface State {
   createItem: (input: Partial<Item> & { planId: string; date: string; title: string }) => Item
   updateItem: (id: string, patch: Partial<Item>) => void
   removeItem: (id: string) => void
+
+  createPayment: (tripId: string) => PaymentMethod
+  updatePayment: (id: string, patch: Partial<PaymentMethod>) => void
+  removePayment: (id: string) => void
+  copyPaymentsFrom: (fromTripId: string, toTripId: string) => number
+
+  createTransport: (tripId: string, name: string) => TransportOption
+  updateTransport: (id: string, patch: Partial<TransportOption>) => void
+  removeTransport: (id: string) => void
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
@@ -96,6 +114,8 @@ export const useStore = create<State>((setState, getState) => {
           trips: d.trips.map((t) => (t.id === id && !t.deleted ? kill(t) : t)),
           plans: d.plans.map((p) => (p.tripId === id && !p.deleted ? kill(p) : p)),
           items: d.items.map((i) => (planIds.has(i.planId) && !i.deleted ? kill(i) : i)),
+          payments: d.payments.map((p) => (p.tripId === id && !p.deleted ? kill(p) : p)),
+          transports: d.transports.map((t) => (t.tripId === id && !t.deleted ? kill(t) : t)),
         }
       }),
 
@@ -151,6 +171,57 @@ export const useStore = create<State>((setState, getState) => {
     /** 軟刪除：墓碑是 M4 同步用的，刪除前由介面負責跟使用者確認。 */
     removeItem: (id) =>
       mutate((d) => ({ ...d, items: patchIn(d.items, id, { deleted: true } as Partial<Item>) })),
+
+    createPayment: (tripId) => {
+      const method: PaymentMethod = {
+        ...stamp(),
+        tripId,
+        name: '',
+        kind: 'card',
+        enabled: true,
+        currency: 'TWD',
+        rules: [{ id: newId(), name: '一般回饋', rate: 0 }],
+      }
+      mutate((d) => ({ ...d, payments: [...d.payments, method] }))
+      return method
+    },
+
+    updatePayment: (id, patch) =>
+      mutate((d) => ({ ...d, payments: patchIn(d.payments, id, patch) })),
+
+    removePayment: (id) =>
+      mutate((d) => ({
+        ...d,
+        payments: patchIn(d.payments, id, { deleted: true } as Partial<PaymentMethod>),
+      })),
+
+    /** 卡片設定跨旅程沿用，只有額度要重填 —— 不必每趟從頭建一次。 */
+    copyPaymentsFrom: (fromTripId, toTripId) => {
+      const source = getState().data.payments.filter((p) => p.tripId === fromTripId && !p.deleted)
+      const copies = source.map<PaymentMethod>((p) => ({
+        ...p,
+        ...stamp(),
+        tripId: toTripId,
+        rules: p.rules.map((r) => ({ ...r, id: newId() })),
+      }))
+      if (copies.length) mutate((d) => ({ ...d, payments: [...d.payments, ...copies] }))
+      return copies.length
+    },
+
+    createTransport: (tripId, name) => {
+      const option: TransportOption = { ...stamp(), tripId, name, lines: [] }
+      mutate((d) => ({ ...d, transports: [...d.transports, option] }))
+      return option
+    },
+
+    updateTransport: (id, patch) =>
+      mutate((d) => ({ ...d, transports: patchIn(d.transports, id, patch) })),
+
+    removeTransport: (id) =>
+      mutate((d) => ({
+        ...d,
+        transports: patchIn(d.transports, id, { deleted: true } as Partial<TransportOption>),
+      })),
   }
 })
 

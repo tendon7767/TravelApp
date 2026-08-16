@@ -16,7 +16,14 @@ export const defaultSettings = (): Settings => ({ memberName: '我' })
 export const loadData = async (): Promise<AppData> => {
   const raw = await get<AppData>(DATA_KEY)
   if (!raw) return emptyData()
-  return { trips: raw.trips ?? [], plans: raw.plans ?? [], items: raw.items ?? [] }
+  // 逐個給預設值，舊版存下來的資料少了新集合時才不會炸掉。
+  return {
+    trips: raw.trips ?? [],
+    plans: raw.plans ?? [],
+    items: raw.items ?? [],
+    payments: raw.payments ?? [],
+    transports: raw.transports ?? [],
+  }
 }
 
 export const saveData = (data: AppData): Promise<void> => set(DATA_KEY, data)

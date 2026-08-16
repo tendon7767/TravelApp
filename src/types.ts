@@ -72,10 +72,54 @@ export interface Item extends SyncFields {
   chargeDate?: string
 }
 
+/**
+ * 一張卡可以有多組回饋規則（一般、加碼、通路限定），彼此同時累積。
+ * 三個上限的意義不同，缺一不可：
+ *   rewardCap      這趟能拿到的回饋總額上限
+ *   spendCap       超過這個消費金額後，這條規則就不再產生回饋
+ *   perTxnRewardCap 單筆交易的回饋上限 —— 這是拆單建議的依據
+ */
+export interface RewardRule {
+  id: string
+  name: string
+  rate: number
+  rewardCap?: number
+  spendCap?: number
+  perTxnRewardCap?: number
+}
+
+export interface PaymentMethod extends SyncFields {
+  tripId: string
+  name: string
+  owner?: string
+  kind: 'card' | 'epay'
+  /** 這趟有沒有帶著它。記帳時只列出帶著的。 */
+  enabled: boolean
+  /** 回饋上限與消費上限所使用的幣別，各家卡不同（有的算台幣、有的算日圓）。 */
+  currency: string
+  rules: RewardRule[]
+  note?: string
+}
+
+/** 租車 vs 電車巴士這種方案並排比價，與行程無關，純試算。 */
+export interface TransportOption extends SyncFields {
+  tripId: string
+  name: string
+  lines: CostLine[]
+}
+
 export interface AppData {
   trips: Trip[]
   plans: Plan[]
   items: Item[]
+  payments: PaymentMethod[]
+  transports: TransportOption[]
 }
 
-export const emptyData = (): AppData => ({ trips: [], plans: [], items: [] })
+export const emptyData = (): AppData => ({
+  trips: [],
+  plans: [],
+  items: [],
+  payments: [],
+  transports: [],
+})
