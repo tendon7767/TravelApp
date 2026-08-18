@@ -5,6 +5,7 @@ import { dayCount, shortDate } from '../lib/date'
 import ConfirmButton from '../components/ConfirmButton'
 import NumberField from '../components/NumberField'
 import SettingsModal from '../components/SettingsModal'
+import TripEditModal from '../components/TripEditModal'
 
 export default function TripsPage() {
   // selector 必須回傳穩定參照，過濾留給 useMemo，否則每次重繪都是新陣列。
@@ -29,6 +30,7 @@ export default function TripsPage() {
   const [form, setForm] = useState(draftTrip())
   const [open, setOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [editingTripId, setEditingTripId] = useState<string | null>(null)
 
   const submit = () => {
     if (!form.name.trim()) return
@@ -127,9 +129,15 @@ export default function TripsPage() {
       )}
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {editingTripId && (
+        <TripEditModal
+          trip={trips.find((t) => t.id === editingTripId)!}
+          onClose={() => setEditingTripId(null)}
+        />
+      )}
 
       {trips.map((t) => (
-        <div key={t.id} className="row" style={{ alignItems: 'center' }}>
+        <div key={t.id} className="row" style={{ alignItems: 'center', gap: 6 }}>
           <button
             style={{ flex: 1, textAlign: 'left', minWidth: 0 }}
             onClick={() => navigate(`/trip/${t.id}`)}
@@ -139,6 +147,9 @@ export default function TripsPage() {
               {shortDate(t.startDate)} – {shortDate(t.endDate)} · {dayCount(t.startDate, t.endDate)} 天 ·{' '}
               {t.foreignCurrency} {t.rate}
             </div>
+          </button>
+          <button className="btn btn-sm" onClick={() => setEditingTripId(t.id)}>
+            編輯
           </button>
           <ConfirmButton
             label="刪除"
