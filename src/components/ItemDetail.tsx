@@ -338,69 +338,71 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
         </div>
       )}
 
-      <div className="sec" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 120 }}>
-          <label className="label" htmlFor="d-cat">費用類型</label>
-          <select
-            id="d-cat"
-            className="field"
-            value={item.category ?? ''}
-            onChange={(e) =>
-              updateItem(item.id, { category: (e.target.value || undefined) as typeof item.category })
-            }
-          >
-            <option value="">未分類</option>
-            {EXPENSE_CATEGORIES.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        </div>
-        <div style={{ flex: 1, minWidth: 140 }}>
-          <label className="label" htmlFor="d-method">支付方式</label>
-          <select
-            id="d-method"
-            className="field"
-            value={item.paymentMethodId ?? ''}
-            onChange={(e) => updateItem(item.id, { paymentMethodId: e.target.value || undefined })}
-          >
-            <option value="">—</option>
-            {methods.map((m) => (
-              <option key={m.id} value={m.id}>{methodLabel(m.name, m.owner)}</option>
-            ))}
-          </select>
-        </div>
-        <div style={{ flex: 1, minWidth: 120 }}>
-          {/* 純提醒欄位，不影響回饋計算 —— 用途是行前訂房時記得哪家還沒付。 */}
-          <label className="label" htmlFor="d-pay">付款狀態（提醒）</label>
-          <select
-            id="d-pay"
-            className="field"
-            value={item.paymentStatus ?? ''}
-            onChange={(e) =>
-              updateItem(item.id, {
-                paymentStatus: (e.target.value || undefined) as typeof item.paymentStatus,
-              })
-            }
-          >
-            <option value="">—</option>
-            {PAYMENT_STATUSES.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
-        {item.paymentStatus === '自動結帳' && (
+      {item.costs.length > 0 && (
+        <div className="sec" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 120 }}>
-            <label className="label" htmlFor="d-charge">扣款日</label>
-            <input
-              id="d-charge"
-              type="date"
+            <label className="label" htmlFor="d-cat">費用類型</label>
+            <select
+              id="d-cat"
               className="field"
-              value={item.chargeDate ?? ''}
-              onChange={(e) => updateItem(item.id, { chargeDate: e.target.value || undefined })}
-            />
+              value={item.category ?? ''}
+              onChange={(e) =>
+                updateItem(item.id, { category: (e.target.value || undefined) as typeof item.category })
+              }
+            >
+              <option value="">未分類</option>
+              {EXPENSE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </div>
-        )}
-      </div>
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <label className="label" htmlFor="d-method">支付方式</label>
+            <select
+              id="d-method"
+              className="field"
+              value={item.paymentMethodId ?? ''}
+              onChange={(e) => updateItem(item.id, { paymentMethodId: e.target.value || undefined })}
+            >
+              <option value="">—</option>
+              {methods.map((m) => (
+                <option key={m.id} value={m.id}>{methodLabel(m.name, m.owner)}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ flex: 1, minWidth: 120 }}>
+            {/* 純提醒欄位，不影響回饋計算 —— 用途是行前訂房時記得哪家還沒付。 */}
+            <label className="label" htmlFor="d-pay">付款狀態（提醒）</label>
+            <select
+              id="d-pay"
+              className="field"
+              value={item.paymentStatus ?? ''}
+              onChange={(e) =>
+                updateItem(item.id, {
+                  paymentStatus: (e.target.value || undefined) as typeof item.paymentStatus,
+                })
+              }
+            >
+              <option value="">—</option>
+              {PAYMENT_STATUSES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+          {item.paymentStatus === '自動結帳' && (
+            <div style={{ flex: 1, minWidth: 120 }}>
+              <label className="label" htmlFor="d-charge">扣款日</label>
+              <input
+                id="d-charge"
+                type="date"
+                className="field"
+                value={item.chargeDate ?? ''}
+                onChange={(e) => updateItem(item.id, { chargeDate: e.target.value || undefined })}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
