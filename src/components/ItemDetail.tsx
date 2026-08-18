@@ -26,6 +26,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
   const [noteDraft, setNoteDraft] = useState('')
   const [timeDraft, setTimeDraft] = useState(item?.startTime ?? '')
   const [renaming, setRenaming] = useState(false)
+  const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
   const allPayments = useStore((s) => s.data.payments)
   const allItems = useStore((s) => s.data.items)
   const allReviews = useStore((s) => s.data.reviews)
@@ -81,8 +82,11 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
 
   const addLink = () => {
     if (!linkDraft.trim()) return
-    updateItem(item.id, { links: [...item.links, makeLink(linkDraft)] })
+    const link = makeLink(linkDraft)
+    updateItem(item.id, { links: [...item.links, link] })
     setLinkDraft('')
+    // 短網址拆不出地名，游標直接跳過去讓你接著打，省一次點擊。
+    if (!link.label) setFocusLinkId(link.id)
   }
 
   const addNote = () => {
@@ -228,6 +232,8 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
                 })
               }
               aria-label="連結名稱"
+              autoFocus={l.id === focusLinkId}
+              placeholder={l.url}
             />
             <a className="btn btn-sm" href={l.url} target="_blank" rel="noreferrer">
               開啟

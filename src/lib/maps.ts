@@ -69,7 +69,9 @@ export const makeLink = (input: string): LinkRef => {
     .find((line) => line.length > 0)
 
   const parsed = parseLink(url)
-  const fallback = parsed.kind === 'map' ? 'Google 地圖' : url
+  // 地圖連結拆不出地名時刻意留空，讓介面把游標送過去、直接打字就好；
+  // 塞一個假標籤只會逼使用者先刪掉它。一般網站用網域當標籤已經夠看。
+  const fallback = parsed.kind === 'map' ? '' : url
 
   return {
     id: newId(),
