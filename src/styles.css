@@ -947,6 +947,12 @@ a { color: var(--accent); }
 .sheetactions .btn,
 .editor-actions .btn { min-width: 92px; }
 
+.editor-actions .btn-primary:disabled {
+  opacity: 0.42;
+  cursor: default;
+  box-shadow: none;
+}
+
 body.modal-open { overflow: hidden; }
 
 @media (min-width: 620px) {

@@ -251,10 +251,11 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   }
 
   const completeEditing = () => {
+    const normalizedTime = normalizeTime(timeDraft)
     if (itemDirty) {
       updateItem(item.id, {
         date: item.date,
-        startTime: normalizeTime(timeDraft),
+        startTime: normalizedTime,
         title: item.title,
         guide: item.guide,
         category: item.category,
@@ -265,8 +266,10 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
       })
     }
     if (isActual && reviewDraft !== (mine?.text ?? '')) setReview(item.id, reviewDraft)
+    setTimeDraft(normalizedTime ?? '')
+    setTouched(false)
+    setRestored(false)
     void clearItemDraft(item.id)
-    onClose()
   }
 
   const selectCategory = (category?: ItineraryCategory) => {
@@ -356,7 +359,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
           completeLabel="放棄變更"
           completeDanger
         >
-          <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的全部修改嗎？</p>
+          <p style={{ margin: '12px 0 0' }}>確定要離開並放棄這次的全部修改嗎？</p>
         </Modal>
       )}
       {renaming && <SettingsModal onClose={() => setRenaming(false)} />}
@@ -872,8 +875,8 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
       </div>
 
       <div className="editor-actions">
-        <button className="btn" onClick={requestCancel}>取消</button>
-        <button className="btn btn-primary" onClick={completeEditing}>完成</button>
+        <button className="btn" onClick={requestCancel}>離開</button>
+        <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>完成</button>
       </div>
     </>
   )
