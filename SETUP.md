@@ -68,7 +68,9 @@
 
 ## 二、放到 GitHub Pages（手機才連得上）
 
-1. 到 <https://github.com> 註冊或登入，建立一個新的 repository，例如 `travelapp`（公開或私有都可以）
+1. 到 <https://github.com> 註冊或登入，建立一個新的 repository，例如 `travelapp`。
+   **必須選 Public** —— 免費帳號的 GitHub Pages 不支援私有 repo。
+   公開的是程式碼，你的旅程資料在瀏覽器本機與你的 Google 雲端硬碟，不在 repo 裡。
 2. 在專案目錄執行（把網址換成你的 repo）：
 
    ```bash

@@ -25,7 +25,11 @@ jobs:
       - run: npm ci
       # GitHub Pages 的網址是 https://<帳號>.github.io/<repo>/，所以 base 要帶 repo 名稱
       - run: GITHUB_PAGES_BASE="/${GITHUB_REPOSITORY#*/}/" npm run build
+      # enablement 讓 workflow 自己把 Pages 開起來，
+      # 不然第一次跑會因為「Pages 尚未啟用」直接 404 失敗。
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
