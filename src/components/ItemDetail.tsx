@@ -300,13 +300,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
             id="d-method"
             className="field"
             value={item.paymentMethodId ?? ''}
-            onChange={(e) =>
-              updateItem(item.id, {
-                paymentMethodId: e.target.value || undefined,
-                // 選了卡卻沒設狀態的話回饋不會計入，預設補上最常見的那個，可以再改。
-                paymentStatus: e.target.value && !item.paymentStatus ? '已刷卡' : item.paymentStatus,
-              })
-            }
+            onChange={(e) => updateItem(item.id, { paymentMethodId: e.target.value || undefined })}
           >
             <option value="">—</option>
             {methods.map((m) => (
@@ -315,7 +309,8 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
           </select>
         </div>
         <div style={{ flex: 1, minWidth: 120 }}>
-          <label className="label" htmlFor="d-pay">付款狀態</label>
+          {/* 純提醒欄位，不影響回饋計算 —— 用途是行前訂房時記得哪家還沒付。 */}
+          <label className="label" htmlFor="d-pay">付款狀態（提醒）</label>
           <select
             id="d-pay"
             className="field"

@@ -207,19 +207,6 @@ function MethodCard({
         </div>
       ))}
 
-      {res.pending.length > 0 && (
-        <div style={{ marginTop: 10, background: 'var(--danger-bg)', borderRadius: 'var(--radius)', padding: 8 }}>
-          <div style={{ fontSize: 12, color: 'var(--danger)', marginBottom: 4 }}>
-            {res.pending.length} 筆指定了這張卡但沒有計入 —— 付款狀態要設成「已刷卡」或「現場付」
-          </div>
-          {res.pending.map((item) => (
-            <button key={item.id} className="chip" style={{ marginRight: 4, marginBottom: 4 }} onClick={() => onSelect(item.id)}>
-              {item.title} · {item.paymentStatus ?? '未設狀態'}
-            </button>
-          ))}
-        </div>
-      )}
-
       {planningCount > 0 && (
         <div className="dim" style={{ fontSize: 11, marginTop: 8 }}>
           規劃版另有 {planningCount} 筆用這張卡，回饋只計算實際版。

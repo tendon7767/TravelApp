@@ -2,9 +2,6 @@ import type { Item, PaymentMethod, RewardRule, Trip } from '../types'
 import { itemTotals } from './money'
 import { timeSortKey } from './date'
 
-/** 回饋只認真正花掉的錢；未付與尚未到期的自動結帳不預先扣額度。 */
-export const SPENT_STATUSES = new Set(['已刷卡', '現場付'])
-
 /** 把一筆項目的金額換算成這張卡計算上限所用的幣別。 */
 export const amountInMethodCurrency = (item: Item, method: PaymentMethod, trip: Trip): number => {
   let sum = 0
@@ -32,8 +29,6 @@ export interface MethodResult {
   spend: number
   rules: RuleResult[]
   totalReward: number
-  /** 指定了這張卡、卻因為付款狀態沒設成已刷卡／現場付而沒被計入的項目。 */
-  pending: Item[]
 }
 
 /**
@@ -91,7 +86,6 @@ export const computeMethod = (
 ): MethodResult => {
   const txns = items
     .filter((i) => i.paymentMethodId === method.id && !i.deleted)
-    .filter((i) => i.paymentStatus && SPENT_STATUSES.has(i.paymentStatus))
     .sort((a, b) =>
       a.date === b.date
         ? timeSortKey(a.startTime) - timeSortKey(b.startTime)
@@ -99,14 +93,6 @@ export const computeMethod = (
     )
     .map((item) => ({ item, amount: amountInMethodCurrency(item, method, trip) }))
     .filter((t) => t.amount > 0)
-
-  // 靜默排除是最難查的錯，把沒被計入的挑出來讓介面說明原因。
-  const pending = items.filter(
-    (i) =>
-      i.paymentMethodId === method.id &&
-      !i.deleted &&
-      !(i.paymentStatus && SPENT_STATUSES.has(i.paymentStatus)),
-  )
 
   const spend = txns.reduce((s, t) => s + t.amount, 0)
 
@@ -125,7 +111,7 @@ export const computeMethod = (
     }
   })
 
-  return { method, txns, spend, rules, pending, totalReward: rules.reduce((s, r) => s + r.reward, 0) }
+  return { method, txns, spend, rules, totalReward: rules.reduce((s, r) => s + r.reward, 0) }
 }
 
 /**
