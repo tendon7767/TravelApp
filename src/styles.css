@@ -515,13 +515,24 @@ a { color: var(--accent); }
 }
 
 .detail-edit-btn {
-  padding: 3px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border-radius: 6px;
   color: var(--accent);
-  font-size: 12px;
 }
 
 .detail-edit-btn:hover { background: var(--accent-bg); }
+
+.detail-edit-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
 
 .detail-title {
   margin: 0;
@@ -566,9 +577,11 @@ a { color: var(--accent); }
   font-size: 14px;
 }
 
-.detail-value-action .dim {
+.detail-value-action .detail-edit-icon {
   margin-left: 2px;
-  font-size: 11px;
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
 }
 
 .detail-add-text,

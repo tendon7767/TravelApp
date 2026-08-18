@@ -44,6 +44,22 @@ const copyItem = (item?: Item): Item | undefined =>
       }
     : undefined
 
+const EditIcon = () => (
+  <svg
+    className="detail-edit-icon"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+    <path d="m13.5 6.5 4 4" />
+  </svg>
+)
+
 export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Props) {
   const storedItem = useStore((state) => state.data.items.find((item) => item.id === itemId))
   const updateItem = useStore((state) => state.updateItem)
@@ -110,6 +126,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     if (!item || !storedItem) return false
     return (
       item.title !== storedItem.title ||
+      item.date !== storedItem.date ||
       normalizeTime(timeDraft) !== normalizeTime(storedItem.startTime ?? '') ||
       (item.guide ?? '') !== (storedItem.guide ?? '') ||
       item.category !== storedItem.category ||
@@ -219,6 +236,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   const completeEditing = () => {
     if (itemDirty) {
       updateItem(item.id, {
+        date: item.date,
         startTime: normalizeTime(timeDraft),
         title: item.title,
         guide: item.guide,
@@ -281,8 +299,13 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
 
   const editButton = (section: ItemDraftSection) =>
     !editingSections.has(section) && (
-      <button className="detail-edit-btn" onClick={() => beginEdit(section)}>
-        編輯
+      <button
+        className="detail-edit-btn"
+        onClick={() => beginEdit(section)}
+        aria-label="編輯"
+        title="編輯"
+      >
+        <EditIcon />
       </button>
     )
 
@@ -360,6 +383,19 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                 onChange={(event) => patchItem({ title: event.target.value })}
                 autoFocus
               />
+              <label className="label" htmlFor="d-date">日期</label>
+              <input
+                id="d-date"
+                className="field mono"
+                style={{ width: 168 }}
+                type="date"
+                min={trip.startDate}
+                max={trip.endDate}
+                value={item.date}
+                onChange={(event) => {
+                  if (event.target.value) patchItem({ date: event.target.value })
+                }}
+              />
               <label className="label" htmlFor="d-start">時間</label>
               <input
                 id="d-start"
@@ -414,12 +450,16 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                 </button>
               </div>
             ) : (
-              <button className="detail-value-action" onClick={() => setChoosingCategory(true)}>
+              <button
+                className="detail-value-action"
+                onClick={() => setChoosingCategory(true)}
+                aria-label={item.category ? '編輯行程類型' : '設定行程類型'}
+              >
                 {item.category ? (
                   <>
                     <CategoryIcon category={item.category} size={20} />
                     <span>{item.category}</span>
-                    <span className="dim">變更</span>
+                    <EditIcon />
                   </>
                 ) : (
                   <span className="detail-add-text">＋ 設定行程類型</span>
