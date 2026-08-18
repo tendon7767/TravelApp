@@ -222,6 +222,23 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     setEditingSections((current) => new Set(current).add(section))
   }
 
+  const editableSections: ItemDraftSection[] = [
+    'basic',
+    'guide',
+    'map',
+    'notes',
+    'costs',
+    'links',
+    ...(isActual ? (['review'] as const) : []),
+  ]
+  const allSectionsOpen = editableSections.every((section) => editingSections.has(section))
+
+  const beginEditAll = () => {
+    setFocusLinkId(null)
+    setRestored(false)
+    setEditingSections(new Set(editableSections))
+  }
+
   const discardAndClose = () => {
     setConfirmingCancel(false)
     void clearItemDraft(itemId)
@@ -345,9 +362,6 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
       {renaming && <SettingsModal onClose={() => setRenaming(false)} />}
 
       <div className="topbar detail-head">
-        <strong style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>
-          {shortDate(item.date)} {item.startTime ?? ''}
-        </strong>
         <ConfirmButton
           label="刪除"
           question="刪除這個項目？"
@@ -357,6 +371,14 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
             onClose()
           }}
         />
+        <strong className="detail-head-date">{shortDate(item.date)}</strong>
+        <button
+          className="btn btn-sm detail-edit-all"
+          onClick={beginEditAll}
+          disabled={allSectionsOpen}
+        >
+          編輯全部
+        </button>
       </div>
 
       <div className="scroll detail-scroll">
