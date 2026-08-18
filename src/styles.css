@@ -362,7 +362,15 @@ a { color: var(--accent); }
     z-index: auto;
     width: 400px;
     flex: none;
-    height: calc(100dvh - var(--topbar-h));
+    /*
+     * 高度要同時扣掉頂端列與底部導航列，這一個扣除解掉兩個問題：
+     * 一是底部的「取消／完成」不再被導航列整條蓋住（導航列 z-index 比詳細頁高，
+     *   蓋住時連點都點不到，會誤觸到分頁圖示）。
+     * 二是 sticky 不能超出容器 .split，而導航列排在 .split 之外，
+     *   少扣這 56px 的話捲到文件底部時詳細頁會被容器邊界往上推，標題列滑進頂端列底下。
+     *   扣掉之後，捲到底時詳細頁底部剛好等於 .split 底部，不再位移。
+     */
+    height: calc(100dvh - var(--topbar-h) - var(--tabbar-h));
     border-left: 0.5px solid var(--border);
   }
 }
