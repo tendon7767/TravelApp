@@ -490,6 +490,7 @@ a { color: var(--accent); }
 .detail-scroll { background: var(--bg); }
 
 .detail-section {
+  min-width: 0;
   padding: 14px;
   border-bottom: 0.5px solid var(--border);
   background: var(--surface);
@@ -583,11 +584,14 @@ a { color: var(--accent); }
 }
 
 .detail-copy {
+  max-width: 100%;
   margin: 0;
   color: var(--text-2);
   font-size: 14px;
   line-height: 1.65;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .detail-link-list,
@@ -712,7 +716,15 @@ a { color: var(--accent); }
 .detail-split-hint p { margin: 3px 0 0; color: var(--text-3); font-size: 11px; }
 
 .detail-review { margin-top: 8px; }
-.detail-review p { margin: 2px 0 0; color: var(--text-2); font-size: 14px; white-space: pre-wrap; }
+.detail-review p {
+  max-width: 100%;
+  margin: 2px 0 0;
+  color: var(--text-2);
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 
 .detail-author {
   margin-bottom: 5px;

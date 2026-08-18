@@ -15,6 +15,8 @@ export interface ItemDraft {
   reviewDraft: string
   /** 詳細資訊改成分區編輯後，要知道重新開啟時該還原哪一區。 */
   section?: ItemDraftSection
+  /** 新版允許同時編輯多個區塊；section 留給舊草稿相容。 */
+  sections?: ItemDraftSection[]
   savedAt: number
 }
 

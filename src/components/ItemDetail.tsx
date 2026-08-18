@@ -44,10 +44,6 @@ const copyItem = (item?: Item): Item | undefined =>
       }
     : undefined
 
-const sameLinks = (a: LinkRef[], b: LinkRef[], kind: LinkRef['kind']) =>
-  JSON.stringify(a.filter((link) => link.kind === kind)) ===
-  JSON.stringify(b.filter((link) => link.kind === kind))
-
 export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Props) {
   const storedItem = useStore((state) => state.data.items.find((item) => item.id === itemId))
   const updateItem = useStore((state) => state.updateItem)
@@ -63,7 +59,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     ),
   )
 
-  const [editing, setEditing] = useState<ItemDraftSection | null>(null)
+  const [editingSections, setEditingSections] = useState<Set<ItemDraftSection>>(() => new Set())
   const [draftItem, setDraftItem] = useState(() => copyItem(storedItem))
   const [timeDraft, setTimeDraft] = useState(storedItem?.startTime ?? '')
   const [reviewDraft, setReviewDraft] = useState('')
@@ -76,8 +72,8 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [restored, setRestored] = useState(false)
-  const [legacyDraft, setLegacyDraft] = useState(false)
   const [hydrated, setHydrated] = useState(false)
+  const [touched, setTouched] = useState(false)
 
   const reviews = useMemo(
     () => allReviews.filter((review) => review.itemId === itemId && !review.deleted),
@@ -85,7 +81,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   )
   const mine = reviews.find((review) => review.author === me)
   const others = reviews.filter((review) => review.author !== me && review.text.trim())
-  const item = editing && draftItem?.id === storedItem?.id ? draftItem : storedItem
+  const item = draftItem?.id === storedItem?.id ? draftItem : storedItem
 
   const methods = useMemo(
     () =>
@@ -110,43 +106,20 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     return suggestSplit(method, amountInMethodCurrency(item, method, trip), spent)
   }, [item, method, allItems, trip])
 
-  const dirty = useMemo(() => {
-    if (!editing || !item || !storedItem) return false
-    if (legacyDraft) {
-      return (
-        item.title !== storedItem.title ||
-        normalizeTime(timeDraft) !== normalizeTime(storedItem.startTime ?? '') ||
-        (item.guide ?? '') !== (storedItem.guide ?? '') ||
-        item.category !== storedItem.category ||
-        item.paymentMethodId !== storedItem.paymentMethodId ||
-        JSON.stringify(item.notes) !== JSON.stringify(storedItem.notes) ||
-        JSON.stringify(item.links) !== JSON.stringify(storedItem.links) ||
-        JSON.stringify(item.costs) !== JSON.stringify(storedItem.costs) ||
-        reviewDraft !== (mine?.text ?? '')
-      )
-    }
-
-    switch (editing) {
-      case 'basic':
-        return (
-          item.title !== storedItem.title ||
-          normalizeTime(timeDraft) !== normalizeTime(storedItem.startTime ?? '')
-        )
-      case 'guide':
-        return (item.guide ?? '') !== (storedItem.guide ?? '')
-      case 'map':
-        return !sameLinks(item.links, storedItem.links, 'map')
-      case 'notes':
-        return JSON.stringify(item.notes) !== JSON.stringify(storedItem.notes)
-      case 'links':
-        return !sameLinks(item.links, storedItem.links, 'web')
-      case 'costs':
-        return JSON.stringify(item.costs) !== JSON.stringify(storedItem.costs)
-      case 'review':
-        return reviewDraft !== (mine?.text ?? '')
-    }
-    return false
-  }, [editing, item, storedItem, timeDraft, reviewDraft, mine?.text, legacyDraft])
+  const itemDirty = useMemo(() => {
+    if (!item || !storedItem) return false
+    return (
+      item.title !== storedItem.title ||
+      normalizeTime(timeDraft) !== normalizeTime(storedItem.startTime ?? '') ||
+      (item.guide ?? '') !== (storedItem.guide ?? '') ||
+      item.category !== storedItem.category ||
+      item.paymentMethodId !== storedItem.paymentMethodId ||
+      JSON.stringify(item.notes) !== JSON.stringify(storedItem.notes) ||
+      JSON.stringify(item.links) !== JSON.stringify(storedItem.links) ||
+      JSON.stringify(item.costs) !== JSON.stringify(storedItem.costs)
+    )
+  }, [item, storedItem, timeDraft])
+  const dirty = itemDirty || reviewDraft !== (mine?.text ?? '')
 
   useEffect(() => {
     onDirtyChange(dirty)
@@ -161,9 +134,9 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         setDraftItem(saved.item)
         setTimeDraft(saved.timeDraft)
         setReviewDraft(saved.reviewDraft)
-        setEditing(saved.section ?? 'basic')
-        setLegacyDraft(!saved.section)
+        setEditingSections(new Set(saved.sections ?? (saved.section ? [saved.section] : [])))
         setRestored(true)
+        setTouched(true)
       } else {
         setReviewDraft(mine?.text ?? '')
       }
@@ -174,11 +147,26 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     }
   }, [itemId])
 
+  // 同行者同步進來時，尚未動手的詳細頁要跟著刷新，不能拿開啟當下的舊草稿覆蓋它。
   useEffect(() => {
-    if (!hydrated || !editing || !item) return
-    if (dirty) saveItemDraft(itemId, { item, timeDraft, reviewDraft, section: editing })
+    if (!hydrated || touched || !storedItem) return
+    setDraftItem(copyItem(storedItem))
+    setTimeDraft(storedItem.startTime ?? '')
+    setReviewDraft(mine?.text ?? '')
+  }, [hydrated, touched, storedItem, mine?.text])
+
+  useEffect(() => {
+    if (!hydrated || !item) return
+    if (dirty) {
+      saveItemDraft(itemId, {
+        item,
+        timeDraft,
+        reviewDraft,
+        sections: [...editingSections],
+      })
+    }
     else void clearItemDraft(itemId)
-  }, [hydrated, editing, dirty, item, itemId, timeDraft, reviewDraft])
+  }, [hydrated, editingSections, dirty, item, itemId, timeDraft, reviewDraft])
 
   useEffect(() => {
     if (!dirty) return
@@ -198,50 +186,38 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   const mapLinks = item.links.filter((link) => link.kind === 'map')
   const webLinks = item.links.filter((link) => link.kind === 'web')
 
-  const patchItem = (patch: Partial<Item>) =>
+  const patchItem = (patch: Partial<Item>) => {
+    setTouched(true)
     setDraftItem((current) => (current ? { ...current, ...patch } : current))
-
-  const beginEdit = (section: ItemDraftSection) => {
-    if (editing) return
-    const next = copyItem(storedItem)
-    // 空白費用按「＋新增」後直接得到第一列，不必再多按一次「新增一筆」。
-    if (section === 'costs' && next && next.costs.length === 0) {
-      next.costs = [
-        { id: newId(), label: '', unitPrice: 0, qty: 1, currency: trip.foreignCurrency },
-      ]
-    }
-    setDraftItem(next)
-    setTimeDraft(storedItem.startTime ?? '')
-    setReviewDraft(mine?.text ?? '')
-    setMapDraft('')
-    setWebDraft('')
-    setNoteDraft('')
-    setFocusLinkId(null)
-    setLegacyDraft(false)
-    setRestored(false)
-    setEditing(section)
   }
 
-  const discardEditing = () => {
-    setDraftItem(copyItem(storedItem))
-    setTimeDraft(storedItem.startTime ?? '')
-    setReviewDraft(mine?.text ?? '')
-    setEditing(null)
-    setConfirmingCancel(false)
+  const beginEdit = (section: ItemDraftSection) => {
+    // 空白費用按「＋新增」後直接得到第一列，不必再多按一次「新增一筆」。
+    if (section === 'costs' && item.costs.length === 0) {
+      patchItem({
+        costs: [
+          { id: newId(), label: '', unitPrice: 0, qty: 1, currency: trip.foreignCurrency },
+        ],
+      })
+    }
+    setFocusLinkId(null)
     setRestored(false)
-    setLegacyDraft(false)
+    setEditingSections((current) => new Set(current).add(section))
+  }
+
+  const discardAndClose = () => {
+    setConfirmingCancel(false)
     void clearItemDraft(itemId)
+    onClose()
   }
 
   const requestCancel = () => {
     if (dirty) setConfirmingCancel(true)
-    else discardEditing()
+    else discardAndClose()
   }
 
   const completeEditing = () => {
-    if (!editing) return
-
-    if (legacyDraft) {
+    if (itemDirty) {
       updateItem(item.id, {
         startTime: normalizeTime(timeDraft),
         title: item.title,
@@ -252,72 +228,27 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         links: item.links,
         costs: item.costs,
       })
-      if (isActual && reviewDraft !== (mine?.text ?? '')) setReview(item.id, reviewDraft)
-    } else {
-      switch (editing) {
-        case 'basic':
-          updateItem(item.id, { title: item.title, startTime: normalizeTime(timeDraft) })
-          break
-        case 'guide':
-          updateItem(item.id, { guide: item.guide })
-          break
-        case 'map':
-          updateItem(item.id, {
-            links: [
-              ...item.links.filter((link) => link.kind === 'map'),
-              ...storedItem.links.filter((link) => link.kind === 'web'),
-            ],
-          })
-          break
-        case 'notes':
-          updateItem(item.id, { notes: item.notes })
-          break
-        case 'links':
-          updateItem(item.id, {
-            links: [
-              ...storedItem.links.filter((link) => link.kind === 'map'),
-              ...item.links.filter((link) => link.kind === 'web'),
-            ],
-          })
-          break
-        case 'costs':
-          updateItem(item.id, { costs: item.costs })
-          break
-        case 'review':
-          setReview(item.id, reviewDraft)
-          break
-      }
     }
-
-    setEditing(null)
-    setRestored(false)
-    setLegacyDraft(false)
+    if (isActual && reviewDraft !== (mine?.text ?? '')) setReview(item.id, reviewDraft)
     void clearItemDraft(item.id)
+    onClose()
   }
 
   const selectCategory = (category?: ItineraryCategory) => {
-    updateItem(storedItem.id, { category })
-    if (editing) patchItem({ category })
+    patchItem({ category })
     setChoosingCategory(false)
   }
 
   const selectPayment = (paymentMethodId?: string) => {
-    updateItem(storedItem.id, { paymentMethodId })
-    if (editing) patchItem({ paymentMethodId })
+    patchItem({ paymentMethodId })
   }
 
   const toggleNoteOverview = (noteId: string, checked: boolean) => {
-    const notes = storedItem.notes.map((note) =>
-      note.id === noteId ? { ...note, showInOverview: checked || undefined } : note,
-    )
-    updateItem(storedItem.id, { notes })
-    if (editing === 'notes') {
-      patchItem({
-        notes: item.notes.map((note) =>
-          note.id === noteId ? { ...note, showInOverview: checked || undefined } : note,
-        ),
-      })
-    }
+    patchItem({
+      notes: item.notes.map((note) =>
+        note.id === noteId ? { ...note, showInOverview: checked || undefined } : note,
+      ),
+    })
   }
 
   const patchCost = (id: string, patch: Partial<CostLine>) =>
@@ -349,7 +280,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   }
 
   const editButton = (section: ItemDraftSection) =>
-    !editing && (
+    !editingSections.has(section) && (
       <button className="detail-edit-btn" onClick={() => beginEdit(section)}>
         編輯
       </button>
@@ -380,12 +311,12 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         <Modal
           title="尚未儲存變更"
           onCancel={() => setConfirmingCancel(false)}
-          onComplete={discardEditing}
+          onComplete={discardAndClose}
           cancelLabel="繼續編輯"
           completeLabel="放棄變更"
           completeDanger
         >
-          <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這個區塊的修改嗎？</p>
+          <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的全部修改嗎？</p>
         </Modal>
       )}
       {renaming && <SettingsModal onClose={() => setRenaming(false)} />}
@@ -418,7 +349,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
             <span className="detail-kicker">基本資訊</span>
             {editButton('basic')}
           </div>
-          {editing === 'basic' ? (
+          {editingSections.has('basic') ? (
             <div className="detail-form-stack">
               <label className="label" htmlFor="d-title">行程名稱</label>
               <input
@@ -437,7 +368,10 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                 inputMode="numeric"
                 placeholder="09:10"
                 value={timeDraft}
-                onChange={(event) => setTimeDraft(event.target.value)}
+                onChange={(event) => {
+                  setTouched(true)
+                  setTimeDraft(event.target.value)
+                }}
                 onBlur={() => setTimeDraft(normalizeTime(timeDraft) ?? '')}
               />
             </div>
@@ -498,9 +432,9 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         <section className="detail-section">
           <div className="detail-section-head">
             <span className="detail-kicker">遊玩說明</span>
-            {(item.guide || editing === 'guide') && editButton('guide')}
+            {(item.guide || editingSections.has('guide')) && editButton('guide')}
           </div>
-          {editing === 'guide' ? (
+          {editingSections.has('guide') ? (
             <textarea
               className="field"
               rows={5}
@@ -520,9 +454,9 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         <section className="detail-section">
           <div className="detail-section-head">
             <span className="detail-kicker">Google Map</span>
-            {(mapLinks.length > 0 || editing === 'map') && editButton('map')}
+            {(mapLinks.length > 0 || editingSections.has('map')) && editButton('map')}
           </div>
-          {editing === 'map' ? (
+          {editingSections.has('map') ? (
             <>
               {mapLinks.map((link) => (
                 <div key={link.id} className="link-edit-row">
@@ -590,9 +524,9 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         <section className="detail-section">
           <div className="detail-section-head">
             <span className="detail-kicker">備註</span>
-            {(item.notes.length > 0 || editing === 'notes') && editButton('notes')}
+            {(item.notes.length > 0 || editingSections.has('notes')) && editButton('notes')}
           </div>
-          {editing === 'notes' ? (
+          {editingSections.has('notes') ? (
             <>
               {item.notes.map((note, index) => (
                 <div key={note.id} className="detail-note-edit-row">
@@ -661,9 +595,9 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         <section className="detail-section">
           <div className="detail-section-head">
             <span className="detail-kicker">費用</span>
-            {(item.costs.length > 0 || editing === 'costs') && editButton('costs')}
+            {(item.costs.length > 0 || editingSections.has('costs')) && editButton('costs')}
           </div>
-          {editing === 'costs' ? (
+          {editingSections.has('costs') ? (
             <>
               {item.costs.map((cost) => (
                 <div key={cost.id} className="costline">
@@ -767,9 +701,9 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         <section className="detail-section">
           <div className="detail-section-head">
             <span className="detail-kicker">相關連結</span>
-            {(webLinks.length > 0 || editing === 'links') && editButton('links')}
+            {(webLinks.length > 0 || editingSections.has('links')) && editButton('links')}
           </div>
-          {editing === 'links' ? (
+          {editingSections.has('links') ? (
             <>
               {webLinks.map((link) => (
                 <div key={link.id} className="link-edit-row">
@@ -831,7 +765,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
           <section className="detail-section">
             <div className="detail-section-head">
               <span className="detail-kicker">心得</span>
-              {(mine?.text || editing === 'review') && editButton('review')}
+              {(mine?.text || editingSections.has('review')) && editButton('review')}
             </div>
             {others.map((review) => (
               <div key={review.id} className="detail-review">
@@ -839,7 +773,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                 <p>{review.text}</p>
               </div>
             ))}
-            {editing === 'review' ? (
+            {editingSections.has('review') ? (
               <>
                 <button className="detail-author" onClick={() => setRenaming(true)}>{me} · 改名</button>
                 <textarea
@@ -847,7 +781,10 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                   rows={4}
                   placeholder="實際去了之後的感想"
                   value={reviewDraft}
-                  onChange={(event) => setReviewDraft(event.target.value)}
+                  onChange={(event) => {
+                    setTouched(true)
+                    setReviewDraft(event.target.value)
+                  }}
                   autoFocus
                 />
               </>
@@ -865,12 +802,10 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         )}
       </div>
 
-      {editing && (
-        <div className="editor-actions">
-          <button className="btn" onClick={requestCancel}>取消</button>
-          <button className="btn btn-primary" onClick={completeEditing}>完成</button>
-        </div>
-      )}
+      <div className="editor-actions">
+        <button className="btn" onClick={requestCancel}>取消</button>
+        <button className="btn btn-primary" onClick={completeEditing}>完成</button>
+      </div>
     </>
   )
 }
