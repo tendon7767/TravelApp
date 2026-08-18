@@ -112,6 +112,20 @@ function repairTextColumnsOnce(ss) {
   meta.appendRow(['textColumnsFixed', '1'])
 }
 
+/**
+ * 用瀏覽器直接打開部署網址就會看到版本與時間，
+ * 不必透過 App 就能確認「這個網址現在跑的是哪一版」。
+ * 部署 Apps Script 最容易出錯的就是改了卻沒建立新版本，這是最快的驗證方式。
+ */
+function doGet() {
+  return json({
+    ok: true,
+    version: BACKEND_VERSION,
+    now: new Date().toISOString(),
+    timeZone: Session.getScriptTimeZone(),
+  })
+}
+
 function doPost(e) {
   var body = {}
   try {
