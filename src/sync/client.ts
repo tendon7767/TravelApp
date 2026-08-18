@@ -191,7 +191,26 @@ export const mergeRemote = (
 
       const mine = list[idx]
       const mineAt = Number(mine.updatedAt) || 0
-      if (at <= mineAt) continue
+      if (at <= mineAt) {
+        // 一次性完整重拉時，遠端和本機常有相同 updatedAt。若只有本機日期已壞，
+        // 僅修復日期欄，不能因時間戳相同就略過，也不能用舊遠端整筆蓋掉本機。
+        if (name === 'trips') {
+          const startDate = normalizeStoredDate(row.startDate)
+          const endDate = normalizeStoredDate(row.endDate)
+          const mineDatesValid = normalizeStoredDate(mine.startDate) && normalizeStoredDate(mine.endDate)
+          if (!mineDatesValid && startDate && endDate) {
+            list[idx] = { ...mine, startDate, endDate }
+            applied++
+          }
+        } else if (name === 'items') {
+          const date = normalizeStoredDate(row.date)
+          if (!normalizeStoredDate(mine.date) && date) {
+            list[idx] = { ...mine, date }
+            applied++
+          }
+        }
+        continue
+      }
 
       if (JSON.stringify(mine) !== JSON.stringify(row)) {
         overwritten.push({ collection: name, id, by: String(row.updatedBy ?? '同行者') })

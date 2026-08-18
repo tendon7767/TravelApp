@@ -18,6 +18,8 @@ export interface Settings {
   driveFolderId?: string
   /** 每趟旅程對應的試算表與密鑰。這是本機設定，不會同步。 */
   tripLinks?: Record<string, TripLinkState>
+  /** 資料格式修復版本；升版時可讓既有裝置安全地完整重拉一次。 */
+  syncRepairVersion?: number
 }
 
 export interface TripLinkState {
@@ -101,9 +103,26 @@ export const loadData = async (): Promise<AppData> => {
 
 export const saveData = (data: AppData): Promise<void> => set(DATA_KEY, data)
 
-export const loadSettings = async (): Promise<Settings> => ({
-  ...defaultSettings(),
-  ...((await get<Settings>(SETTINGS_KEY)) ?? {}),
-})
+export const loadSettings = async (): Promise<Settings> => {
+  const settings = {
+    ...defaultSettings(),
+    ...((await get<Settings>(SETTINGS_KEY)) ?? {}),
+  }
+
+  // v1 修復 pull 日期型別：只把增量拉取游標歸零一次，保留本機資料與推送游標。
+  // 下一次進旅程會取得完整遠端快照，讓 merge 修回已經損壞的本機日期。
+  if ((settings.syncRepairVersion ?? 0) < 1) {
+    settings.tripLinks = Object.fromEntries(
+      Object.entries(settings.tripLinks ?? {}).map(([tripId, link]) => [
+        tripId,
+        { ...link, lastSyncAt: 0 },
+      ]),
+    )
+    settings.syncRepairVersion = 1
+    await set(SETTINGS_KEY, settings)
+  }
+
+  return settings
+}
 
 export const saveSettings = (s: Settings): Promise<void> => set(SETTINGS_KEY, s)
