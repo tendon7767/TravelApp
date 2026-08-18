@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import ItineraryTab from '../components/ItineraryTab'
@@ -33,6 +33,19 @@ export default function TripPage() {
   const planId = params.get('plan') ?? plans[0]?.id
   // 刪掉版本後網址參數會指向已消失的版本，退回第一個可用的，不要留白畫面。
   const plan = useMemo(() => plans.find((p) => p.id === planId) ?? plans[0], [plans, planId])
+
+  // 導航列高度會隨字型與安全區變動，硬寫數字必然對不準，量到多少就是多少。
+  const tabbarRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = tabbarRef.current
+    if (!el) return
+    const sync = () =>
+      document.documentElement.style.setProperty('--tabbar-h', `${el.offsetHeight}px`)
+    sync()
+    const ro = new ResizeObserver(sync)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   // 手機版詳細頁是覆蓋在上面的固定層，底下的行程仍會跟著手勢捲動。
   useEffect(() => {
@@ -108,9 +121,20 @@ export default function TripPage() {
         )}
       </div>
 
-      <div className="tabbar">
+      <div className="tabbar" ref={tabbarRef}>
         {TABS.map((t) => (
-          <button key={t.key} className="tab" data-on={tab === t.key} onClick={() => setParam('tab', t.key)}>
+          <button
+            key={t.key}
+            className="tab"
+            data-on={tab === t.key}
+            onClick={() => {
+              const next = new URLSearchParams(params)
+              next.set('tab', t.key)
+              next.delete('sel')
+              next.delete('q')
+              setParams(next, { replace: true })
+            }}
+          >
             <span className="tabicon" aria-hidden="true">
               {t.icon}
             </span>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import type { Trip } from '../types'
-import { computeMethod } from '../lib/rewards'
+import { computeMethod, spendCapOf, type MethodResult } from '../lib/rewards'
 import { formatMoney } from '../lib/money'
 import { shortDate } from '../lib/date'
 import PaymentEditor from './PaymentEditor'
@@ -19,7 +19,7 @@ export default function RewardsTab({ trip, onSelect }: Props) {
   const createPayment = useStore((s) => s.createPayment)
   const updatePayment = useStore((s) => s.updatePayment)
   const copyPaymentsFrom = useStore((s) => s.copyPaymentsFrom)
-  const [editing, setEditing] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   // 回饋只認實際版：規劃版的預估金額不是真的刷出去的錢。
   const actual = useMemo(
@@ -48,13 +48,15 @@ export default function RewardsTab({ trip, onSelect }: Props) {
   )
 
   const byOwner = useMemo(() => {
-    const map = new Map<string, typeof results>()
+    const map = new Map<string, MethodResult[]>()
     for (const r of results) {
-      const key = r.method.owner?.trim() || '未指定'
+      const key = r.method.owner?.trim() || '未指定持有人'
       map.set(key, [...(map.get(key) ?? []), r])
     }
     return [...map.entries()]
   }, [results])
+
+  const editing = methods.find((m) => m.id === editingId)
 
   return (
     <>
@@ -68,81 +70,34 @@ export default function RewardsTab({ trip, onSelect }: Props) {
         </div>
       )}
 
+      {/* 編輯面板放在分組外面。放進分組裡的話，一改持有人分組就變動，
+          整個區塊會被重建，輸入框當場失去焦點，中文根本打不完一個字。 */}
+      {editing && (
+        <div className="sec" style={{ background: 'var(--surface-2)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="label" style={{ margin: 0 }}>編輯支付方式</span>
+            <button className="btn btn-sm" onClick={() => setEditingId(null)}>完成</button>
+          </div>
+          <PaymentEditor method={editing} trip={trip} />
+        </div>
+      )}
+
       {byOwner.map(([owner, list]) => (
         <div key={owner}>
           <div className="dayhead" style={{ position: 'static' }}>
             <span style={{ fontSize: 13, fontWeight: 500 }}>{owner}</span>
             <span className="mono dim" style={{ fontSize: 12 }}>
-              回饋 {formatMoney(list.reduce((s, r) => s + r.totalReward, 0), list[0].method.currency)}
+              已累積回饋 {formatMoney(list.reduce((s, r) => s + r.totalReward, 0), list[0].method.currency)}
             </span>
           </div>
 
           {list.map((res) => (
-            <div key={res.method.id} className="sec">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 500 }}>
-                  {res.method.name || '未命名'}
-                  <span className="dim" style={{ fontSize: 11, marginLeft: 6 }}>
-                    {res.method.kind === 'card' ? '信用卡' : '電子支付'} · {res.txns.length} 筆
-                  </span>
-                </span>
-                <button className="btn btn-sm" onClick={() => setEditing(editing === res.method.id ? null : res.method.id)}>
-                  {editing === res.method.id ? '完成' : '設定'}
-                </button>
-              </div>
-
-              {res.rules.map((rr) => {
-                const cap = rr.rule.spendCap
-                const pct = cap ? Math.min(100, (Math.min(res.spend, cap) / cap) * 100) : 0
-                const exhausted = rr.remainingSpend === 0
-                return (
-                  <div key={rr.rule.id} style={{ marginTop: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                      <span>
-                        {rr.rule.name} <span className="dim">{(rr.rule.rate * 100).toFixed(1)}%</span>
-                      </span>
-                      <span className="mono" style={{ color: exhausted ? 'var(--danger)' : 'var(--text-2)' }}>
-                        {cap === undefined
-                          ? '無消費上限'
-                          : exhausted
-                            ? '額度已用完'
-                            : `還可刷 ${formatMoney(rr.remainingSpend ?? 0, res.method.currency)}`}
-                      </span>
-                    </div>
-                    {cap !== undefined && (
-                      <div style={{ height: 6, background: 'var(--surface-2)', borderRadius: 3, marginTop: 4 }}>
-                        <div style={{ width: `${pct}%`, height: '100%', borderRadius: 3, background: exhausted ? 'var(--danger)' : 'var(--accent)' }} />
-                      </div>
-                    )}
-                    <div className="mono dim" style={{ fontSize: 11, marginTop: 3 }}>
-                      已刷 {formatMoney(res.spend, res.method.currency)}
-                      {cap !== undefined && ` / ${formatMoney(cap, res.method.currency)}`}
-                      {' · '}累積回饋 {formatMoney(rr.reward, res.method.currency)}
-                      {rr.rule.rewardCap !== undefined && ` / ${formatMoney(rr.rule.rewardCap, res.method.currency)}`}
-                      {rr.rule.perTxnRewardCap !== undefined && ` · 單筆上限 ${formatMoney(rr.rule.perTxnRewardCap, res.method.currency)}`}
-                    </div>
-                  </div>
-                )
-              })}
-
-              {editing === res.method.id && <PaymentEditor method={res.method} trip={trip} />}
-
-              {res.txns.length > 0 && (
-                <div style={{ marginTop: 10 }}>
-                  <span className="label">這趟刷了哪幾筆</span>
-                  {res.txns.map(({ item, amount }) => (
-                    <button
-                      key={item.id}
-                      onClick={() => onSelect(item.id)}
-                      style={{ display: 'flex', width: '100%', justifyContent: 'space-between', fontSize: 12, padding: '3px 0' }}
-                    >
-                      <span className="dim">{shortDate(item.date)} {item.title}</span>
-                      <span className="mono">{formatMoney(amount, res.method.currency)}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <MethodCard
+              key={res.method.id}
+              res={res}
+              onEdit={() => setEditingId(editingId === res.method.id ? null : res.method.id)}
+              onSelect={onSelect}
+            />
           ))}
         </div>
       ))}
@@ -159,7 +114,7 @@ export default function RewardsTab({ trip, onSelect }: Props) {
       )}
 
       <div className="sec" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <button className="btn btn-sm" onClick={() => setEditing(createPayment(trip.id).id)}>
+        <button className="btn btn-sm" onClick={() => setEditingId(createPayment(trip.id).id)}>
           ＋ 新增支付方式
         </button>
         {otherTrips.map((t) => (
@@ -169,5 +124,91 @@ export default function RewardsTab({ trip, onSelect }: Props) {
         ))}
       </div>
     </>
+  )
+}
+
+/** 主角是「還能刷多少」，不是「已經拿了多少」—— 站在收銀台前要看的是前者。 */
+function MethodCard({
+  res,
+  onEdit,
+  onSelect,
+}: {
+  res: MethodResult
+  onEdit: () => void
+  onSelect: (id: string) => void
+}) {
+  const cur = res.method.currency
+  const capped = res.rules.filter((r) => r.remainingSpend !== undefined)
+  const remaining = capped.length ? Math.min(...capped.map((r) => r.remainingSpend ?? 0)) : undefined
+  const exhausted = remaining === 0
+  const totalCap = capped.length ? Math.min(...capped.map((r) => spendCapOf(r.rule) ?? Infinity)) : undefined
+  const pct = totalCap && totalCap !== Infinity ? Math.min(100, (res.spend / totalCap) * 100) : 0
+
+  return (
+    <div className="sec">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontSize: 14, fontWeight: 500 }}>
+          {res.method.name || '未命名'}
+          <span className="dim" style={{ fontSize: 11, marginLeft: 6 }}>
+            {res.method.kind === 'card' ? '信用卡' : '電子支付'}
+          </span>
+        </span>
+        <button className="btn btn-sm" onClick={onEdit}>設定</button>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 6 }}>
+        <div style={{ flex: 1 }}>
+          <div className="label" style={{ margin: 0 }}>還可刷</div>
+          <div
+            className="mono"
+            style={{ fontSize: 24, lineHeight: 1.2, color: exhausted ? 'var(--danger)' : 'var(--text)' }}
+          >
+            {remaining === undefined ? '無上限' : formatMoney(remaining, cur)}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div className="label" style={{ margin: 0 }}>已累積回饋</div>
+          <div className="mono" style={{ fontSize: 16 }}>{formatMoney(res.totalReward, cur)}</div>
+        </div>
+      </div>
+
+      {totalCap !== undefined && totalCap !== Infinity && (
+        <div style={{ height: 6, background: 'var(--surface-2)', borderRadius: 3, marginTop: 8 }}>
+          <div style={{ width: `${pct}%`, height: '100%', borderRadius: 3, background: exhausted ? 'var(--danger)' : 'var(--accent)' }} />
+        </div>
+      )}
+      <div className="mono dim" style={{ fontSize: 11, marginTop: 4 }}>
+        已刷 {formatMoney(res.spend, cur)}
+        {totalCap !== undefined && totalCap !== Infinity && ` / ${formatMoney(totalCap, cur)}`}
+        {' · '}{res.txns.length} 筆
+      </div>
+
+      {res.rules.map((rr) => (
+        <div key={rr.rule.id} className="dim" style={{ fontSize: 11, marginTop: 4 }}>
+          {rr.rule.name} {(rr.rule.rate * 100).toFixed(1)}%
+          {rr.rule.rewardCap !== undefined && ` · 回饋上限 ${formatMoney(rr.rule.rewardCap, cur)}`}
+          {rr.rule.perTxnRewardCap !== undefined && ` · 單筆上限 ${formatMoney(rr.rule.perTxnRewardCap, cur)}`}
+          {rr.remainingSpend !== undefined && ` · 還可刷 ${formatMoney(rr.remainingSpend, cur)}`}
+          {' · '}已拿 {formatMoney(rr.reward, cur)}
+        </div>
+      ))}
+
+      <div style={{ marginTop: 10 }}>
+        <span className="label">刷卡明細</span>
+        {res.txns.length === 0 && <div className="dim" style={{ fontSize: 12 }}>這張卡還沒有紀錄。</div>}
+        {res.txns.map(({ item, amount }) => (
+          <button
+            key={item.id}
+            onClick={() => onSelect(item.id)}
+            style={{ display: 'flex', width: '100%', justifyContent: 'space-between', gap: 8, fontSize: 12, padding: '4px 0', borderBottom: '0.5px solid var(--border)' }}
+          >
+            <span className="dim" style={{ textAlign: 'left', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {shortDate(item.date)} {item.title}
+            </span>
+            <span className="mono" style={{ flex: 'none' }}>{formatMoney(amount, cur)}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }

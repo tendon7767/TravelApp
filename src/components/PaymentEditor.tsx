@@ -2,6 +2,8 @@ import { useStore } from '../store/useStore'
 import type { PaymentMethod, RewardRule, Trip } from '../types'
 import { newId } from '../lib/id'
 import ConfirmButton from './ConfirmButton'
+import { spendCapOf } from '../lib/rewards'
+import { formatMoney } from '../lib/money'
 
 /**
  * 三個上限都能填，因為它們限制的東西不一樣：
@@ -104,16 +106,6 @@ export default function PaymentEditor({ method, trip }: { method: PaymentMethod;
               />
             </div>
             <div style={{ flex: 1, minWidth: 96 }}>
-              <label className="label">消費上限</label>
-              <input
-                className="field mono"
-                type="number"
-                placeholder="無"
-                value={r.spendCap ?? ''}
-                onChange={(e) => patchRule(r.id, { spendCap: num(e.target.value) })}
-              />
-            </div>
-            <div style={{ flex: 1, minWidth: 96 }}>
               <label className="label">單筆回饋上限</label>
               <input
                 className="field mono"
@@ -122,6 +114,12 @@ export default function PaymentEditor({ method, trip }: { method: PaymentMethod;
                 value={r.perTxnRewardCap ?? ''}
                 onChange={(e) => patchRule(r.id, { perTxnRewardCap: num(e.target.value) })}
               />
+            </div>
+            <div style={{ flex: 1, minWidth: 96 }}>
+              <label className="label">消費上限（自動）</label>
+              <div className="field mono dim" style={{ background: 'var(--surface-2)' }}>
+                {spendCapOf(r) === undefined ? '無' : formatMoney(spendCapOf(r)!, method.currency)}
+              </div>
             </div>
           </div>
         </div>

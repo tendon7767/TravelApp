@@ -74,9 +74,8 @@ export interface Item extends SyncFields {
 
 /**
  * 一張卡可以有多組回饋規則（一般、加碼、通路限定），彼此同時累積。
- * 三個上限的意義不同，缺一不可：
- *   rewardCap      這趟能拿到的回饋總額上限
- *   spendCap       超過這個消費金額後，這條規則就不再產生回饋
+ * 消費上限不存在這裡，因為它恆等於 rewardCap / rate，手填只會多一個對不起來的來源。
+ *   rewardCap       這趟能拿到的回饋總額上限
  *   perTxnRewardCap 單筆交易的回饋上限 —— 這是拆單建議的依據
  */
 export interface RewardRule {
@@ -84,7 +83,6 @@ export interface RewardRule {
   name: string
   rate: number
   rewardCap?: number
-  spendCap?: number
   perTxnRewardCap?: number
 }
 

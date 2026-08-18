@@ -14,6 +14,7 @@
   --ok: #1a7f4b;
   --ok-bg: #e6f4ec;
   --radius: 10px;
+  --tabbar-h: calc(46px + env(safe-area-inset-bottom));
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   --cat-交通: #2f7fd4;
   --cat-餐飲: #d98324;
@@ -257,7 +258,7 @@ a { color: var(--accent); }
 .tabbar {
   position: sticky;
   bottom: 0;
-  z-index: 20;
+  z-index: 31;
   display: flex;
   background: var(--surface);
   border-top: 0.5px solid var(--border);
@@ -280,7 +281,7 @@ a { color: var(--accent); }
 .split > .pane-list { flex: 1; min-width: 0; }
 .pane-detail {
   position: fixed;
-  inset: 0;
+  inset: 0 0 var(--tabbar-h) 0;
   z-index: 30;
   background: var(--bg);
   display: flex;
@@ -293,6 +294,7 @@ a { color: var(--accent); }
     position: sticky;
     inset: auto;
     top: 53px;
+    bottom: auto;
     align-self: flex-start;
     z-index: auto;
     width: 400px;

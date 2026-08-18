@@ -39,6 +39,13 @@ export interface MethodResult {
  * 一筆 3,000、費率 6%、單筆回饋上限 60 的回饋是 min(180, 60) = 60，不是 180。
  * 用總額算會高估，而且高估得很難發現。
  */
+/**
+ * 消費上限＝回饋上限 ÷ 回饋率。刷超過這個金額，這條規則就再也產不出回饋。
+ * 這是唯一來源，不讓使用者手填，免得兩個數字對不起來。
+ */
+export const spendCapOf = (rule: RewardRule): number | undefined =>
+  rule.rewardCap !== undefined && rule.rate > 0 ? rule.rewardCap / rule.rate : undefined
+
 /** 單一規則跑過一串交易，回傳吃到的消費、回饋、有沒有撞上限。 */
 const runRule = (rule: RewardRule, amounts: number[]) => {
   let spent = 0
@@ -46,8 +53,9 @@ const runRule = (rule: RewardRule, amounts: number[]) => {
   let reward = 0
   let capped = false
 
+  const spendCap = spendCapOf(rule)
   for (const amount of amounts) {
-    const room = rule.spendCap === undefined ? amount : Math.max(0, rule.spendCap - spent)
+    const room = spendCap === undefined ? amount : Math.max(0, spendCap - spent)
     const eligible = Math.min(amount, room)
     spent += amount
     if (eligible <= 0) {
@@ -99,7 +107,10 @@ export const computeMethod = (
       rule,
       eligibleSpend: r.eligibleSpend,
       reward: r.reward,
-      remainingSpend: rule.spendCap === undefined ? undefined : Math.max(0, rule.spendCap - spend),
+      remainingSpend: (() => {
+        const cap = spendCapOf(rule)
+        return cap === undefined ? undefined : Math.max(0, cap - spend)
+      })(),
       capped: r.capped,
     }
   })
