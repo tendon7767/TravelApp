@@ -207,7 +207,7 @@ export default function TripPage() {
             />
           )}
           {!searching && tab === 'rewards' && (
-            <RewardsTab trip={trip} onSelect={(id) => setParam('sel', id)} />
+            <RewardsTab trip={trip} plan={plan} onSelect={(id) => setParam('sel', id)} />
           )}
           {!searching && tab === 'notes' && <NotesTab trip={trip} />}
         </div>

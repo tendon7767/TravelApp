@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
-import type { Trip } from '../types'
+import type { Plan, Trip } from '../types'
 import { computeMethod, type MethodResult } from '../lib/rewards'
 import { formatMoney } from '../lib/money'
 import { shortDate } from '../lib/date'
@@ -10,11 +10,11 @@ import Modal from './Modal'
 
 interface Props {
   trip: Trip
+  plan?: Plan
   onSelect: (id: string) => void
 }
 
-export default function RewardsTab({ trip, onSelect }: Props) {
-  const allPlans = useStore((s) => s.data.plans)
+export default function RewardsTab({ trip, plan, onSelect }: Props) {
   const allItems = useStore((s) => s.data.items)
   const allPayments = useStore((s) => s.data.payments)
   const allTrips = useStore((s) => s.data.trips)
@@ -24,22 +24,21 @@ export default function RewardsTab({ trip, onSelect }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null)
 
-  // 回饋只認實際版：規劃版的預估金額不是真的刷出去的錢。
-  const actual = useMemo(
-    () => allPlans.find((p) => p.tripId === trip.id && p.kind === 'actual' && !p.deleted),
-    [allPlans, trip.id],
-  )
+  const isActual = plan?.kind === 'actual'
   const methods = useMemo(
     () => allPayments.filter((p) => p.tripId === trip.id && !p.deleted),
     [allPayments, trip.id],
   )
   const items = useMemo(
-    () => (actual ? allItems.filter((i) => i.planId === actual.id && !i.deleted) : []),
-    [allItems, actual],
+    () => (isActual && plan ? allItems.filter((i) => i.planId === plan.id && !i.deleted) : []),
+    [allItems, isActual, plan],
   )
   const results = useMemo(
-    () => methods.filter((m) => m.enabled).map((m) => computeMethod(m, items, trip)),
-    [methods, items, trip],
+    () =>
+      isActual
+        ? methods.filter((m) => m.enabled).map((m) => computeMethod(m, items, trip))
+        : [],
+    [methods, items, trip, isActual],
   )
 
 
@@ -77,13 +76,26 @@ export default function RewardsTab({ trip, onSelect }: Props) {
         ))}
       </div>
 
-      {!actual && (
+      {!isActual && (
         <div className="sec" style={{ background: 'var(--accent-bg)' }}>
-          <div style={{ fontSize: 14, marginBottom: 4 }}>尚未開始跑行程</div>
+          <div style={{ fontSize: 14, marginBottom: 4 }}>規劃版不計算回饋</div>
           <p className="dim" style={{ fontSize: 12, margin: 0 }}>
-            回饋只計算實際版的支出。出發時用上方的「建立實際版」開一份，這裡就會開始統計。
-            下面的支付方式現在就能先建好。
+            規劃中的費用只是預估，不會算進已刷金額與回饋。出發後請用上方的「建立實際版」，
+            或切換到既有的實際版查看計算結果。
           </p>
+        </div>
+      )}
+
+      {!isActual && methods.length > 0 && (
+        <div className="sec">
+          <span className="label">支付方式設定</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {methods.map((m) => (
+              <button key={m.id} className="chip" onClick={() => setEditingId(m.id)}>
+                {methodLabel(m.name, m.owner)}{m.enabled ? '' : ' · 這趟沒帶'}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -142,7 +154,7 @@ export default function RewardsTab({ trip, onSelect }: Props) {
         </div>
       ))}
 
-      {methods.filter((m) => !m.enabled).length > 0 && (
+      {isActual && methods.filter((m) => !m.enabled).length > 0 && (
         <div className="sec">
           <span className="label">這趟沒帶</span>
           {methods.filter((m) => !m.enabled).map((m) => (
