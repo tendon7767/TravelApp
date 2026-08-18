@@ -12,6 +12,7 @@ import { methodLabel } from '../lib/owners'
 import SettingsModal from './SettingsModal'
 import Modal from './Modal'
 import { amountInMethodCurrency, computeMethod, suggestSplit } from '../lib/rewards'
+import { clearItemDraft, loadItemDraft, saveItemDraft } from '../store/drafts'
 
 interface Props {
   trip: Trip
@@ -41,6 +42,8 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   const [renaming, setRenaming] = useState(false)
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+  const [restored, setRestored] = useState(false)
+  const [hydrated, setHydrated] = useState(false)
   const allPayments = useStore((s) => s.data.payments)
   const allItems = useStore((s) => s.data.items)
   const allReviews = useStore((s) => s.data.reviews)
@@ -104,6 +107,35 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     return () => onDirtyChange(false)
   }, [dirty, onDirtyChange])
 
+  // 開啟時把上次沒送出的內容接回來，並明講是還原的，免得以為資料被改掉了。
+  useEffect(() => {
+    let cancelled = false
+    void loadItemDraft(itemId).then((saved) => {
+      if (cancelled) return
+      if (saved) {
+        setDraftItem(saved.item)
+        setTimeDraft(saved.timeDraft)
+        setReviewDraft(saved.reviewDraft)
+        setRestored(true)
+      }
+      setHydrated(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [itemId])
+
+  /*
+   * 有改動才寫草稿；沒改動時把殘留的草稿清掉，否則下次開啟會還原一份沒必要的內容。
+   * 必須等 hydrated 才能動手：剛掛載時 dirty 還是 false，
+   * 這個 effect 會搶在非同步讀取回來之前把草稿刪掉，還原就永遠失敗。
+   */
+  useEffect(() => {
+    if (!hydrated || !item) return
+    if (dirty) saveItemDraft(itemId, { item, timeDraft, reviewDraft })
+    else void clearItemDraft(itemId)
+  }, [hydrated, dirty, item, itemId, timeDraft, reviewDraft])
+
   useEffect(() => {
     if (!dirty) return
     const warn = (event: BeforeUnloadEvent) => {
@@ -165,12 +197,18 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
       paymentMethodId: item.paymentMethodId,
     })
     if (isActual && reviewDraft !== (mine?.text ?? '')) setReview(item.id, reviewDraft)
+    void clearItemDraft(item.id)
+    onClose()
+  }
+
+  const discard = () => {
+    void clearItemDraft(itemId)
     onClose()
   }
 
   const cancel = () => {
     if (dirty) setConfirmingCancel(true)
-    else onClose()
+    else discard()
   }
 
   return (
@@ -179,7 +217,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         <Modal
           title="尚未儲存變更"
           onCancel={() => setConfirmingCancel(false)}
-          onComplete={onClose}
+          onComplete={discard}
           cancelLabel="繼續編輯"
           completeLabel="放棄變更"
           completeDanger
@@ -198,10 +236,20 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
             question="刪除這個項目？"
             onConfirm={() => {
               removeItem(item.id)
+              void clearItemDraft(item.id)
               onClose()
             }}
           />
         </div>
+
+      {restored && (
+        <div className="sec" style={{ background: 'var(--accent-bg)', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ flex: 1, fontSize: 12, color: 'var(--accent)' }}>
+            已還原上次未送出的編輯
+          </span>
+          <button className="btn btn-sm" onClick={() => setRestored(false)}>知道了</button>
+        </div>
+      )}
 
       <div className="sec">
         <input
