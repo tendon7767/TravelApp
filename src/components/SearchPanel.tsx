@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore'
 import type { Item, Plan } from '../types'
 import { formatTotals, itemTotals } from '../lib/money'
 import { shortDate } from '../lib/date'
+import CategoryIcon from './CategoryIcon'
 
 interface Props {
   plan: Plan
@@ -64,10 +65,7 @@ export default function SearchPanel({ plan, onPick, onClose }: Props) {
 
       {hits.map((item) => (
         <button key={item.id} className="row" onClick={() => onPick(item.id)}>
-          <span
-            className="dot"
-            style={{ background: item.category ? `var(--cat-${item.category})` : 'transparent' }}
-          />
+          <CategoryIcon category={item.category} className="row-category-icon" />
           <span className="rowtitle">
             {item.title}
             <div className="dim" style={{ fontSize: 12, marginTop: 2 }}>

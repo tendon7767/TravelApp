@@ -5,6 +5,7 @@ import { eachDay, HALF_HOUR_SLOTS, shortDate, timeSortKey, todayISO } from '../l
 import { isSubmitEnter } from '../lib/keys'
 import { DAY_TEMPLATE } from '../lib/dayTemplate'
 import { formatMoney, formatTotals, isUncategorized, itemTotals, mergeTotals, toHome } from '../lib/money'
+import CategoryIcon from './CategoryIcon'
 
 interface Props {
   trip: Trip
@@ -182,15 +183,15 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
                 data-sel={item.id === selectedId}
                 onClick={() => onSelect(item.id)}
               >
-                <span
-                  className="dot"
-                  style={{ background: item.category ? `var(--cat-${item.category})` : 'transparent' }}
-                />
+                <CategoryIcon category={item.category} className="row-category-icon" />
                 <span className="rowtime">{item.startTime ?? ''}</span>
                 <span className="rowtitle">
                   {item.title}
-                  {item.links.length > 0 && (
-                    <span className="dim" style={{ fontSize: 12, marginLeft: 4 }}>◎</span>
+                  {item.links.some((link) => link.kind === 'map') && (
+                    <span className="dim" style={{ fontSize: 12, marginLeft: 5 }} title="Google Maps 地點">⌖</span>
+                  )}
+                  {item.links.some((link) => link.kind === 'web') && (
+                    <span className="dim" style={{ fontSize: 12, marginLeft: 4 }} title="相關連結">↗</span>
                   )}
                   {isUncategorized(item) && <span className="warn" style={{ marginLeft: 6 }}>缺類型</span>}
                   {item.notes.some((n) => n.showInOverview && n.text.trim()) && (

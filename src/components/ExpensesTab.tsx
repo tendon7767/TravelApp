@@ -10,6 +10,7 @@ import {
   mergeTotals,
   toHome,
 } from '../lib/money'
+import CategoryIcon from './CategoryIcon'
 
 interface Props {
   trip: Trip
@@ -90,14 +91,10 @@ export default function ExpensesTab({ trip, plan, onSelect, onBack }: Props) {
           return (
             <div key={cat} style={{ marginBottom: 9 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span>
-                  <span
-                    className="dot"
-                    style={{
-                      display: 'inline-block',
-                      margin: '0 6px 0 0',
-                      background: cat === '未分類' ? 'var(--danger)' : `var(--cat-${cat})`,
-                    }}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <CategoryIcon
+                    category={cat === '未分類' ? undefined : cat as (typeof EXPENSE_CATEGORIES)[number]}
+                    size={17}
                   />
                   {cat}
                 </span>
@@ -160,7 +157,7 @@ function ExpenseList({ items, onSelect }: { items: Item[]; onSelect: (id: string
       </div>
       {withCost.map((i) => (
         <button key={i.id} className="row" onClick={() => onSelect(i.id)}>
-          <span className="dot" style={{ background: i.category ? `var(--cat-${i.category})` : 'transparent' }} />
+          <CategoryIcon category={i.category} className="row-category-icon" />
           <span className="rowtitle">
             {i.title}
             <div className="dim" style={{ fontSize: 12, marginTop: 2 }}>

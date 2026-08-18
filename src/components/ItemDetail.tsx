@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
-import { EXPENSE_CATEGORIES, type CostLine, type Item, type Trip } from '../types'
+import { EXPENSE_CATEGORIES, type CostLine, type Item, type LinkRef, type Trip } from '../types'
 import { newId } from '../lib/id'
 import { makeLink } from '../lib/maps'
 import { formatMoney, lineTotal, sumByCurrency, toHome } from '../lib/money'
@@ -13,6 +13,7 @@ import SettingsModal from './SettingsModal'
 import Modal from './Modal'
 import { amountInMethodCurrency, computeMethod, suggestSplit } from '../lib/rewards'
 import { clearItemDraft, loadItemDraft, saveItemDraft } from '../store/drafts'
+import CategoryIcon from './CategoryIcon'
 
 interface Props {
   trip: Trip
@@ -36,7 +37,8 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   const updateItem = useStore((s) => s.updateItem)
   const removeItem = useStore((s) => s.removeItem)
   const [draftItem, setDraftItem] = useState(() => copyItem(storedItem))
-  const [linkDraft, setLinkDraft] = useState('')
+  const [mapDraft, setMapDraft] = useState('')
+  const [webDraft, setWebDraft] = useState('')
   const [noteDraft, setNoteDraft] = useState('')
   const [timeDraft, setTimeDraft] = useState(storedItem?.startTime ?? '')
   const [renaming, setRenaming] = useState(false)
@@ -166,13 +168,72 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
       ],
     })
 
-  const addLink = () => {
-    if (!linkDraft.trim()) return
-    const link = makeLink(linkDraft)
+  const addLink = (kind: LinkRef['kind']) => {
+    const draft = kind === 'map' ? mapDraft : webDraft
+    if (!draft.trim()) return
+    // 區塊本身代表使用者意圖；即使 Google 日後更換網址格式，也仍會留在地圖區。
+    const link = { ...makeLink(draft), kind }
     patchItem({ links: [...item.links, link] })
-    setLinkDraft('')
+    if (kind === 'map') setMapDraft('')
+    else setWebDraft('')
     // 短網址拆不出地名，游標直接跳過去讓你接著打，省一次點擊。
     if (!link.label) setFocusLinkId(link.id)
+  }
+
+  const renderLinkSection = (kind: LinkRef['kind']) => {
+    const isMap = kind === 'map'
+    const links = item.links.filter((link) => link.kind === kind)
+    const draft = isMap ? mapDraft : webDraft
+    const setDraft = isMap ? setMapDraft : setWebDraft
+    const title = isMap ? 'Google Maps 地點' : '相關連結'
+
+    return (
+      <div className="sec">
+        <span className="label link-section-title">
+          <span aria-hidden="true">{isMap ? '⌖' : '↗'}</span>
+          {title}
+        </span>
+        {links.map((link) => (
+          <div key={link.id} className="link-edit-row">
+            <input
+              className="field"
+              style={{ flex: 1, minWidth: 0 }}
+              value={link.label}
+              onChange={(e) =>
+                patchItem({
+                  links: item.links.map((value) =>
+                    value.id === link.id ? { ...value, label: e.target.value } : value,
+                  ),
+                })
+              }
+              aria-label={`${title}名稱`}
+              autoFocus={link.id === focusLinkId}
+              placeholder={link.url}
+            />
+            <a className="btn btn-sm" href={link.url} target="_blank" rel="noreferrer">
+              開啟
+            </a>
+            <button
+              className="btn btn-sm"
+              onClick={() => patchItem({ links: item.links.filter((value) => value.id !== link.id) })}
+              aria-label={`刪除這個${title}`}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <div className="link-add-row">
+          <input
+            className="field"
+            value={draft}
+            placeholder={isMap ? '貼上 Google Maps 網址' : '貼上訂位、票券或網站網址'}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => isSubmitEnter(e) && addLink(kind)}
+          />
+          <button className="btn" onClick={() => addLink(kind)}>加入</button>
+        </div>
+      </div>
+    )
   }
 
   const addNote = () => {
@@ -371,48 +432,8 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         </div>
       </div>
 
-      <div className="sec">
-        <span className="label">連結</span>
-        {item.links.map((l) => (
-          <div key={l.id} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
-            <span className="dim" aria-hidden="true" style={{ flex: 'none' }}>
-              {l.kind === 'map' ? '◎' : '↗'}
-            </span>
-            <input
-              className="field"
-              style={{ flex: 1, minWidth: 0 }}
-              value={l.label}
-              onChange={(e) =>
-                patchItem({
-                  links: item.links.map((v) => (v.id === l.id ? { ...v, label: e.target.value } : v)),
-                })
-              }
-              aria-label="連結名稱"
-              autoFocus={l.id === focusLinkId}
-              placeholder={l.url}
-            />
-            <a className="btn btn-sm" href={l.url} target="_blank" rel="noreferrer">
-              開啟
-            </a>
-            <button
-              className="btn btn-sm"
-              onClick={() => patchItem({ links: item.links.filter((v) => v.id !== l.id) })}
-              aria-label="刪除這個連結"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-        <div style={{ display: 'flex', gap: 6 }}>
-          <input
-            className="field"
-            value={linkDraft}
-            onChange={(e) => setLinkDraft(e.target.value)}
-            onKeyDown={(e) => isSubmitEnter(e) && addLink()}
-          />
-          <button className="btn" onClick={addLink}>加入</button>
-        </div>
-      </div>
+      {renderLinkSection('map')}
+      {renderLinkSection('web')}
 
       <div className="sec">
         <span className="label">費用明細</span>
@@ -496,21 +517,33 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
 
       {item.costs.length > 0 && (
         <div className="sec" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 120 }}>
-            <label className="label" htmlFor="d-cat">費用類型</label>
-            <select
-              id="d-cat"
-              className="field"
-              value={item.category ?? ''}
-              onChange={(e) =>
-                patchItem({ category: (e.target.value || undefined) as typeof item.category })
-              }
-            >
-              <option value="">未分類</option>
-              {EXPENSE_CATEGORIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
+          <div style={{ flex: 2, minWidth: 220 }}>
+            <span className="label">費用類型</span>
+            <div className="category-picker" role="group" aria-label="費用類型">
+              <button
+                type="button"
+                className="category-choice"
+                data-on={!item.category}
+                aria-pressed={!item.category}
+                onClick={() => patchItem({ category: undefined })}
+              >
+                <CategoryIcon />
+                <span>未分類</span>
+              </button>
+              {EXPENSE_CATEGORIES.map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  className="category-choice"
+                  data-on={item.category === category}
+                  aria-pressed={item.category === category}
+                  onClick={() => patchItem({ category })}
+                >
+                  <CategoryIcon category={category} />
+                  <span>{category}</span>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
           <div style={{ flex: 1, minWidth: 140 }}>
             <label className="label" htmlFor="d-method">支付方式</label>
