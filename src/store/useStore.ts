@@ -13,7 +13,8 @@ import {
   type Trip,
 } from '../types'
 import { newId } from '../lib/id'
-import { addDays, dayCount, todayISO } from '../lib/date'
+import { addDays, dayCount, eachDay, todayISO } from '../lib/date'
+import { DAY_TEMPLATE } from '../lib/dayTemplate'
 import {
   DEFAULT_PACKING,
   defaultSettings,
@@ -176,6 +177,19 @@ export const useStore = create<State>((setState, getState) => {
     createTrip: (input) => {
       const trip: Trip = { ...input, ...stamp() }
       const plan: Plan = { ...stamp(), tripId: trip.id, name: '規劃版', kind: 'planning' }
+      const dailyItems = eachDay(trip.startDate, trip.endDate).flatMap((date) =>
+        DAY_TEMPLATE.map<Item>((row) => ({
+          ...stamp(),
+          planId: plan.id,
+          date,
+          startTime: row.time,
+          title: row.title,
+          category: row.cat,
+          notes: [],
+          links: [],
+          costs: [],
+        })),
+      )
       // 每趟都要打包，與其讓使用者每次從零開始，不如直接帶上次存的範本。
       const packing: Note = {
         ...stamp(),
@@ -193,6 +207,7 @@ export const useStore = create<State>((setState, getState) => {
         ...d,
         trips: [...d.trips, trip],
         plans: [...d.plans, plan],
+        items: [...d.items, ...dailyItems],
         notes: [...d.notes, packing],
       }))
       getState().setActive(trip.id, plan.id)

@@ -3,7 +3,6 @@ import { useStore } from '../store/useStore'
 import type { Item, Plan, Trip } from '../types'
 import { eachDay, HALF_HOUR_SLOTS, shortDate, timeSortKey, todayISO } from '../lib/date'
 import { isSubmitEnter } from '../lib/keys'
-import { DAY_TEMPLATE } from '../lib/dayTemplate'
 import { formatMoney, formatTotals, isUncategorized, itemTotals, mergeTotals, toHome } from '../lib/money'
 import CategoryIcon from './CategoryIcon'
 
@@ -47,21 +46,6 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
     const acc: Record<string, number> = {}
     for (const item of byDay.get(day) ?? []) mergeTotals(acc, itemTotals(item))
     return acc
-  }
-
-  /** 已經有東西的時段就跳過，重複按不會長出一堆重複的「午餐」。 */
-  const applyTemplate = (day: string) => {
-    const taken = new Set((byDay.get(day) ?? []).map((i) => i.startTime))
-    for (const row of DAY_TEMPLATE) {
-      if (taken.has(row.time)) continue
-      createItem({
-        planId: plan.id,
-        date: day,
-        title: row.title,
-        startTime: row.time,
-        category: row.cat,
-      })
-    }
   }
 
   useEffect(() => {
@@ -253,13 +237,6 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
                   <span className="dot" />
                   <span className="rowtime">＋</span>
                   <span>新增項目</span>
-                </button>
-                <button
-                  className="dim"
-                  style={{ fontSize: 12, textDecoration: 'underline' }}
-                  onClick={() => applyTemplate(day)}
-                >
-                  套用每日範本
                 </button>
               </div>
             )}
