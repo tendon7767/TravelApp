@@ -82,7 +82,7 @@ export const pushRemote = (
   link: TripLink,
   records: Partial<Record<SyncedCollection, unknown[]>>,
 ) =>
-  call<{ now: number; applied: number }>(gasUrl, {
+  call<{ now: number; applied: number; rejected: number }>(gasUrl, {
     action: 'push',
     sheetId: link.sheetId,
     secret: link.secret,
@@ -111,6 +111,48 @@ export interface MergeResult {
 }
 
 /**
+ * Google Sheets may turn date/time-looking strings into Date cells. Older backend
+ * deployments then serialize those cells as full ISO timestamps. Keep the client
+ * tolerant of that format so an invite opened before the backend is upgraded does
+ * not leave native date/time inputs with invalid values.
+ */
+const localDateOnly = (value: unknown): unknown => {
+  if (typeof value !== 'string' || !value.includes('T')) return value
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+const localTimeOnly = (value: unknown): unknown => {
+  if (typeof value !== 'string' || !value.includes('T')) return value
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+const normalizeRemoteRow = (
+  collection: SyncedCollection,
+  row: Record<string, unknown>,
+): Record<string, unknown> => {
+  if (collection === 'trips') {
+    return {
+      ...row,
+      startDate: localDateOnly(row.startDate),
+      endDate: localDateOnly(row.endDate),
+    }
+  }
+  if (collection === 'items') {
+    return {
+      ...row,
+      date: localDateOnly(row.date),
+      chargeDate: localDateOnly(row.chargeDate),
+      startTime: localTimeOnly(row.startTime),
+    }
+  }
+  return row
+}
+
+/**
  * 以記錄為單位「後寫入者勝」，比較 updatedAt。
  * 心得刻意做成獨立記錄，所以每則只有作者本人會寫，這裡永遠不會弄丟別人的內容。
  */
@@ -129,7 +171,8 @@ export const mergeRemote = (
     const list = [...(local[name] as unknown as Record<string, unknown>[])]
     const indexById = new Map(list.map((r, i) => [String(r.id), i]))
 
-    for (const row of rows) {
+    for (const rawRow of rows) {
+      const row = normalizeRemoteRow(name, rawRow)
       const id = String(row.id)
       const at = Number(row.updatedAt) || 0
       const idx = indexById.get(id)

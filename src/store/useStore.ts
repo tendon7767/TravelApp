@@ -102,6 +102,7 @@ interface State {
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
+const syncFlights = new Map<string, Promise<void>>()
 
 export const useStore = create<State>((setState, getState) => {
   /** 寫入 IndexedDB 用防抖，避免每按一次鍵就打一次資料庫。 */
@@ -332,8 +333,10 @@ export const useStore = create<State>((setState, getState) => {
 
     joinTrip: async (gasUrl, sheetId, secret) => {
       const pulled = await pullRemote(gasUrl, { sheetId, secret }, 0)
+      const remoteTrip = pulled.records.trips.find((row) => row.id && !row.deleted)
+      if (!remoteTrip) throw new Error('邀請的試算表裡找不到旅程資料')
+      const tripId = String(remoteTrip.id)
       const merged = mergeRemote(getState().data, pulled.records)
-      const tripId = String(merged.data.trips[merged.data.trips.length - 1]?.id ?? '')
       const link: TripLinkState = { sheetId, secret, lastSyncAt: pulled.now, lastPushedAt: Date.now() }
       const settings = {
         ...getState().settings,
@@ -346,47 +349,75 @@ export const useStore = create<State>((setState, getState) => {
       return tripId
     },
 
-    syncTrip: async (tripId) => {
-      const { settings } = getState()
-      const link = settings.tripLinks?.[tripId]
-      if (!settings.gasUrl || !link) return
+    syncTrip: (tripId) => {
+      // 進入頁面、focus、visibilitychange 與自動儲存可能同時觸發。
+      // 同一趟只允許一個 pull→push 流程，避免較慢的請求最後寫回舊游標。
+      const existing = syncFlights.get(tripId)
+      if (existing) return existing
 
-      setState({ sync: { ...getState().sync, busy: true, error: undefined } })
-      try {
-        // 先拉再推：先合併遠端的變更，本機較新的修改才不會在推送後被下一次拉取覆蓋。
-        const pulled = await pullRemote(settings.gasUrl, link, link.lastSyncAt)
-        const merged = mergeRemote(getState().data, pulled.records)
-        setState({ data: merged.data })
-        persist(merged.data)
+      const flight = (async () => {
+        const { settings } = getState()
+        const link = settings.tripLinks?.[tripId]
+        if (!settings.gasUrl || !link) return
 
-        const pushedAt = Date.now()
-        const outgoing = collectTripRecords(merged.data, tripId, link.lastPushedAt)
-        const hasOutgoing = Object.values(outgoing).some((rows) => rows && rows.length)
-        if (hasOutgoing) await pushRemote(settings.gasUrl, link, outgoing)
+        setState({ sync: { ...getState().sync, busy: true, error: undefined } })
+        try {
+          // 先拉再推：先合併遠端的變更，本機較新的修改才不會在推送後被下一次拉取覆蓋。
+          const pulled = await pullRemote(settings.gasUrl, link, link.lastSyncAt)
+          const merged = mergeRemote(getState().data, pulled.records)
+          setState({ data: merged.data })
+          persist(merged.data)
 
-        const nextLink: TripLinkState = {
-          ...link,
-          lastSyncAt: pulled.now,
-          lastPushedAt: pushedAt,
+          const pushedAt = Date.now()
+          const outgoing = collectTripRecords(merged.data, tripId, link.lastPushedAt)
+          const hasOutgoing = Object.values(outgoing).some((rows) => rows && rows.length)
+          const pushResult = hasOutgoing
+            ? await pushRemote(settings.gasUrl, link, outgoing)
+            : undefined
+
+          // 我方 pull 之後、push 之前若剛好有人送出更新，伺服器會拒絕我方較舊版本。
+          // 立刻再拉一次，讓畫面當場收斂，不必等下次 focus 或手動同步。
+          let lastSyncAt = pulled.now
+          let overwritten = merged.overwritten
+          if (pushResult?.rejected) {
+            const repulled = await pullRemote(settings.gasUrl, link, pulled.now)
+            const reconciled = mergeRemote(getState().data, repulled.records)
+            setState({ data: reconciled.data })
+            persist(reconciled.data)
+            lastSyncAt = repulled.now
+            overwritten = [...overwritten, ...reconciled.overwritten]
+          }
+
+          const nextLink: TripLinkState = {
+            ...link,
+            lastSyncAt,
+            lastPushedAt: pushedAt,
+          }
+          const nextSettings = {
+            ...getState().settings,
+            tripLinks: { ...getState().settings.tripLinks, [tripId]: nextLink },
+          }
+          setState({
+            settings: nextSettings,
+            sync: {
+              busy: false,
+              lastAt: Date.now(),
+              overwritten: overwritten.map((o) => ({ id: o.id, by: o.by })),
+            },
+          })
+          await saveSettings(nextSettings)
+        } catch (err) {
+          setState({
+            sync: { ...getState().sync, busy: false, error: err instanceof Error ? err.message : String(err) },
+          })
         }
-        const nextSettings = {
-          ...getState().settings,
-          tripLinks: { ...getState().settings.tripLinks, [tripId]: nextLink },
-        }
-        setState({
-          settings: nextSettings,
-          sync: {
-            busy: false,
-            lastAt: Date.now(),
-            overwritten: merged.overwritten.map((o) => ({ id: o.id, by: o.by })),
-          },
-        })
-        await saveSettings(nextSettings)
-      } catch (err) {
-        setState({
-          sync: { ...getState().sync, busy: false, error: err instanceof Error ? err.message : String(err) },
-        })
-      }
+      })()
+
+      syncFlights.set(tripId, flight)
+      void flight.finally(() => {
+        if (syncFlights.get(tripId) === flight) syncFlights.delete(tripId)
+      })
+      return flight
     },
 
     dismissOverwritten: () => setState({ sync: { ...getState().sync, overwritten: [] } }),

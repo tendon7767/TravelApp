@@ -13,13 +13,18 @@
 
 var FOLDER_NAME = '旅遊資料'
 
-/** 每個分頁的欄位。JSON_FIELDS 裡的欄位以 JSON 字串存進單一儲存格。 */
+/**
+ * 每個分頁的欄位。json 裡的欄位以 JSON 字串存進單一儲存格。
+ * dates/times 必須明確格式化，否則試算表會自動轉成 Date，API 回傳時日期會受時區位移。
+ */
 var SCHEMA = {
   trips: {
     fields: ['id', 'name', 'startDate', 'endDate', 'homeCurrency', 'foreignCurrency', 'rate'],
     json: [],
+    dates: ['startDate', 'endDate'],
+    times: [],
   },
-  plans: { fields: ['id', 'tripId', 'name', 'kind', 'basedOnPlanId'], json: [] },
+  plans: { fields: ['id', 'tripId', 'name', 'kind', 'basedOnPlanId'], json: [], dates: [], times: [] },
   items: {
     fields: [
       'id', 'planId', 'date', 'startTime', 'title', 'guide',
@@ -27,14 +32,28 @@ var SCHEMA = {
       'category', 'paymentMethodId', 'paymentStatus', 'chargeDate',
     ],
     json: ['notes', 'links', 'costs'],
+    dates: ['date', 'chargeDate'],
+    times: ['startTime'],
   },
-  reviews: { fields: ['id', 'itemId', 'author', 'text'], json: [] },
-  notes: { fields: ['id', 'tripId', 'title', 'blocks', 'links'], json: ['blocks', 'links'] },
+  reviews: { fields: ['id', 'itemId', 'author', 'text'], json: [], dates: [], times: [] },
+  notes: {
+    fields: ['id', 'tripId', 'title', 'blocks', 'links'],
+    json: ['blocks', 'links'],
+    dates: [],
+    times: [],
+  },
   payments: {
     fields: ['id', 'tripId', 'name', 'owner', 'kind', 'enabled', 'currency', 'rules', 'note'],
     json: ['rules'],
+    dates: [],
+    times: [],
   },
-  transports: { fields: ['id', 'tripId', 'name', 'lines'], json: ['lines'] },
+  transports: {
+    fields: ['id', 'tripId', 'name', 'lines'],
+    json: ['lines'],
+    dates: [],
+    times: [],
+  },
 }
 
 /** 每列都帶的同步欄位。syncedAt 由伺服器蓋章，用來做增量拉取，不受各裝置時鐘誤差影響。 */
@@ -115,9 +134,17 @@ function createTrip(body) {
   DriveApp.getRootFolder().removeFile(file)
 
   Object.keys(SCHEMA).forEach(function (name) {
+    var spec = SCHEMA[name]
     var sheet = ss.insertSheet(name)
-    sheet.appendRow(SCHEMA[name].fields.concat(SYNC_FIELDS))
+    var header = spec.fields.concat(SYNC_FIELDS)
+    sheet.appendRow(header)
     sheet.setFrozenRows(1)
+
+    // 新試算表一開始就把日期與時間欄設成純文字，寫入 YYYY-MM-DD / HH:mm 時不讓 Sheets 猜型別。
+    spec.dates.concat(spec.times).forEach(function (field) {
+      var column = header.indexOf(field) + 1
+      if (column > 0) sheet.getRange(2, column, sheet.getMaxRows() - 1, 1).setNumberFormat('@')
+    })
   })
 
   var meta = ss.insertSheet('_meta')
@@ -164,7 +191,11 @@ function readSheet(ss, name, since) {
     for (var c = 0; c < header.length; c++) {
       var key = header[c]
       var value = row[c]
-      if (spec.json.indexOf(key) >= 0) {
+      if (value instanceof Date && !isNaN(value.getTime()) && spec.dates.indexOf(key) >= 0) {
+        value = Utilities.formatDate(value, ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd')
+      } else if (value instanceof Date && !isNaN(value.getTime()) && spec.times.indexOf(key) >= 0) {
+        value = Utilities.formatDate(value, ss.getSpreadsheetTimeZone(), 'HH:mm')
+      } else if (spec.json.indexOf(key) >= 0) {
         try {
           value = value ? JSON.parse(value) : []
         } catch (err) {
@@ -182,17 +213,24 @@ function readSheet(ss, name, since) {
 }
 
 function pull(body) {
-  var ss = openChecked(body)
-  var records = {}
-  Object.keys(SCHEMA).forEach(function (name) {
-    records[name] = readSheet(ss, name, body.since)
-  })
-  return { now: Date.now(), records: records }
+  // 與 push 共用鎖，避免拉取七個分頁的途中被另一台裝置寫入，拿到半新半舊的快照。
+  var lock = LockService.getScriptLock()
+  lock.waitLock(30000)
+  try {
+    var ss = openChecked(body)
+    var records = {}
+    Object.keys(SCHEMA).forEach(function (name) {
+      records[name] = readSheet(ss, name, body.since)
+    })
+    return { now: Date.now(), records: records }
+  } finally {
+    lock.releaseLock()
+  }
 }
 
 /**
  * 以 id 為鍵覆寫或新增。用 LockService 序列化，避免兩個人同時推送時互相蓋掉。
- * 衝突由客戶端依 updatedAt 判定，這裡只忠實寫入它送來的內容。
+ * 伺服器也比較 updatedAt，較舊的離線資料晚到時不能把雲端較新的版本蓋回去。
  */
 function push(body) {
   var lock = LockService.getScriptLock()
@@ -201,11 +239,7 @@ function push(body) {
     var ss = openChecked(body)
     var now = Date.now()
     var applied = 0
-
-    var trips = (body.records && body.records.trips) || []
-    for (var t = 0; t < trips.length; t++) {
-      if (!trips[t].deleted) renameToMatch(ss, trips[t].name)
-    }
+    var rejected = 0
 
     Object.keys(SCHEMA).forEach(function (name) {
       var incoming = (body.records && body.records[name]) || []
@@ -213,13 +247,24 @@ function push(body) {
 
       var spec = SCHEMA[name]
       var sheet = ss.getSheetByName(name)
-      var header = sheet.getDataRange().getValues()[0]
-      var ids = sheet.getRange(2, 1, Math.max(1, sheet.getLastRow() - 1), 1).getValues()
+      var values = sheet.getDataRange().getValues()
+      var header = values[0]
+      var updatedAtColumn = header.indexOf('updatedAt')
 
       var rowById = {}
-      for (var i = 0; i < ids.length; i++) if (ids[i][0]) rowById[ids[i][0]] = i + 2
+      for (var i = 1; i < values.length; i++) if (values[i][0]) rowById[values[i][0]] = i + 1
 
       incoming.forEach(function (rec) {
+        var row = rowById[rec.id]
+        if (row) {
+          var currentUpdatedAt = Number(values[row - 1][updatedAtColumn]) || 0
+          var incomingUpdatedAt = Number(rec.updatedAt) || 0
+          if (incomingUpdatedAt < currentUpdatedAt) {
+            rejected++
+            return
+          }
+        }
+
         rec.syncedAt = now
         var line = header.map(function (key) {
           var v = rec[key]
@@ -227,14 +272,20 @@ function push(body) {
           if (spec.json.indexOf(key) >= 0) return JSON.stringify(v)
           return v
         })
-        var row = rowById[rec.id]
-        if (row) sheet.getRange(row, 1, 1, line.length).setValues([line])
-        else sheet.appendRow(line)
+        if (row) {
+          sheet.getRange(row, 1, 1, line.length).setValues([line])
+          values[row - 1] = line
+        } else {
+          sheet.appendRow(line)
+          rowById[rec.id] = sheet.getLastRow()
+          values.push(line)
+        }
+        if (name === 'trips' && !rec.deleted) renameToMatch(ss, rec.name)
         applied++
       })
     })
 
-    return { now: now, applied: applied }
+    return { now: now, applied: applied, rejected: rejected }
   } finally {
     lock.releaseLock()
   }
