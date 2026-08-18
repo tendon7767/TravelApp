@@ -4,6 +4,7 @@ import { draftTrip, useStore } from '../store/useStore'
 import { dayCount, shortDate } from '../lib/date'
 import { importSetouchi } from '../seed/importSetouchi'
 import ConfirmButton from '../components/ConfirmButton'
+import NumberField from '../components/NumberField'
 
 export default function TripsPage() {
   // selector 必須回傳穩定參照，過濾留給 useMemo，否則每次重繪都是新陣列。
@@ -107,13 +108,13 @@ export default function TripsPage() {
               <label className="label" htmlFor="t-rate">
                 匯率（換台幣）
               </label>
-              <input
+              <NumberField
                 id="t-rate"
-                type="number"
-                step="0.001"
                 className="field mono"
                 value={form.rate}
-                onChange={(e) => setForm({ ...form, rate: Number(e.target.value) })}
+                emptyAs={0}
+                onChange={(v) => setForm({ ...form, rate: v ?? 0 })}
+                aria-label="匯率"
               />
             </div>
           </div>

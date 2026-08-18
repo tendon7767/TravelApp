@@ -2,6 +2,7 @@ import { useStore } from '../store/useStore'
 import type { PaymentMethod, RewardRule, Trip } from '../types'
 import { newId } from '../lib/id'
 import ConfirmButton from './ConfirmButton'
+import NumberField from './NumberField'
 import { spendCapOf } from '../lib/rewards'
 import { formatMoney } from '../lib/money'
 
@@ -17,8 +18,6 @@ export default function PaymentEditor({ method, trip }: { method: PaymentMethod;
     updatePayment(method.id, {
       rules: method.rules.map((r) => (r.id === ruleId ? { ...r, ...patch } : r)),
     })
-
-  const num = (v: string): number | undefined => (v.trim() === '' ? undefined : Number(v))
 
   return (
     <div style={{ padding: '10px 0 0' }}>
@@ -73,13 +72,12 @@ export default function PaymentEditor({ method, trip }: { method: PaymentMethod;
               aria-label="規則名稱"
             />
             <div style={{ width: 96, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <input
+              <NumberField
                 className="field mono"
                 style={{ width: 62 }}
-                type="number"
-                step="0.1"
-                value={r.rate * 100}
-                onChange={(e) => patchRule(r.id, { rate: (Number(e.target.value) || 0) / 100 })}
+                value={Math.round(r.rate * 1000) / 10}
+                emptyAs={0}
+                onChange={(v) => patchRule(r.id, { rate: (v ?? 0) / 100 })}
                 aria-label="回饋率"
               />
               <span className="dim">%</span>
@@ -97,22 +95,22 @@ export default function PaymentEditor({ method, trip }: { method: PaymentMethod;
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 96 }}>
               <label className="label">回饋上限</label>
-              <input
+              <NumberField
                 className="field mono"
-                type="number"
                 placeholder="無"
-                value={r.rewardCap ?? ''}
-                onChange={(e) => patchRule(r.id, { rewardCap: num(e.target.value) })}
+                value={r.rewardCap}
+                onChange={(v) => patchRule(r.id, { rewardCap: v })}
+                aria-label="回饋上限"
               />
             </div>
             <div style={{ flex: 1, minWidth: 96 }}>
               <label className="label">單筆回饋上限</label>
-              <input
+              <NumberField
                 className="field mono"
-                type="number"
                 placeholder="無"
-                value={r.perTxnRewardCap ?? ''}
-                onChange={(e) => patchRule(r.id, { perTxnRewardCap: num(e.target.value) })}
+                value={r.perTxnRewardCap}
+                onChange={(v) => patchRule(r.id, { perTxnRewardCap: v })}
+                aria-label="單筆回饋上限"
               />
             </div>
             <div style={{ flex: 1, minWidth: 96 }}>

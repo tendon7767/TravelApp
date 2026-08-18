@@ -7,6 +7,7 @@ import { formatMoney, lineTotal, sumByCurrency, toHome } from '../lib/money'
 import { normalizeTime, shortDate } from '../lib/date'
 import { isSubmitEnter } from '../lib/keys'
 import ConfirmButton from './ConfirmButton'
+import NumberField from './NumberField'
 import { amountInMethodCurrency, computeMethod, suggestSplit } from '../lib/rewards'
 
 interface Props {
@@ -208,21 +209,21 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
               onChange={(e) => patchCost(c.id, { label: e.target.value })}
               aria-label="費用項目"
             />
-            <input
+            <NumberField
               className="field mono"
               style={{ width: 76 }}
-              type="number"
               value={c.unitPrice}
-              onChange={(e) => patchCost(c.id, { unitPrice: Number(e.target.value) || 0 })}
+              emptyAs={0}
+              onChange={(v) => patchCost(c.id, { unitPrice: v ?? 0 })}
               aria-label="單價"
             />
             <span className="dim">×</span>
-            <input
+            <NumberField
               className="field mono"
               style={{ width: 52 }}
-              type="number"
               value={c.qty}
-              onChange={(e) => patchCost(c.id, { qty: Number(e.target.value) || 0 })}
+              emptyAs={0}
+              onChange={(v) => patchCost(c.id, { qty: v ?? 0 })}
               aria-label="數量"
             />
             <select

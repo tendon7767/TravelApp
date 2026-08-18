@@ -1,7 +1,7 @@
 export const EXPENSE_CATEGORIES = ['交通', '餐飲', '住宿', '娛樂', '購物', '其他'] as const
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]
 
-export const PAYMENT_STATUSES = ['尚未付款', '已刷卡', '自動結帳'] as const
+export const PAYMENT_STATUSES = ['尚未付款', '已付款', '自動結帳'] as const
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
 
 /** 每筆記錄都帶同步欄位，M4 接上試算表時直接沿用，不必回頭改資料結構。 */

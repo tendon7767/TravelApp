@@ -50,7 +50,7 @@ const ITEMS: SeedItem[] = [
   { day: 2, time: '18:00', title: '晚餐', costs: [{ label: '晚餐', unitPrice: 5000 }], cat: '餐飲' },
   { day: 2, time: '20:00', title: '逛街 Ario 倉敷' },
   { day: 2, time: '21:30', title: '飯店合作停車場 カモ井パーキング', costs: [{ label: '停車費', unitPrice: 1000 }], cat: '交通' },
-  { day: 2, time: '22:00', title: '旅館休息 APA HOTEL KURASHIKI-EKIMAE', notes: ['AGODA 已刷卡'], costs: [{ label: '住宿', unitPrice: 1595, cur: 'TWD' }], cat: '住宿', pay: '已刷卡' },
+  { day: 2, time: '22:00', title: '旅館休息 APA HOTEL KURASHIKI-EKIMAE', notes: ['AGODA 已刷卡'], costs: [{ label: '住宿', unitPrice: 1595, cur: 'TWD' }], cat: '住宿', pay: '已付款' },
 
   { day: 3, time: '08:30', title: '起床' },
   { day: 3, time: '09:30', title: '退房 買點東西簡單吃吃', costs: [{ label: '早餐', unitPrice: 2000 }], cat: '餐飲' },
@@ -77,7 +77,7 @@ const ITEMS: SeedItem[] = [
   { day: 5, time: '14:00', title: '豐島觀光半天' },
   { day: 5, time: '15:30', title: '交通費（原表未填說明）', notes: ['原表此列僅有類型與金額'], costs: [{ label: '', unitPrice: 4610 }], cat: '交通' },
   { day: 5, time: '18:30', title: '晚餐', costs: [{ label: '晚餐', unitPrice: 5000 }], cat: '餐飲' },
-  { day: 5, time: '21:00', title: '住豐島 ホテル聚（Hotel SHU）', notes: ['等特價', 'AGODA 已刷卡'], costs: [{ label: '住宿', unitPrice: 4803, cur: 'TWD' }], cat: '住宿', pay: '已刷卡' },
+  { day: 5, time: '21:00', title: '住豐島 ホテル聚（Hotel SHU）', notes: ['等特價', 'AGODA 已刷卡'], costs: [{ label: '住宿', unitPrice: 4803, cur: 'TWD' }], cat: '住宿', pay: '已付款' },
 
   { day: 6, time: '08:00', title: '早餐', costs: [{ label: '早餐', unitPrice: 2000 }], cat: '餐飲' },
   { day: 6, time: '11:00', title: '連車搭船前往小豆島　小豆島豊島フェリー 唐櫃港⇔土庄港 12:10 → 12:39', notes: ['小豆島フェリー船班資訊'], costs: [{ label: '船票', unitPrice: 490, qty: 1, unit: '人' }, { label: '車運費', unitPrice: 3630 }], cat: '交通' },
@@ -85,7 +85,7 @@ const ITEMS: SeedItem[] = [
   { day: 6, time: '14:00', title: '小豆島觀光半天' },
   { day: 6, time: '17:00', title: '旅館 check in' },
   { day: 6, time: '18:30', title: '晚餐', costs: [{ label: '晚餐', unitPrice: 5000 }], cat: '餐飲' },
-  { day: 6, time: '21:00', title: '住小豆島 Millennium Olive Terrace - The Stay', notes: ['Booking 已刷卡'], costs: [{ label: '住宿', unitPrice: 8733, cur: 'TWD' }], cat: '住宿', pay: '已刷卡' },
+  { day: 6, time: '21:00', title: '住小豆島 Millennium Olive Terrace - The Stay', notes: ['Booking 已刷卡'], costs: [{ label: '住宿', unitPrice: 8733, cur: 'TWD' }], cat: '住宿', pay: '已付款' },
 
   { day: 7, time: '08:00', title: '飯店早餐', costs: [{ label: '早餐', unitPrice: 0 }], cat: '餐飲' },
   { day: 7, time: '10:30', title: '退房' },

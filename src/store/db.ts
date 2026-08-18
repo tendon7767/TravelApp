@@ -13,8 +13,12 @@ export interface Settings {
 
 export const defaultSettings = (): Settings => ({ memberName: '我' })
 
-/** 「未付」與「現場付」原本是兩個選項，實際上是同一件事，載入時合併。 */
-const LEGACY_STATUS: Record<string, string> = { 未付: '尚未付款', 現場付: '尚未付款' }
+/** 付款狀態的用詞改過兩次，載入時一併轉換，不讓新舊詞彙並存。 */
+const LEGACY_STATUS: Record<string, string> = {
+  未付: '尚未付款',
+  現場付: '尚未付款',
+  已刷卡: '已付款',
+}
 
 export const loadData = async (): Promise<AppData> => {
   const raw = await get<AppData>(DATA_KEY)
