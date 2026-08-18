@@ -41,16 +41,6 @@ export default function RewardsTab({ trip, onSelect }: Props) {
     [methods, items, trip],
   )
 
-  /** 記在規劃版的支出不會計入回饋，但使用者只會看到 0，得說清楚。 */
-  const inPlanning = useMemo(() => {
-    const actualId = actual?.id
-    const counts: Record<string, number> = {}
-    for (const i of allItems) {
-      if (i.deleted || !i.paymentMethodId || i.planId === actualId) continue
-      counts[i.paymentMethodId] = (counts[i.paymentMethodId] ?? 0) + 1
-    }
-    return counts
-  }, [allItems, actual])
 
   const otherTrips = useMemo(
     () =>
@@ -137,7 +127,6 @@ export default function RewardsTab({ trip, onSelect }: Props) {
               key={res.method.id}
               res={res}
               accent={ownerColor(owner)}
-              planningCount={inPlanning[res.method.id] ?? 0}
               onEdit={() => setEditingId(editingId === res.method.id ? null : res.method.id)}
               onSelect={onSelect}
             />
@@ -170,16 +159,38 @@ export default function RewardsTab({ trip, onSelect }: Props) {
   )
 }
 
+/** 數字要跳出來，標籤退到後面：一整行同樣灰的文字裡沒有東西抓得住視線。 */
+function Stat({
+  label,
+  value,
+  tone,
+  muted,
+}: {
+  label: string
+  value: string
+  tone?: 'accent' | 'danger'
+  muted?: boolean
+}) {
+  const color =
+    tone === 'danger' ? 'var(--danger)' : tone === 'accent' ? 'var(--accent)' : 'var(--text)'
+  return (
+    <div className="stat">
+      <div className="statlabel">{label}</div>
+      <div className="mono statvalue" style={{ color, opacity: muted ? 0.65 : 1 }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
 /** 主角是「還能刷多少」，不是「已經拿了多少」—— 站在收銀台前要看的是前者。 */
 function MethodCard({
   res,
-  planningCount,
   accent,
   onEdit,
   onSelect,
 }: {
   res: MethodResult
-  planningCount: number
   accent: string
   onEdit: () => void
   onSelect: (id: string) => void
@@ -232,20 +243,30 @@ function MethodCard({
       </div>
 
       {res.rules.map((rr) => (
-        <div key={rr.rule.id} className="dim" style={{ fontSize: 11, marginTop: 4 }}>
-          {rr.rule.name} {(rr.rule.rate * 100).toFixed(1)}%
-          {rr.rule.rewardCap !== undefined && ` · 回饋上限 ${formatMoney(rr.rule.rewardCap, cur)}`}
-          {rr.rule.perTxnRewardCap !== undefined && ` · 單筆上限 ${formatMoney(rr.rule.perTxnRewardCap, cur)}`}
-          {rr.remainingSpend !== undefined && ` · 還可刷 ${formatMoney(rr.remainingSpend, cur)}`}
-          {' · '}已拿 {formatMoney(rr.reward, cur)}
+        <div key={rr.rule.id} className="rulebox">
+          <div className="rulehead">
+            {rr.rule.name}
+            <span className="mono rulerate">{(rr.rule.rate * 100).toFixed(1)}%</span>
+          </div>
+          <div className="rulestats">
+            {rr.remainingSpend !== undefined && (
+              <Stat
+                label="還可刷"
+                value={formatMoney(rr.remainingSpend, cur)}
+                tone={rr.remainingSpend === 0 ? 'danger' : 'accent'}
+              />
+            )}
+            <Stat label="已拿回饋" value={formatMoney(rr.reward, cur)} />
+            {rr.rule.rewardCap !== undefined && (
+              <Stat label="回饋上限" value={formatMoney(rr.rule.rewardCap, cur)} muted />
+            )}
+            {rr.rule.perTxnRewardCap !== undefined && (
+              <Stat label="單筆上限" value={formatMoney(rr.rule.perTxnRewardCap, cur)} muted />
+            )}
+          </div>
         </div>
       ))}
 
-      {planningCount > 0 && (
-        <div className="dim" style={{ fontSize: 11, marginTop: 8 }}>
-          規劃版另有 {planningCount} 筆用這張卡，回饋只計算實際版。
-        </div>
-      )}
 
       <div style={{ marginTop: 10 }}>
         <span className="label">刷卡明細</span>
