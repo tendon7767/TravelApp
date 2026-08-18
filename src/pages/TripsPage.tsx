@@ -5,7 +5,6 @@ import { dayCount, shortDate } from '../lib/date'
 import NumberField from '../components/NumberField'
 import SettingsModal from '../components/SettingsModal'
 import Modal from '../components/Modal'
-import ElasticScroll from '../components/ElasticScroll'
 
 export default function TripsPage() {
   // selector 必須回傳穩定參照，過濾留給 useMemo，否則每次重繪都是新陣列。
@@ -63,7 +62,7 @@ export default function TripsPage() {
         </button>
       </div>
 
-      <ElasticScroll className="page-scroll">
+      <div className="page-scroll">
       {open && (
         <div className="sec" style={{ display: 'grid', gap: 10 }}>
           <div>
@@ -155,7 +154,7 @@ export default function TripsPage() {
           </button>
         </div>
       ))}
-      </ElasticScroll>
+      </div>
     </div>
   )
 }

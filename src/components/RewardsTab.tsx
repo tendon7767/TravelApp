@@ -135,7 +135,6 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
           onCancel={cancelEditor}
           onComplete={completeEditor}
           dirty={editorDirty}
-          elastic={false}
         >
           <PaymentEditor
             method={editingDraft}

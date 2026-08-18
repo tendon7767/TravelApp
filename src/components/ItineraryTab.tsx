@@ -5,7 +5,6 @@ import { eachDay, HALF_HOUR_SLOTS, shortDate, timeSortKey, todayISO } from '../l
 import { isSubmitEnter } from '../lib/keys'
 import { DAY_TEMPLATE } from '../lib/dayTemplate'
 import { formatMoney, formatTotals, isUncategorized, itemTotals, mergeTotals, toHome } from '../lib/money'
-import ElasticScroll from './ElasticScroll'
 
 interface Props {
   trip: Trip
@@ -154,7 +153,7 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
         ))}
       </div>
 
-      <ElasticScroll
+      <div
         ref={scrollRef}
         className="itinerary-scroll"
         onScroll={trackScroll}
@@ -282,7 +281,7 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
           })()}
         </span>
       </button>
-      </ElasticScroll>
+      </div>
     </div>
   )
 }

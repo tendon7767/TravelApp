@@ -367,11 +367,6 @@ a { color: var(--accent); }
   -webkit-overflow-scrolling: touch;
 }
 
-.elastic-scroll-content {
-  min-height: 100%;
-  width: 100%;
-}
-
 .itinerary-view {
   display: flex;
   flex: 1;
@@ -554,12 +549,6 @@ a { color: var(--accent); }
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   padding: 0 14px 14px;
-}
-
-/* 支付方式等固定表單：保留必要的內容捲動，但到邊界立即停止，不產生拖曳位移。 */
-.sheetbody-fixed {
-  overscroll-behavior-y: none;
-  -webkit-overflow-scrolling: auto;
 }
 
 .sheetactions,

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import ElasticScroll from './ElasticScroll'
 
 interface Props {
   title: string
@@ -9,8 +8,6 @@ interface Props {
   completeLabel?: string
   completeDanger?: boolean
   dirty?: boolean
-  /** 表單仍可正常捲動，但固定在原位，不套用任何邊界拖曳位移。 */
-  elastic?: boolean
   children: ReactNode
 }
 
@@ -26,7 +23,6 @@ export default function Modal({
   completeLabel = '完成',
   completeDanger = false,
   dirty = false,
-  elastic = true,
   children,
 }: Props) {
   const [confirmingCancel, setConfirmingCancel] = useState(false)
@@ -62,11 +58,7 @@ export default function Modal({
           <div className="sheethead">
             <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>{title}</strong>
           </div>
-          {elastic ? (
-            <ElasticScroll className="sheetbody">{children}</ElasticScroll>
-          ) : (
-            <div className="sheetbody sheetbody-fixed">{children}</div>
-          )}
+          <div className="sheetbody">{children}</div>
           <div className="sheetactions">
             <button className="btn" onClick={requestCancel}>{cancelLabel}</button>
             <button className={completeDanger ? 'btn btn-danger' : 'btn btn-primary'} onClick={onComplete}>
@@ -88,15 +80,9 @@ export default function Modal({
             <div className="sheethead">
               <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>尚未儲存變更</strong>
             </div>
-            {elastic ? (
-              <ElasticScroll className="sheetbody">
-                <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的修改嗎？</p>
-              </ElasticScroll>
-            ) : (
-              <div className="sheetbody sheetbody-fixed">
-                <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的修改嗎？</p>
-              </div>
-            )}
+            <div className="sheetbody">
+              <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的修改嗎？</p>
+            </div>
             <div className="sheetactions">
               <button className="btn" onClick={() => setConfirmingCancel(false)}>繼續編輯</button>
               <button className="btn btn-danger" onClick={onCancel}>放棄變更</button>
