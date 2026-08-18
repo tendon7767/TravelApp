@@ -19,8 +19,7 @@ interface Props {
  * 已刷卡沒什麼好記的，就不佔版面。
  */
 const payBadge = (item: Item): { text: string; tone: 'warn' | 'info' } | null => {
-  if (item.paymentStatus === '未付') return { text: '未付', tone: 'warn' }
-  if (item.paymentStatus === '現場付') return { text: '現場付', tone: 'info' }
+  if (item.paymentStatus === '尚未付款') return { text: '尚未付款', tone: 'warn' }
   if (item.paymentStatus === '自動結帳') {
     return { text: item.chargeDate ? `${shortDate(item.chargeDate).split(' ')[0]} 扣款` : '自動結帳', tone: 'info' }
   }
