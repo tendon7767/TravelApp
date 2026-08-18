@@ -6,6 +6,7 @@ import { formatMoney } from '../lib/money'
 import { shortDate } from '../lib/date'
 import { methodLabel, OWNERLESS, ownerColor } from '../lib/owners'
 import PaymentEditor from './PaymentEditor'
+import Modal from './Modal'
 
 interface Props {
   trip: Trip
@@ -75,16 +76,12 @@ export default function RewardsTab({ trip, onSelect }: Props) {
         </div>
       )}
 
-      {/* 編輯面板放在分組外面。放進分組裡的話，一改持有人分組就變動，
+      {/* 蓋板而非嵌在列表裡：嵌在分組內的話，一改持有人分組就變動，
           整個區塊會被重建，輸入框當場失去焦點，中文根本打不完一個字。 */}
       {editing && (
-        <div className="sec" style={{ background: 'var(--surface-2)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="label" style={{ margin: 0 }}>編輯支付方式</span>
-            <button className="btn btn-sm" onClick={() => setEditingId(null)}>完成</button>
-          </div>
+        <Modal title="編輯支付方式" onClose={() => setEditingId(null)}>
           <PaymentEditor method={editing} trip={trip} />
-        </div>
+        </Modal>
       )}
 
       {owners.length > 1 && (
