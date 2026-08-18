@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { draftTrip, useStore } from '../store/useStore'
 import { dayCount, shortDate } from '../lib/date'
-import { importSetouchi } from '../seed/importSetouchi'
 import ConfirmButton from '../components/ConfirmButton'
 import NumberField from '../components/NumberField'
 import SettingsModal from '../components/SettingsModal'
@@ -48,12 +47,6 @@ export default function TripsPage() {
         </button>
         <button className="btn btn-sm" onClick={() => setOpen((v) => !v)}>
           {open ? '取消' : '新增旅程'}
-        </button>
-      </div>
-
-      <div className="sec">
-        <button className="btn btn-sm" onClick={() => navigate(`/trip/${importSetouchi()}`)}>
-          匯入瀨戶內海 9 日遊（試算表方案 A）
         </button>
       </div>
 
