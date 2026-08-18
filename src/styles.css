@@ -514,15 +514,9 @@ a { color: var(--accent); }
 
 .sheetactions { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
 .editor-actions { padding: 10px 14px; }
-.editor-actions-mobile { display: none; }
 
 .sheetactions .btn,
 .editor-actions .btn { min-width: 92px; }
-
-@media (max-width: 859px) {
-  .pane-detail .editor-actions-desktop { display: none; }
-  .pane-detail .editor-actions-mobile { display: flex; }
-}
 
 body.modal-open { overflow: hidden; }
 

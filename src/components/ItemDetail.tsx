@@ -481,13 +481,9 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         </div>
       )}
 
-      <div className="editor-actions editor-actions-desktop">
-        <button className="btn" onClick={cancel}>取消</button>
-        <button className="btn btn-primary" onClick={complete}>完成</button>
-      </div>
       </div>
 
-      <div className="editor-actions editor-actions-mobile">
+      <div className="editor-actions">
         <button className="btn" onClick={cancel}>取消</button>
         <button className="btn btn-primary" onClick={complete}>完成</button>
       </div>
