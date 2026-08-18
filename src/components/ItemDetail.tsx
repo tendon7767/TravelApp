@@ -300,7 +300,13 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
             id="d-method"
             className="field"
             value={item.paymentMethodId ?? ''}
-            onChange={(e) => updateItem(item.id, { paymentMethodId: e.target.value || undefined })}
+            onChange={(e) =>
+              updateItem(item.id, {
+                paymentMethodId: e.target.value || undefined,
+                // 選了卡卻沒設狀態的話回饋不會計入，預設補上最常見的那個，可以再改。
+                paymentStatus: e.target.value && !item.paymentStatus ? '已刷卡' : item.paymentStatus,
+              })
+            }
           >
             <option value="">—</option>
             {methods.map((m) => (

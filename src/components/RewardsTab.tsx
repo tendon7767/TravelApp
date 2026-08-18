@@ -39,6 +39,17 @@ export default function RewardsTab({ trip, onSelect }: Props) {
     [methods, items, trip],
   )
 
+  /** 記在規劃版的支出不會計入回饋，但使用者只會看到 0，得說清楚。 */
+  const inPlanning = useMemo(() => {
+    const actualId = actual?.id
+    const counts: Record<string, number> = {}
+    for (const i of allItems) {
+      if (i.deleted || !i.paymentMethodId || i.planId === actualId) continue
+      counts[i.paymentMethodId] = (counts[i.paymentMethodId] ?? 0) + 1
+    }
+    return counts
+  }, [allItems, actual])
+
   const otherTrips = useMemo(
     () =>
       allTrips.filter(
@@ -95,6 +106,7 @@ export default function RewardsTab({ trip, onSelect }: Props) {
             <MethodCard
               key={res.method.id}
               res={res}
+              planningCount={inPlanning[res.method.id] ?? 0}
               onEdit={() => setEditingId(editingId === res.method.id ? null : res.method.id)}
               onSelect={onSelect}
             />
@@ -130,10 +142,12 @@ export default function RewardsTab({ trip, onSelect }: Props) {
 /** 主角是「還能刷多少」，不是「已經拿了多少」—— 站在收銀台前要看的是前者。 */
 function MethodCard({
   res,
+  planningCount,
   onEdit,
   onSelect,
 }: {
   res: MethodResult
+  planningCount: number
   onEdit: () => void
   onSelect: (id: string) => void
 }) {
@@ -192,6 +206,25 @@ function MethodCard({
           {' · '}已拿 {formatMoney(rr.reward, cur)}
         </div>
       ))}
+
+      {res.pending.length > 0 && (
+        <div style={{ marginTop: 10, background: 'var(--danger-bg)', borderRadius: 'var(--radius)', padding: 8 }}>
+          <div style={{ fontSize: 12, color: 'var(--danger)', marginBottom: 4 }}>
+            {res.pending.length} 筆指定了這張卡但沒有計入 —— 付款狀態要設成「已刷卡」或「現場付」
+          </div>
+          {res.pending.map((item) => (
+            <button key={item.id} className="chip" style={{ marginRight: 4, marginBottom: 4 }} onClick={() => onSelect(item.id)}>
+              {item.title} · {item.paymentStatus ?? '未設狀態'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {planningCount > 0 && (
+        <div className="dim" style={{ fontSize: 11, marginTop: 8 }}>
+          規劃版另有 {planningCount} 筆用這張卡，回饋只計算實際版。
+        </div>
+      )}
 
       <div style={{ marginTop: 10 }}>
         <span className="label">刷卡明細</span>

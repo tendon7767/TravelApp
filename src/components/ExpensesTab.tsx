@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useStore } from '../store/useStore'
-import { EXPENSE_CATEGORIES, type ExpenseCategory, type Item, type Plan, type Trip } from '../types'
-import { eachDay, shortDate, todayISO } from '../lib/date'
-import { newId } from '../lib/id'
+import { EXPENSE_CATEGORIES, type Item, type Plan, type Trip } from '../types'
+import { eachDay, shortDate } from '../lib/date'
 import {
   formatMoney,
   formatTotals,
@@ -11,32 +10,20 @@ import {
   mergeTotals,
   toHome,
 } from '../lib/money'
-import TransportCompare from './TransportCompare'
 
 interface Props {
   trip: Trip
   plan: Plan
   onSelect: (id: string) => void
+  onBack: () => void
 }
 
-export default function ExpensesTab({ trip, plan, onSelect }: Props) {
+export default function ExpensesTab({ trip, plan, onSelect, onBack }: Props) {
   const allItems = useStore((s) => s.data.items)
-  const allPayments = useStore((s) => s.data.payments)
-  const createItem = useStore((s) => s.createItem)
-
   const items = useMemo(
     () => allItems.filter((i) => i.planId === plan.id && !i.deleted),
     [allItems, plan.id],
   )
-  const methods = useMemo(
-    () => allPayments.filter((p) => p.tripId === trip.id && !p.deleted && p.enabled),
-    [allPayments, trip.id],
-  )
-
-  const [quick, setQuick] = useState<{ open: boolean; amount: string; cat: ExpenseCategory; cur: string; methodId: string }>(
-    { open: false, amount: '', cat: '餐飲', cur: trip.foreignCurrency, methodId: '' },
-  )
-
   const grand = useMemo(() => {
     const acc: Record<string, number> = {}
     for (const i of items) mergeTotals(acc, itemTotals(i))
@@ -67,65 +54,18 @@ export default function ExpensesTab({ trip, plan, onSelect }: Props) {
   const grandHome = toHome(grand, trip)
   const dayMax = Math.max(1, ...byDay.map((d) => d.home))
 
-  const submitQuick = () => {
-    const value = Number(quick.amount)
-    if (!value) return
-    const today = todayISO()
-    const date = today >= trip.startDate && today <= trip.endDate ? today : trip.startDate
-    const item = createItem({
-      planId: plan.id,
-      date,
-      title: quick.cat,
-      category: quick.cat,
-      paymentMethodId: quick.methodId || undefined,
-      paymentStatus: quick.methodId ? '已刷卡' : undefined,
-      costs: [{ id: newId(), label: '', unitPrice: value, qty: 1, currency: quick.cur }],
-    })
-    setQuick({ ...quick, open: false, amount: '' })
-    onSelect(item.id)
-  }
-
   return (
     <>
       <div className="sec">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <span className="label" style={{ margin: 0 }}>這趟總計</span>
-          <button className="btn btn-sm" onClick={() => setQuick({ ...quick, open: !quick.open })}>
-            {quick.open ? '取消' : '＋ 快速記帳'}
-          </button>
+          <button className="btn btn-sm" onClick={onBack}>‹ 回行程</button>
         </div>
         <div className="mono" style={{ fontSize: 22, marginTop: 4 }}>
           {formatMoney(grandHome, trip.homeCurrency)}
         </div>
         <div className="mono dim" style={{ fontSize: 13 }}>{formatTotals(grand) || '尚無支出'}</div>
       </div>
-
-      {quick.open && (
-        <div className="sec" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <input
-            className="field mono"
-            style={{ width: 108 }}
-            type="number"
-            inputMode="decimal"
-            autoFocus
-            placeholder="金額"
-            value={quick.amount}
-            onChange={(e) => setQuick({ ...quick, amount: e.target.value })}
-          />
-          <select className="field" style={{ width: 82 }} value={quick.cur} onChange={(e) => setQuick({ ...quick, cur: e.target.value })} aria-label="幣別">
-            <option value={trip.foreignCurrency}>{trip.foreignCurrency}</option>
-            <option value={trip.homeCurrency}>{trip.homeCurrency}</option>
-          </select>
-          <select className="field" style={{ width: 92 }} value={quick.cat} onChange={(e) => setQuick({ ...quick, cat: e.target.value as ExpenseCategory })} aria-label="類型">
-            {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <select className="field" style={{ flex: 1, minWidth: 120 }} value={quick.methodId} onChange={(e) => setQuick({ ...quick, methodId: e.target.value })} aria-label="支付方式">
-            <option value="">未指定支付方式</option>
-            {methods.map((m) => <option key={m.id} value={m.id}>{m.name || '未命名'}</option>)}
-          </select>
-          <button className="btn btn-primary" onClick={submitQuick}>記一筆</button>
-        </div>
-      )}
 
       {missing.length > 0 && (
         <div className="sec" style={{ background: 'var(--danger-bg)' }}>
@@ -197,8 +137,6 @@ export default function ExpensesTab({ trip, plan, onSelect }: Props) {
           </div>
         ))}
       </div>
-
-      <TransportCompare trip={trip} />
 
       <ExpenseList items={items} onSelect={onSelect} />
     </>

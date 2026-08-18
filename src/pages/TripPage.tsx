@@ -8,9 +8,9 @@ import SearchPanel from '../components/SearchPanel'
 import ExpensesTab from '../components/ExpensesTab'
 import RewardsTab from '../components/RewardsTab'
 
+// 花費統計不常看，從導航列移走，改由行程頁的「全程合計」點進去。
 const TABS = [
   { key: 'itinerary', label: '行程', icon: '☰' },
-  { key: 'expenses', label: '花費', icon: '$' },
   { key: 'rewards', label: '回饋', icon: '%' },
   { key: 'notes', label: '筆記', icon: '✎' },
 ] as const
@@ -101,10 +101,16 @@ export default function TripPage() {
               plan={plan}
               selectedId={selectedId}
               onSelect={(id) => setParam('sel', id)}
+              onOpenExpenses={() => setParam('tab', 'expenses')}
             />
           )}
           {!searching && tab === 'expenses' && plan && (
-            <ExpensesTab trip={trip} plan={plan} onSelect={(id) => setParam('sel', id)} />
+            <ExpensesTab
+              trip={trip}
+              plan={plan}
+              onSelect={(id) => setParam('sel', id)}
+              onBack={() => setParam('tab', 'itinerary')}
+            />
           )}
           {!searching && tab === 'rewards' && (
             <RewardsTab trip={trip} onSelect={(id) => setParam('sel', id)} />

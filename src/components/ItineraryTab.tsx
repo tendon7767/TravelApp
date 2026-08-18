@@ -11,9 +11,10 @@ interface Props {
   plan: Plan
   selectedId: string | null
   onSelect: (id: string) => void
+  onOpenExpenses: () => void
 }
 
-export default function ItineraryTab({ trip, plan, selectedId, onSelect }: Props) {
+export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenExpenses }: Props) {
   const allItems = useStore((s) => s.data.items)
   const items = useMemo(
     () => allItems.filter((i) => i.planId === plan.id && !i.deleted),
@@ -185,8 +186,8 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect }: Props
         )
       })}
 
-      <div className="sec" style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <strong style={{ fontSize: 14, fontWeight: 500 }}>全程合計</strong>
+      <button className="sec" style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }} onClick={onOpenExpenses}>
+        <strong style={{ fontSize: 14, fontWeight: 500 }}>全程合計 <span className="dim" style={{ fontWeight: 400 }}>· 看統計 ›</span></strong>
         <span className="mono" style={{ fontSize: 14 }}>
           {(() => {
             const all: Record<string, number> = {}
@@ -199,7 +200,7 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect }: Props
             }`
           })()}
         </span>
-      </div>
+      </button>
     </>
   )
 }

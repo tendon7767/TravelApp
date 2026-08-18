@@ -32,6 +32,8 @@ export interface MethodResult {
   spend: number
   rules: RuleResult[]
   totalReward: number
+  /** 指定了這張卡、卻因為付款狀態沒設成已刷卡／現場付而沒被計入的項目。 */
+  pending: Item[]
 }
 
 /**
@@ -98,6 +100,14 @@ export const computeMethod = (
     .map((item) => ({ item, amount: amountInMethodCurrency(item, method, trip) }))
     .filter((t) => t.amount > 0)
 
+  // 靜默排除是最難查的錯，把沒被計入的挑出來讓介面說明原因。
+  const pending = items.filter(
+    (i) =>
+      i.paymentMethodId === method.id &&
+      !i.deleted &&
+      !(i.paymentStatus && SPENT_STATUSES.has(i.paymentStatus)),
+  )
+
   const spend = txns.reduce((s, t) => s + t.amount, 0)
 
   const amounts = txns.map((t) => t.amount)
@@ -115,7 +125,7 @@ export const computeMethod = (
     }
   })
 
-  return { method, txns, spend, rules, totalReward: rules.reduce((s, r) => s + r.reward, 0) }
+  return { method, txns, spend, rules, pending, totalReward: rules.reduce((s, r) => s + r.reward, 0) }
 }
 
 /**
