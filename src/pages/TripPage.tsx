@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import ItineraryTab from '../components/ItineraryTab'
 import ItemDetail from '../components/ItemDetail'
 import PlanSwitcher from '../components/PlanSwitcher'
 import SearchPanel from '../components/SearchPanel'
+import TripEditModal from '../components/TripEditModal'
 import ExpensesTab from '../components/ExpensesTab'
 import RewardsTab from '../components/RewardsTab'
 
@@ -19,6 +20,7 @@ export default function TripPage() {
   const { tripId } = useParams()
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
+  const [editingTrip, setEditingTrip] = useState(false)
 
   const trip = useStore((s) => s.data.trips.find((t) => t.id === tripId && !t.deleted))
   const allPlans = useStore((s) => s.data.plans)
@@ -68,14 +70,18 @@ export default function TripPage() {
         <button className="btn btn-sm" onClick={() => navigate('/')} aria-label="回到旅程列表">
           ‹
         </button>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <button
+          style={{ flex: 1, minWidth: 0, textAlign: 'left' }}
+          onClick={() => setEditingTrip(true)}
+          aria-label="編輯旅程"
+        >
           <div style={{ fontSize: 15, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {trip.name}
+            {trip.name} <span className="dim" style={{ fontSize: 12, fontWeight: 400 }}>✎</span>
           </div>
           <div className="dim" style={{ fontSize: 11 }}>
             {trip.foreignCurrency} 匯率 {trip.rate}
           </div>
-        </div>
+        </button>
         <button
           className="btn btn-sm"
           onClick={() => setParam('q', searching ? undefined : '1')}
@@ -85,6 +91,8 @@ export default function TripPage() {
         </button>
         <PlanSwitcher trip={trip} plans={plans} activeId={plan?.id} onPick={(id) => setParam('plan', id)} />
       </div>
+
+      {editingTrip && <TripEditModal trip={trip} onClose={() => setEditingTrip(false)} />}
 
       <div className="split">
         <div className="pane-list">
