@@ -10,6 +10,7 @@ import ConfirmButton from './ConfirmButton'
 import NumberField from './NumberField'
 import { methodLabel } from '../lib/owners'
 import SettingsModal from './SettingsModal'
+import Modal from './Modal'
 import { amountInMethodCurrency, computeMethod, suggestSplit } from '../lib/rewards'
 
 interface Props {
@@ -39,6 +40,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   const [timeDraft, setTimeDraft] = useState(storedItem?.startTime ?? '')
   const [renaming, setRenaming] = useState(false)
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
+  const [confirmingCancel, setConfirmingCancel] = useState(false)
   const allPayments = useStore((s) => s.data.payments)
   const allItems = useStore((s) => s.data.items)
   const allReviews = useStore((s) => s.data.reviews)
@@ -168,6 +170,18 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
 
   return (
     <>
+      {confirmingCancel && (
+        <Modal
+          title="尚未儲存變更"
+          onCancel={() => setConfirmingCancel(false)}
+          onComplete={onClose}
+          cancelLabel="繼續編輯"
+          completeLabel="放棄變更"
+          completeDanger
+        >
+          <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的修改嗎？</p>
+        </Modal>
+      )}
       <div className="scroll">
         {renaming && <SettingsModal onClose={() => setRenaming(false)} />}
         <div className="topbar">
@@ -464,7 +478,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
       </div>
 
       <div className="editor-actions">
-        <button className="btn" onClick={onClose}>取消</button>
+        <button className="btn" onClick={() => (dirty ? setConfirmingCancel(true) : onClose())}>取消</button>
         <button className="btn btn-primary" onClick={complete}>完成</button>
       </div>
     </>

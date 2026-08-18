@@ -20,6 +20,12 @@ export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: 
     foreignCurrency: trip.foreignCurrency,
     rate: trip.rate,
   })
+  const dirty =
+    form.name !== trip.name ||
+    form.startDate !== trip.startDate ||
+    form.endDate !== trip.endDate ||
+    form.foreignCurrency !== trip.foreignCurrency ||
+    form.rate !== trip.rate
 
   const stranded = useMemo(() => {
     const planIds = new Set(allPlans.filter((p) => p.tripId === trip.id && !p.deleted).map((p) => p.id))
@@ -41,7 +47,7 @@ export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: 
   }
 
   return (
-    <Modal title="編輯旅程" onCancel={onClose} onComplete={save}>
+    <Modal title="編輯旅程" onCancel={onClose} onComplete={save} dirty={dirty}>
       <div style={{ display: 'grid', gap: 10, paddingTop: 12 }}>
         <div>
           <label className="label" htmlFor="e-name">旅程名稱</label>

@@ -5,6 +5,7 @@ import { dayCount, shortDate } from '../lib/date'
 import NumberField from '../components/NumberField'
 import SettingsModal from '../components/SettingsModal'
 import TripEditModal from '../components/TripEditModal'
+import Modal from '../components/Modal'
 
 export default function TripsPage() {
   // selector 必須回傳穩定參照，過濾留給 useMemo，否則每次重繪都是新陣列。
@@ -12,10 +13,13 @@ export default function TripsPage() {
   const trips = useMemo(() => allTrips.filter((t) => !t.deleted), [allTrips])
   const createTrip = useStore((s) => s.createTrip)
   const navigate = useNavigate()
-  const [form, setForm] = useState(draftTrip())
+  const [blankForm] = useState(() => draftTrip())
+  const [form, setForm] = useState(blankForm)
   const [open, setOpen] = useState(false)
+  const [confirmingNewCancel, setConfirmingNewCancel] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [editingTripId, setEditingTripId] = useState<string | null>(null)
+  const newTripDirty = JSON.stringify(form) !== JSON.stringify(blankForm)
 
   const submit = () => {
     if (!form.name.trim()) return
@@ -27,12 +31,35 @@ export default function TripsPage() {
 
   return (
     <div className="app">
+      {confirmingNewCancel && (
+        <Modal
+          title="尚未儲存變更"
+          onCancel={() => setConfirmingNewCancel(false)}
+          onComplete={() => {
+            setForm(draftTrip())
+            setOpen(false)
+            setConfirmingNewCancel(false)
+          }}
+          cancelLabel="繼續編輯"
+          completeLabel="放棄變更"
+          completeDanger
+        >
+          <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這趟旅程的資料嗎？</p>
+        </Modal>
+      )}
       <div className="topbar">
         <strong style={{ flex: 1, fontSize: 16, fontWeight: 500 }}>我的旅程</strong>
         <button className="btn btn-sm" onClick={() => setSettingsOpen(true)} aria-label="設定">
           ⚙
         </button>
-        <button className="btn btn-sm" onClick={() => setOpen((v) => !v)}>
+        <button
+          className="btn btn-sm"
+          onClick={() => {
+            if (!open) setOpen(true)
+            else if (newTripDirty) setConfirmingNewCancel(true)
+            else setOpen(false)
+          }}
+        >
           {open ? '取消' : '新增旅程'}
         </button>
       </div>

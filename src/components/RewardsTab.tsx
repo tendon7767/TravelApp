@@ -31,6 +31,11 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
     () => allPayments.filter((p) => p.tripId === trip.id && !p.deleted),
     [allPayments, trip.id],
   )
+  const editorDirty = useMemo(() => {
+    if (!editingDraft) return false
+    const stored = methods.find((method) => method.id === editingDraft.id)
+    return Boolean(stored && JSON.stringify(stored) !== JSON.stringify(editingDraft))
+  }, [editingDraft, methods])
   const items = useMemo(
     () => (isActual && plan ? allItems.filter((i) => i.planId === plan.id && !i.deleted) : []),
     [allItems, isActual, plan],
@@ -129,6 +134,7 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
           title="編輯支付方式"
           onCancel={cancelEditor}
           onComplete={completeEditor}
+          dirty={editorDirty}
         >
           <PaymentEditor
             method={editingDraft}

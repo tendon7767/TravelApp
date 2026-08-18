@@ -18,6 +18,10 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const setDriveFolder = useStore((s) => s.setDriveFolder)
   const [folderDraft, setFolderDraft] = useState(driveFolderId)
   const [folderStatus, setFolderStatus] = useState('')
+  const dirty =
+    draft.trim() !== memberName ||
+    urlDraft.trim() !== gasUrl ||
+    folderDraft.trim() !== driveFolderId
 
   const save = () => {
     const next = draft.trim()
@@ -46,7 +50,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Modal title="設定" onCancel={onClose} onComplete={save}>
+    <Modal title="設定" onCancel={onClose} onComplete={save} dirty={dirty}>
       <div style={{ paddingTop: 12 }}>
         <label className="label" htmlFor="s-name">你的名字</label>
         <input
