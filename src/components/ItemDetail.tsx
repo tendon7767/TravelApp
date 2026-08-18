@@ -232,6 +232,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     ...(isActual ? (['review'] as const) : []),
   ]
   const allSectionsOpen = editableSections.every((section) => editingSections.has(section))
+  const hasEditing = editingSections.size > 0 || choosingCategory
 
   const beginEditAll = () => {
     setFocusLinkId(null)
@@ -245,8 +246,24 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     onClose()
   }
 
+  const cancelEditing = () => {
+    setDraftItem(copyItem(storedItem))
+    setTimeDraft(storedItem.startTime ?? '')
+    setReviewDraft(mine?.text ?? '')
+    setMapDraft('')
+    setWebDraft('')
+    setNoteDraft('')
+    setEditingSections(new Set())
+    setChoosingCategory(false)
+    setConfirmingCancel(false)
+    setRestored(false)
+    setTouched(false)
+    void clearItemDraft(itemId)
+  }
+
   const requestCancel = () => {
     if (dirty) setConfirmingCancel(true)
+    else if (hasEditing) cancelEditing()
     else discardAndClose()
   }
 
@@ -267,6 +284,11 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     }
     if (isActual && reviewDraft !== (mine?.text ?? '')) setReview(item.id, reviewDraft)
     setTimeDraft(normalizedTime ?? '')
+    setMapDraft('')
+    setWebDraft('')
+    setNoteDraft('')
+    setEditingSections(new Set())
+    setChoosingCategory(false)
     setTouched(false)
     setRestored(false)
     void clearItemDraft(item.id)
@@ -354,12 +376,16 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         <Modal
           title="尚未儲存變更"
           onCancel={() => setConfirmingCancel(false)}
-          onComplete={discardAndClose}
-          cancelLabel="繼續編輯"
+          onComplete={hasEditing ? cancelEditing : discardAndClose}
+          cancelLabel={hasEditing ? '繼續編輯' : '繼續查看'}
           completeLabel="放棄變更"
           completeDanger
         >
-          <p style={{ margin: '12px 0 0' }}>確定要離開並放棄這次的全部修改嗎？</p>
+          <p style={{ margin: '12px 0 0' }}>
+            {hasEditing
+              ? '確定要取消編輯並放棄這次的全部修改嗎？'
+              : '確定要離開並放棄這次的全部修改嗎？'}
+          </p>
         </Modal>
       )}
       {renaming && <SettingsModal onClose={() => setRenaming(false)} />}
@@ -875,8 +901,12 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
       </div>
 
       <div className="editor-actions">
-        <button className="btn" onClick={requestCancel}>離開</button>
-        <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>完成</button>
+        <button className="btn" onClick={requestCancel}>
+          {hasEditing ? '取消編輯' : '離開'}
+        </button>
+        <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>
+          {hasEditing ? '完成編輯' : '完成'}
+        </button>
       </div>
     </>
   )
