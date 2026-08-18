@@ -15,9 +15,8 @@ export const amountInMethodCurrency = (item: Item, method: PaymentMethod, trip: 
 
 export interface RuleResult {
   rule: RewardRule
-  /** 這條規則實際吃到的消費金額（受 spendCap 限制） */
-  eligibleSpend: number
   reward: number
+  /** 還能刷多少才把回饋額度用完 */
   remainingSpend?: number
   /** 有沒有撞到任何一個上限 */
   capped: boolean
@@ -37,30 +36,31 @@ export interface MethodResult {
  * 用總額算會高估，而且高估得很難發現。
  */
 /**
- * 消費上限＝回饋上限 ÷ 回饋率。刷超過這個金額，這條規則就再也產不出回饋。
- * 這是唯一來源，不讓使用者手填，免得兩個數字對不起來。
+ * 「照理想筆數刷的話，刷到這個金額就把回饋領滿」。只用來在設定頁顯示參考值。
+ * 不能拿來當扣減依據 —— 有單筆回饋上限時，刷出去的錢不會等比例換成回饋。
  */
 export const spendCapOf = (rule: RewardRule): number | undefined =>
   rule.rewardCap !== undefined && rule.rate > 0 ? rule.rewardCap / rule.rate : undefined
 
+/**
+ * 還可刷金額要從「回饋還剩多少沒領」回推，而不是從消費金額扣。
+ * 一次刷 5,355、費率 6%、單筆上限 60：只拿到 60，回饋上限 180 還剩 120，
+ * 所以還有 120 ÷ 6% = 2,000 的空間。用消費金額扣會算成 0，把還能賺的額度誤判成用完。
+ */
+const remainingSpendFor = (rule: RewardRule, reward: number): number | undefined =>
+  rule.rewardCap !== undefined && rule.rate > 0
+    ? Math.max(0, (rule.rewardCap - reward) / rule.rate)
+    : undefined
+
 /** 單一規則跑過一串交易，回傳吃到的消費、回饋、有沒有撞上限。 */
 const runRule = (rule: RewardRule, amounts: number[]) => {
-  let spent = 0
-  let eligibleSpend = 0
   let reward = 0
   let capped = false
 
-  const spendCap = spendCapOf(rule)
+  // 沒有另外設消費上限的閘門：回饋上限本身就會停止累積，
+  // 多加一道用消費金額算的閘門反而會在單筆上限存在時提早關掉還能領的回饋。
   for (const amount of amounts) {
-    const room = spendCap === undefined ? amount : Math.max(0, spendCap - spent)
-    const eligible = Math.min(amount, room)
-    spent += amount
-    if (eligible <= 0) {
-      capped = true
-      continue
-    }
-
-    let r = eligible * rule.rate
+    let r = amount * rule.rate
     if (rule.perTxnRewardCap !== undefined && r > rule.perTxnRewardCap) {
       r = rule.perTxnRewardCap
       capped = true
@@ -69,11 +69,10 @@ const runRule = (rule: RewardRule, amounts: number[]) => {
       r = Math.max(0, rule.rewardCap - reward)
       capped = true
     }
-    eligibleSpend += eligible
     reward += r
   }
 
-  return { spent, eligibleSpend, reward, capped }
+  return { reward, capped }
 }
 
 const totalReward = (method: PaymentMethod, amounts: number[]): number =>
@@ -101,12 +100,8 @@ export const computeMethod = (
     const r = runRule(rule, amounts)
     return {
       rule,
-      eligibleSpend: r.eligibleSpend,
       reward: r.reward,
-      remainingSpend: (() => {
-        const cap = spendCapOf(rule)
-        return cap === undefined ? undefined : Math.max(0, cap - spend)
-      })(),
+      remainingSpend: remainingSpendFor(rule, r.reward),
       capped: r.capped,
     }
   })

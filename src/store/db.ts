@@ -1,5 +1,5 @@
 import { get, set } from 'idb-keyval'
-import { emptyData, type AppData } from '../types'
+import { emptyData, type AppData, type Review } from '../types'
 
 const DATA_KEY = 'travelapp:data'
 const SETTINGS_KEY = 'travelapp:settings'
@@ -20,9 +20,26 @@ const LEGACY_STATUS: Record<string, string> = {
   已刷卡: '已付款',
 }
 
+type LegacyItem = { id: string; review?: string; paymentStatus?: string }
+
 export const loadData = async (): Promise<AppData> => {
   const raw = await get<AppData>(DATA_KEY)
   if (!raw) return emptyData()
+
+  // 心得原本是項目裡的欄位，改成獨立記錄後把舊資料搬過去，不要靜默丟掉。
+  const migratedReviews: Review[] = []
+  for (const i of (raw.items ?? []) as unknown as LegacyItem[]) {
+    if (!i.review?.trim()) continue
+    migratedReviews.push({
+      id: `${i.id}-legacy-review`,
+      itemId: i.id,
+      author: '我',
+      text: i.review,
+      updatedAt: Date.now(),
+      updatedBy: '我',
+    })
+  }
+
   // 逐個給預設值，舊版存下來的資料少了新集合時才不會炸掉。
   return {
     trips: raw.trips ?? [],
@@ -32,6 +49,7 @@ export const loadData = async (): Promise<AppData> => {
         ? { ...i, paymentStatus: LEGACY_STATUS[i.paymentStatus] as typeof i.paymentStatus }
         : i,
     ),
+    reviews: [...(raw.reviews ?? []), ...migratedReviews],
     payments: raw.payments ?? [],
     transports: raw.transports ?? [],
   }

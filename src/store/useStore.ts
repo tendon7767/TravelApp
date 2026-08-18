@@ -5,6 +5,7 @@ import {
   type Item,
   type PaymentMethod,
   type Plan,
+  type Review,
   type SyncFields,
   type TransportOption,
   type Trip,
@@ -34,6 +35,9 @@ interface State {
   createItem: (input: Partial<Item> & { planId: string; date: string; title: string }) => Item
   updateItem: (id: string, patch: Partial<Item>) => void
   removeItem: (id: string) => void
+
+  /** 每個人只寫自己那則，用暱稱當識別，所以不會互相覆蓋。 */
+  setReview: (itemId: string, text: string) => void
 
   createPayment: (tripId: string) => PaymentMethod
   updatePayment: (id: string, patch: Partial<PaymentMethod>) => void
@@ -109,11 +113,13 @@ export const useStore = create<State>((setState, getState) => {
         const now = Date.now()
         const by = getState().settings.memberName
         const planIds = new Set(d.plans.filter((p) => p.tripId === id).map((p) => p.id))
+        const tripItemIds = new Set(d.items.filter((i) => planIds.has(i.planId)).map((i) => i.id))
         const kill = <T extends SyncFields>(r: T) => ({ ...r, deleted: true, updatedAt: now, updatedBy: by })
         return {
           trips: d.trips.map((t) => (t.id === id && !t.deleted ? kill(t) : t)),
           plans: d.plans.map((p) => (p.tripId === id && !p.deleted ? kill(p) : p)),
           items: d.items.map((i) => (planIds.has(i.planId) && !i.deleted ? kill(i) : i)),
+          reviews: d.reviews.map((r) => (tripItemIds.has(r.itemId) && !r.deleted ? kill(r) : r)),
           payments: d.payments.map((p) => (p.tripId === id && !p.deleted ? kill(p) : p)),
           transports: d.transports.map((t) => (t.tripId === id && !t.deleted ? kill(t) : t)),
         }
@@ -151,11 +157,17 @@ export const useStore = create<State>((setState, getState) => {
       mutate((d) => {
         const now = Date.now()
         const by = getState().settings.memberName
+        const killedItems = new Set(d.items.filter((i) => i.planId === id).map((i) => i.id))
         return {
           ...d,
           plans: patchIn(d.plans, id, { deleted: true } as Partial<Plan>),
           items: d.items.map((i) =>
             i.planId === id && !i.deleted ? { ...i, deleted: true, updatedAt: now, updatedBy: by } : i,
+          ),
+          reviews: d.reviews.map((r) =>
+            killedItems.has(r.itemId) && !r.deleted
+              ? { ...r, deleted: true, updatedAt: now, updatedBy: by }
+              : r,
           ),
         }
       }),
@@ -170,7 +182,28 @@ export const useStore = create<State>((setState, getState) => {
 
     /** 軟刪除：墓碑是 M4 同步用的，刪除前由介面負責跟使用者確認。 */
     removeItem: (id) =>
-      mutate((d) => ({ ...d, items: patchIn(d.items, id, { deleted: true } as Partial<Item>) })),
+      mutate((d) => ({
+        ...d,
+        items: patchIn(d.items, id, { deleted: true } as Partial<Item>),
+        reviews: d.reviews.map((r) =>
+          r.itemId === id && !r.deleted
+            ? { ...r, deleted: true, updatedAt: Date.now(), updatedBy: getState().settings.memberName }
+            : r,
+        ),
+      })),
+
+    setReview: (itemId, text) => {
+      const author = getState().settings.memberName
+      const existing = getState().data.reviews.find(
+        (r) => r.itemId === itemId && r.author === author && !r.deleted,
+      )
+      if (existing) {
+        mutate((d) => ({ ...d, reviews: patchIn(d.reviews, existing.id, { text }) }))
+        return
+      }
+      const review: Review = { ...stamp(), itemId, author, text }
+      mutate((d) => ({ ...d, reviews: [...d.reviews, review] }))
+    },
 
     createPayment: (tripId) => {
       const method: PaymentMethod = {

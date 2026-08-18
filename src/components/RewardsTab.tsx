@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import type { Trip } from '../types'
-import { computeMethod, spendCapOf, type MethodResult } from '../lib/rewards'
+import { computeMethod, type MethodResult } from '../lib/rewards'
 import { formatMoney } from '../lib/money'
 import { shortDate } from '../lib/date'
 import { methodLabel, OWNERLESS, ownerColor } from '../lib/owners'
@@ -195,10 +195,16 @@ function MethodCard({
 }) {
   const cur = res.method.currency
   const capped = res.rules.filter((r) => r.remainingSpend !== undefined)
-  const remaining = capped.length ? Math.min(...capped.map((r) => r.remainingSpend ?? 0)) : undefined
+  // 最緊的那條規則決定你實際還能刷多少
+  const binding = capped.length
+    ? capped.reduce((a, b) => ((a.remainingSpend ?? 0) <= (b.remainingSpend ?? 0) ? a : b))
+    : undefined
+  const remaining = binding?.remainingSpend
   const exhausted = remaining === 0
-  const totalCap = capped.length ? Math.min(...capped.map((r) => spendCapOf(r.rule) ?? Infinity)) : undefined
-  const pct = totalCap && totalCap !== Infinity ? Math.min(100, (res.spend / totalCap) * 100) : 0
+  // 進度看的是「回饋領了多少」，不是「刷了多少」——
+  // 有單筆上限時兩者不成比例，用刷的金額會高估進度。
+  const rewardCap = binding?.rule.rewardCap
+  const pct = rewardCap ? Math.min(100, (binding!.reward / rewardCap) * 100) : 0
 
   return (
     <div className="sec" style={{ borderLeft: `3px solid ${accent}` }}>
@@ -229,15 +235,15 @@ function MethodCard({
         </div>
       </div>
 
-      {totalCap !== undefined && totalCap !== Infinity && (
+      {rewardCap !== undefined && (
         <div style={{ height: 6, background: 'var(--surface-2)', borderRadius: 3, marginTop: 8 }}>
-          <div style={{ width: `${pct}%`, height: '100%', borderRadius: 3, background: exhausted ? 'var(--danger)' : 'var(--accent)' }} />
+          <div style={{ width: `${pct}%`, height: '100%', borderRadius: 3, background: exhausted ? 'var(--danger)' : accent }} />
         </div>
       )}
       <div className="mono dim" style={{ fontSize: 11, marginTop: 4 }}>
-        已刷 {formatMoney(res.spend, cur)}
-        {totalCap !== undefined && totalCap !== Infinity && ` / ${formatMoney(totalCap, cur)}`}
-        {' · '}{res.txns.length} 筆
+        已刷 {formatMoney(res.spend, cur)} · {res.txns.length} 筆
+        {rewardCap !== undefined &&
+          ` · 回饋 ${formatMoney(binding!.reward, cur)} / ${formatMoney(rewardCap, cur)}`}
       </div>
 
       {res.rules.map((rr) => (

@@ -60,8 +60,6 @@ export interface Item extends SyncFields {
   title: string
   /** 遊玩說明：這裡有什麼好吃好玩好看的，行前就會寫 */
   guide?: string
-  /** 心得：跑完之後的感想，只在實際版顯示 */
-  review?: string
   /** 實務提醒，與遊玩說明分開 */
   notes: string[]
   links: LinkRef[]
@@ -101,6 +99,17 @@ export interface PaymentMethod extends SyncFields {
   note?: string
 }
 
+/**
+ * 心得刻意做成獨立記錄而不是項目裡的欄位。
+ * 一人一則、每則只有作者本人會寫，所以「後寫入者勝」永遠不會弄丟別人的內容 ——
+ * 若塞在項目裡，同步時整筆項目被覆蓋，同行者剛寫好的那段就沒了。
+ */
+export interface Review extends SyncFields {
+  itemId: string
+  author: string
+  text: string
+}
+
 /** 租車 vs 電車巴士這種方案並排比價，與行程無關，純試算。 */
 export interface TransportOption extends SyncFields {
   tripId: string
@@ -112,6 +121,7 @@ export interface AppData {
   trips: Trip[]
   plans: Plan[]
   items: Item[]
+  reviews: Review[]
   payments: PaymentMethod[]
   transports: TransportOption[]
 }
@@ -120,6 +130,7 @@ export const emptyData = (): AppData => ({
   trips: [],
   plans: [],
   items: [],
+  reviews: [],
   payments: [],
   transports: [],
 })

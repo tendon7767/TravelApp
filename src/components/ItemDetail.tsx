@@ -26,6 +26,17 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
   const [timeDraft, setTimeDraft] = useState(item?.startTime ?? '')
   const allPayments = useStore((s) => s.data.payments)
   const allItems = useStore((s) => s.data.items)
+  const allReviews = useStore((s) => s.data.reviews)
+  const setReview = useStore((s) => s.setReview)
+  const me = useStore((s) => s.settings.memberName)
+
+  // 一人一則：自己那則可以編輯，同行者的只讀，兩邊不會互相覆蓋。
+  const reviews = useMemo(
+    () => allReviews.filter((r) => r.itemId === itemId && !r.deleted),
+    [allReviews, itemId],
+  )
+  const mine = reviews.find((r) => r.author === me)
+  const others = reviews.filter((r) => r.author !== me && r.text.trim())
   // 心得是跑完行程才寫的東西，規劃版放這欄只是雜訊。
   const isActual = useStore((s) =>
     s.data.plans.some((p) => p.id === item?.planId && p.kind === 'actual' && !p.deleted),
@@ -139,14 +150,21 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
 
       {isActual && (
         <div className="sec">
-          <label className="label" htmlFor="d-review">心得</label>
+          <span className="label">心得</span>
+          {others.map((r) => (
+            <div key={r.id} style={{ marginBottom: 8 }}>
+              <div className="dim" style={{ fontSize: 11 }}>{r.author}</div>
+              <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{r.text}</div>
+            </div>
+          ))}
+          <div className="dim" style={{ fontSize: 11, marginBottom: 3 }}>{me}</div>
           <textarea
             id="d-review"
             className="field"
             rows={3}
             placeholder="實際去了之後的感想"
-            value={item.review ?? ''}
-            onChange={(e) => updateItem(item.id, { review: e.target.value })}
+            value={mine?.text ?? ''}
+            onChange={(e) => setReview(item.id, e.target.value)}
           />
         </div>
       )}
