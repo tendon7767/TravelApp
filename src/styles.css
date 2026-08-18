@@ -76,7 +76,17 @@
 
 * { box-sizing: border-box; }
 
-html, body, #root { height: 100%; }
+/*
+ * 整個 App 是固定高度的版面，文件本身不捲動。
+ * 先前頂端列與底部列用 position: sticky 掛在文件捲軸上，
+ * 捲到邊界時瀏覽器的橡皮筋回彈會把整個文件位移，sticky 的列跟著彈一下。
+ * 讓文件不可捲，回彈就沒有東西可以彈，兩條列變成純粹的版面元素。
+ */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 
 body {
   margin: 0;
@@ -103,7 +113,8 @@ a { color: var(--accent); }
 .app {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
   max-width: 1100px;
   margin: 0 auto;
   background: var(--bg);
@@ -159,8 +170,8 @@ a { color: var(--accent); }
 
 /* 頂端：旅程名稱、版本、匯率 */
 .topbar {
-  position: sticky;
-  top: 0;
+  position: relative;
+  flex: none;
   z-index: 20;
   background: var(--surface);
   border-bottom: 0.5px solid var(--border);
@@ -209,7 +220,7 @@ a { color: var(--accent); }
 /* 日期橫條 */
 .daystrip {
   position: sticky;
-  top: var(--topbar-h);
+  top: 0;
   z-index: 19;
   display: flex;
   gap: 5px;
@@ -241,7 +252,7 @@ a { color: var(--accent); }
   background: var(--surface-2);
   border-bottom: 0.5px solid var(--border);
   position: sticky;
-  top: calc(var(--topbar-h) + 39px);
+  top: 39px; /* 日期橫條的高度，兩條都黏在捲動容器內 */
   z-index: 18;
 }
 
@@ -318,8 +329,8 @@ a { color: var(--accent); }
 
 /* 底部四個分頁 */
 .tabbar {
-  position: sticky;
-  bottom: 0;
+  position: relative;
+  flex: none;
   z-index: 31;
   display: flex;
   background: var(--surface);
@@ -339,8 +350,14 @@ a { color: var(--accent); }
 .scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 
 /* 詳細頁：手機蓋滿，桌機變右欄 */
-.split { display: flex; flex: 1; min-height: 0; }
-.split > .pane-list { flex: 1; min-width: 0; }
+.split { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+/* 真正在捲的是這一層。overscroll-behavior 阻止捲動傳遞到外層，避免整頁回彈。 */
+.split > .pane-list {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .pane-detail {
   position: fixed;
   inset: 0 0 var(--tabbar-h) 0;
@@ -352,25 +369,18 @@ a { color: var(--accent); }
 }
 
 @media (min-width: 860px) {
-  /* 詳細頁自己黏在視窗上，左邊行程怎麼捲都不影響它 */
+  /*
+   * 版面改成固定高度後，.split 本身就有明確高度，詳細頁只要撐滿它即可，
+   * 不必再用 sticky 去追文件捲軸，先前那些 top/height 的扣除計算全部不需要了。
+   */
   .pane-detail {
-    position: sticky;
+    position: relative;
     inset: auto;
-    top: var(--topbar-h);
-    bottom: auto;
-    align-self: flex-start;
     z-index: auto;
     width: 400px;
     flex: none;
-    /*
-     * 高度要同時扣掉頂端列與底部導航列，這一個扣除解掉兩個問題：
-     * 一是底部的「取消／完成」不再被導航列整條蓋住（導航列 z-index 比詳細頁高，
-     *   蓋住時連點都點不到，會誤觸到分頁圖示）。
-     * 二是 sticky 不能超出容器 .split，而導航列排在 .split 之外，
-     *   少扣這 56px 的話捲到文件底部時詳細頁會被容器邊界往上推，標題列滑進頂端列底下。
-     *   扣掉之後，捲到底時詳細頁底部剛好等於 .split 底部，不再位移。
-     */
-    height: calc(100dvh - var(--topbar-h) - var(--tabbar-h));
+    align-self: stretch;
+    height: auto;
     border-left: 0.5px solid var(--border);
   }
 }
