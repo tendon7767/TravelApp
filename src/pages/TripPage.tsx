@@ -214,7 +214,12 @@ export default function TripPage() {
 
         {selectedId && plan && (
           <div className="pane-detail">
-            <ItemDetail trip={trip} itemId={selectedId} onClose={() => setParam('sel')} />
+            <ItemDetail
+              key={selectedId}
+              trip={trip}
+              itemId={selectedId}
+              onClose={() => setParam('sel')}
+            />
           </div>
         )}
       </div>

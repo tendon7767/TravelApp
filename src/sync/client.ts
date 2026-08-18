@@ -1,5 +1,6 @@
 import type { AppData } from '../types'
 import { normalizeStoredDate, normalizeStoredTime } from '../lib/date'
+import { normalizeItemNotes } from '../lib/itemNotes'
 
 export interface SyncConfig {
   /** Apps Script 網頁應用程式網址，只部署一次，所有旅程共用 */
@@ -123,7 +124,7 @@ const normalizeRemoteRow = (
 ): Record<string, unknown> => {
   // 路由參數永遠是字串；Sheets 若把看似數字的 ID 回傳成 number，
   // React Router 的嚴格比對會找不到剛加入的旅程。
-  const normalized = { ...row, id: String(row.id) }
+  const normalized: Record<string, unknown> = { ...row, id: String(row.id) }
   if (collection === 'trips') {
     return {
       ...normalized,
@@ -132,11 +133,13 @@ const normalizeRemoteRow = (
     }
   }
   if (collection === 'items') {
+    delete normalized.paymentStatus
+    delete normalized.chargeDate
     return {
       ...normalized,
       date: normalizeStoredDate(row.date) ?? row.date,
-      chargeDate: normalizeStoredDate(row.chargeDate) ?? row.chargeDate,
       startTime: normalizeStoredTime(row.startTime) ?? row.startTime,
+      notes: normalizeItemNotes(row.notes, String(row.id)),
     }
   }
   return normalized

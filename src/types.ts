@@ -1,9 +1,6 @@
 export const EXPENSE_CATEGORIES = ['交通', '餐飲', '住宿', '娛樂', '購物', '其他'] as const
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]
 
-export const PAYMENT_STATUSES = ['尚未付款', '已付款', '自動結帳'] as const
-export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
-
 /** 每筆記錄都帶同步欄位，M4 接上試算表時直接沿用，不必回頭改資料結構。 */
 export interface SyncFields {
   id: string
@@ -52,6 +49,13 @@ export interface LinkRef {
   kind: 'map' | 'web'
 }
 
+export interface ItemNote {
+  id: string
+  text: string
+  /** 勾選後把這則提醒顯示在行程總覽。 */
+  showInOverview?: boolean
+}
+
 export interface Item extends SyncFields {
   planId: string
   date: string
@@ -61,15 +65,12 @@ export interface Item extends SyncFields {
   /** 遊玩說明：這裡有什麼好吃好玩好看的，行前就會寫 */
   guide?: string
   /** 實務提醒，與遊玩說明分開 */
-  notes: string[]
+  notes: ItemNote[]
   links: LinkRef[]
   costs: CostLine[]
   /** 有金額卻沒填會被標紅 */
   category?: ExpenseCategory
   paymentMethodId?: string
-  paymentStatus?: PaymentStatus
-  /** 自動結帳的扣款日 */
-  chargeDate?: string
 }
 
 /**

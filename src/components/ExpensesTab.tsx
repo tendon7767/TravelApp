@@ -164,7 +164,7 @@ function ExpenseList({ items, onSelect }: { items: Item[]; onSelect: (id: string
           <span className="rowtitle">
             {i.title}
             <div className="dim" style={{ fontSize: 12, marginTop: 2 }}>
-              {shortDate(i.date)} {i.startTime ?? ''} {i.paymentStatus ? `· ${i.paymentStatus}` : ''}
+              {shortDate(i.date)} {i.startTime ?? ''}
             </div>
           </span>
           <span className="rowmoney">{formatTotals(itemTotals(i))}</span>

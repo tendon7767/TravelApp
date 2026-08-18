@@ -41,7 +41,7 @@ export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: 
   }
 
   return (
-    <Modal title="編輯旅程" onClose={save}>
+    <Modal title="編輯旅程" onCancel={onClose} onComplete={save}>
       <div style={{ display: 'grid', gap: 10, paddingTop: 12 }}>
         <div>
           <label className="label" htmlFor="e-name">旅程名稱</label>

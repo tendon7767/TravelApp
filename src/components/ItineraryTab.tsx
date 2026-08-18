@@ -14,18 +14,6 @@ interface Props {
   onOpenExpenses: () => void
 }
 
-/**
- * 付款狀態是提醒用的，所以只標「還需要你處理」的那幾種。
- * 已刷卡沒什麼好記的，就不佔版面。
- */
-const payBadge = (item: Item): { text: string; tone: 'warn' | 'info' } | null => {
-  if (item.paymentStatus === '尚未付款') return { text: '尚未付款', tone: 'warn' }
-  if (item.paymentStatus === '自動結帳') {
-    return { text: item.chargeDate ? `${shortDate(item.chargeDate).split(' ')[0]} 扣款` : '自動結帳', tone: 'info' }
-  }
-  return null
-}
-
 export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenExpenses }: Props) {
   const allItems = useStore((s) => s.data.items)
   const items = useMemo(
@@ -134,22 +122,14 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
                     <span className="dim" style={{ fontSize: 12, marginLeft: 4 }}>◎</span>
                   )}
                   {isUncategorized(item) && <span className="warn" style={{ marginLeft: 6 }}>缺類型</span>}
-                  {(() => {
-                    const badge = payBadge(item)
-                    if (!badge) return null
-                    return (
-                      <span
-                        className="warn"
-                        style={
-                          badge.tone === 'info'
-                            ? { marginLeft: 6, color: 'var(--accent)', background: 'var(--accent-bg)' }
-                            : { marginLeft: 6 }
-                        }
-                      >
-                        {badge.text}
-                      </span>
-                    )
-                  })()}
+                  {item.notes.some((n) => n.showInOverview && n.text.trim()) && (
+                    <div className="dim" style={{ fontSize: 11, marginTop: 2, whiteSpace: 'pre-wrap' }}>
+                      {item.notes
+                        .filter((n) => n.showInOverview && n.text.trim())
+                        .map((n) => n.text.trim())
+                        .join(' · ')}
+                    </div>
+                  )}
                 </span>
                 <span className="rowmoney">{formatTotals(itemTotals(item))}</span>
               </button>

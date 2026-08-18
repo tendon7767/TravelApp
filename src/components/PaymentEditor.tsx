@@ -1,4 +1,3 @@
-import { useStore } from '../store/useStore'
 import type { PaymentMethod, RewardRule, Trip } from '../types'
 import { newId } from '../lib/id'
 import ConfirmButton from './ConfirmButton'
@@ -10,12 +9,19 @@ import { formatMoney } from '../lib/money'
  * 三個上限都能填，因為它們限制的東西不一樣：
  * 回饋上限管總額、消費上限管刷多少之後失效、單筆回饋上限決定要不要拆單。
  */
-export default function PaymentEditor({ method, trip }: { method: PaymentMethod; trip: Trip }) {
-  const updatePayment = useStore((s) => s.updatePayment)
-  const removePayment = useStore((s) => s.removePayment)
-
+export default function PaymentEditor({
+  method,
+  trip,
+  onChange,
+  onRemove,
+}: {
+  method: PaymentMethod
+  trip: Trip
+  onChange: (patch: Partial<PaymentMethod>) => void
+  onRemove: () => void
+}) {
   const patchRule = (ruleId: string, patch: Partial<RewardRule>) =>
-    updatePayment(method.id, {
+    onChange({
       rules: method.rules.map((r) => (r.id === ruleId ? { ...r, ...patch } : r)),
     })
 
@@ -27,7 +33,7 @@ export default function PaymentEditor({ method, trip }: { method: PaymentMethod;
           style={{ flex: 2, minWidth: 140 }}
           placeholder="卡片或電子支付名稱"
           value={method.name}
-          onChange={(e) => updatePayment(method.id, { name: e.target.value })}
+          onChange={(e) => onChange({ name: e.target.value })}
           aria-label="名稱"
         />
         <input
@@ -35,14 +41,14 @@ export default function PaymentEditor({ method, trip }: { method: PaymentMethod;
           style={{ flex: 1, minWidth: 80 }}
           placeholder="持有人"
           value={method.owner ?? ''}
-          onChange={(e) => updatePayment(method.id, { owner: e.target.value || undefined })}
+          onChange={(e) => onChange({ owner: e.target.value || undefined })}
           aria-label="持有人"
         />
         <select
           className="field"
           style={{ width: 92 }}
           value={method.kind}
-          onChange={(e) => updatePayment(method.id, { kind: e.target.value as PaymentMethod['kind'] })}
+          onChange={(e) => onChange({ kind: e.target.value as PaymentMethod['kind'] })}
           aria-label="種類"
         >
           <option value="card">信用卡</option>
@@ -52,7 +58,7 @@ export default function PaymentEditor({ method, trip }: { method: PaymentMethod;
           className="field"
           style={{ width: 96 }}
           value={method.currency}
-          onChange={(e) => updatePayment(method.id, { currency: e.target.value })}
+          onChange={(e) => onChange({ currency: e.target.value })}
           aria-label="上限幣別"
         >
           <option value={trip.homeCurrency}>上限 {trip.homeCurrency}</option>
@@ -85,7 +91,7 @@ export default function PaymentEditor({ method, trip }: { method: PaymentMethod;
             {method.rules.length > 1 && (
               <button
                 className="btn btn-sm"
-                onClick={() => updatePayment(method.id, { rules: method.rules.filter((v) => v.id !== r.id) })}
+                onClick={() => onChange({ rules: method.rules.filter((v) => v.id !== r.id) })}
                 aria-label="刪除這條規則"
               >
                 ✕
@@ -127,7 +133,7 @@ export default function PaymentEditor({ method, trip }: { method: PaymentMethod;
         <button
           className="btn btn-sm"
           onClick={() =>
-            updatePayment(method.id, {
+            onChange({
               rules: [...method.rules, { id: newId(), name: '加碼回饋', rate: 0 }],
             })
           }
@@ -137,7 +143,7 @@ export default function PaymentEditor({ method, trip }: { method: PaymentMethod;
         <ConfirmButton
           label="刪除這張"
           question="刪除這個支付方式？"
-          onConfirm={() => removePayment(method.id)}
+          onConfirm={onRemove}
         />
       </div>
     </div>

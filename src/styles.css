@@ -427,6 +427,24 @@ a { color: var(--accent); }
   padding: 0 14px 14px;
 }
 
+.sheetactions,
+.editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: none;
+  background: var(--surface);
+  border-top: 0.5px solid var(--border);
+  z-index: 2;
+}
+
+.sheetactions { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
+.editor-actions { padding: 10px 14px; }
+
+.sheetactions .btn,
+.editor-actions .btn { min-width: 92px; }
+
 body.modal-open { overflow: hidden; }
 
 @media (min-width: 620px) {

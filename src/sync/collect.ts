@@ -22,7 +22,6 @@ export const collectTripRecords = (
     ...item,
     date: normalizeStoredDate(item.date) ?? item.date,
     startTime: normalizeStoredTime(item.startTime) ?? item.startTime,
-    chargeDate: normalizeStoredDate(item.chargeDate) ?? item.chargeDate,
   }))
 
   return {

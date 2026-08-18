@@ -20,8 +20,10 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
   const allTrips = useStore((s) => s.data.trips)
   const createPayment = useStore((s) => s.createPayment)
   const updatePayment = useStore((s) => s.updatePayment)
+  const removePayment = useStore((s) => s.removePayment)
   const copyPaymentsFrom = useStore((s) => s.copyPaymentsFrom)
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingDraft, setEditingDraft] = useState<MethodResult['method'] | null>(null)
+  const [editingNew, setEditingNew] = useState(false)
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null)
 
   const isActual = plan?.kind === 'actual'
@@ -61,12 +63,33 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
 
   const owners = useMemo(() => byOwner.map(([owner]) => owner), [byOwner])
   const shown = ownerFilter ? byOwner.filter(([owner]) => owner === ownerFilter) : byOwner
-  const editing = methods.find((m) => m.id === editingId)
+  const openEditor = (method: MethodResult['method'], isNew = false) => {
+    setEditingDraft({ ...method, rules: method.rules.map((r) => ({ ...r })) })
+    setEditingNew(isNew)
+  }
+
+  const closeEditor = () => {
+    setEditingDraft(null)
+    setEditingNew(false)
+  }
+
+  const cancelEditor = () => {
+    if (editingNew && editingDraft) removePayment(editingDraft.id)
+    closeEditor()
+  }
+
+  const completeEditor = () => {
+    if (editingDraft) updatePayment(editingDraft.id, editingDraft)
+    closeEditor()
+  }
 
   return (
     <>
       <div className="sec" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <button className="btn btn-sm" onClick={() => setEditingId(createPayment(trip.id).id)}>
+        <button
+          className="btn btn-sm"
+          onClick={() => openEditor(createPayment(trip.id), true)}
+        >
           ＋ 新增支付方式
         </button>
         {otherTrips.map((t) => (
@@ -91,7 +114,7 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
           <span className="label">支付方式設定</span>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {methods.map((m) => (
-              <button key={m.id} className="chip" onClick={() => setEditingId(m.id)}>
+              <button key={m.id} className="chip" onClick={() => openEditor(m)}>
                 {methodLabel(m.name, m.owner)}{m.enabled ? '' : ' · 這趟沒帶'}
               </button>
             ))}
@@ -101,9 +124,23 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
 
       {/* 蓋板而非嵌在列表裡：嵌在分組內的話，一改持有人分組就變動，
           整個區塊會被重建，輸入框當場失去焦點，中文根本打不完一個字。 */}
-      {editing && (
-        <Modal title="編輯支付方式" onClose={() => setEditingId(null)}>
-          <PaymentEditor method={editing} trip={trip} />
+      {editingDraft && (
+        <Modal
+          title="編輯支付方式"
+          onCancel={cancelEditor}
+          onComplete={completeEditor}
+        >
+          <PaymentEditor
+            method={editingDraft}
+            trip={trip}
+            onChange={(patch) =>
+              setEditingDraft((current) => (current ? { ...current, ...patch } : current))
+            }
+            onRemove={() => {
+              removePayment(editingDraft.id)
+              closeEditor()
+            }}
+          />
         </Modal>
       )}
 
@@ -147,7 +184,7 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
               key={res.method.id}
               res={res}
               accent={ownerColor(owner)}
-              onEdit={() => setEditingId(editingId === res.method.id ? null : res.method.id)}
+              onEdit={() => openEditor(res.method)}
               onSelect={onSelect}
             />
           ))}

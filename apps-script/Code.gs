@@ -29,10 +29,10 @@ var SCHEMA = {
     fields: [
       'id', 'planId', 'date', 'startTime', 'title', 'guide',
       'notes', 'links', 'costs',
-      'category', 'paymentMethodId', 'paymentStatus', 'chargeDate',
+      'category', 'paymentMethodId',
     ],
     json: ['notes', 'links', 'costs'],
-    dates: ['date', 'chargeDate'],
+    dates: ['date'],
     times: ['startTime'],
   },
   reviews: { fields: ['id', 'itemId', 'author', 'text'], json: [], dates: [], times: [] },

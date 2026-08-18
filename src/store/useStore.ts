@@ -253,7 +253,7 @@ export const useStore = create<State>((setState, getState) => {
           planId: plan.id,
           updatedAt: Date.now(),
           updatedBy: getState().settings.memberName,
-          notes: [...i.notes],
+          notes: i.notes.map((n) => ({ ...n, id: newId() })),
           links: i.links.map((l) => ({ ...l, id: newId() })),
           costs: i.costs.map((c) => ({ ...c, id: newId() })),
         }))

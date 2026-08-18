@@ -46,7 +46,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Modal title="設定" onClose={save}>
+    <Modal title="設定" onCancel={onClose} onComplete={save}>
       <div style={{ paddingTop: 12 }}>
         <label className="label" htmlFor="s-name">你的名字</label>
         <input

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
-import { EXPENSE_CATEGORIES, PAYMENT_STATUSES, type CostLine, type Trip } from '../types'
+import { EXPENSE_CATEGORIES, type CostLine, type Item, type Trip } from '../types'
 import { newId } from '../lib/id'
 import { makeLink } from '../lib/maps'
 import { formatMoney, lineTotal, sumByCurrency, toHome } from '../lib/money'
@@ -18,13 +18,24 @@ interface Props {
   onClose: () => void
 }
 
+const copyItem = (item?: Item): Item | undefined =>
+  item
+    ? {
+        ...item,
+        notes: item.notes.map((n) => ({ ...n })),
+        links: item.links.map((l) => ({ ...l })),
+        costs: item.costs.map((c) => ({ ...c })),
+      }
+    : undefined
+
 export default function ItemDetail({ trip, itemId, onClose }: Props) {
-  const item = useStore((s) => s.data.items.find((i) => i.id === itemId))
+  const storedItem = useStore((s) => s.data.items.find((i) => i.id === itemId))
   const updateItem = useStore((s) => s.updateItem)
   const removeItem = useStore((s) => s.removeItem)
+  const [draftItem, setDraftItem] = useState(() => copyItem(storedItem))
   const [linkDraft, setLinkDraft] = useState('')
   const [noteDraft, setNoteDraft] = useState('')
-  const [timeDraft, setTimeDraft] = useState(item?.startTime ?? '')
+  const [timeDraft, setTimeDraft] = useState(storedItem?.startTime ?? '')
   const [renaming, setRenaming] = useState(false)
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
   const allPayments = useStore((s) => s.data.payments)
@@ -40,13 +51,23 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
   )
   const mine = reviews.find((r) => r.author === me)
   const others = reviews.filter((r) => r.author !== me && r.text.trim())
+  const [reviewDraft, setReviewDraft] = useState(mine?.text ?? '')
+  const item = draftItem?.id === storedItem?.id ? draftItem : storedItem
   // 心得是跑完行程才寫的東西，規劃版放這欄只是雜訊。
   const isActual = useStore((s) =>
     s.data.plans.some((p) => p.id === item?.planId && p.kind === 'actual' && !p.deleted),
   )
 
   const methods = useMemo(
-    () => allPayments.filter((p) => p.tripId === trip.id && !p.deleted && p.enabled),
+    () =>
+      allPayments
+        .filter((p) => p.tripId === trip.id && !p.deleted && p.enabled)
+        .sort((a, b) =>
+          methodLabel(a.name, a.owner).localeCompare(methodLabel(b.name, b.owner), 'en', {
+            sensitivity: 'base',
+            numeric: true,
+          }),
+        ),
     [allPayments, trip.id],
   )
   const method = methods.find((m) => m.id === item?.paymentMethodId)
@@ -59,21 +80,20 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
     return suggestSplit(method, amountInMethodCurrency(item, method, trip), spent)
   }, [item, method, allItems, trip])
 
-  useEffect(() => {
-    setTimeDraft(item?.startTime ?? '')
-  }, [itemId, item?.startTime])
-
   if (!item || item.deleted) return <div className="empty">項目已刪除。</div>
 
   const totals = sumByCurrency(item.costs)
   const home = toHome(totals, trip)
   const showConverted = !totals[trip.homeCurrency] || Object.keys(totals).length > 1
 
+  const patchItem = (patch: Partial<Item>) =>
+    setDraftItem((current) => (current ? { ...current, ...patch } : current))
+
   const patchCost = (id: string, patch: Partial<CostLine>) =>
-    updateItem(item.id, { costs: item.costs.map((c) => (c.id === id ? { ...c, ...patch } : c)) })
+    patchItem({ costs: item.costs.map((c) => (c.id === id ? { ...c, ...patch } : c)) })
 
   const addCost = () =>
-    updateItem(item.id, {
+    patchItem({
       costs: [
         ...item.costs,
         { id: newId(), label: '', unitPrice: 0, qty: 1, currency: trip.foreignCurrency },
@@ -83,7 +103,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
   const addLink = () => {
     if (!linkDraft.trim()) return
     const link = makeLink(linkDraft)
-    updateItem(item.id, { links: [...item.links, link] })
+    patchItem({ links: [...item.links, link] })
     setLinkDraft('')
     // 短網址拆不出地名，游標直接跳過去讓你接著打，省一次點擊。
     if (!link.label) setFocusLinkId(link.id)
@@ -91,36 +111,53 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
 
   const addNote = () => {
     if (!noteDraft.trim()) return
-    updateItem(item.id, { notes: [...item.notes, noteDraft.trim()] })
+    patchItem({
+      notes: [...item.notes, { id: newId(), text: noteDraft.trim() }],
+    })
     setNoteDraft('')
   }
 
+  const complete = () => {
+    updateItem(item.id, {
+      planId: item.planId,
+      date: item.date,
+      startTime: normalizeTime(timeDraft),
+      title: item.title,
+      guide: item.guide,
+      notes: item.notes,
+      links: item.links,
+      costs: item.costs,
+      category: item.category,
+      paymentMethodId: item.paymentMethodId,
+    })
+    if (isActual && reviewDraft !== (mine?.text ?? '')) setReview(item.id, reviewDraft)
+    onClose()
+  }
+
   return (
-    <div className="scroll">
-      {renaming && <SettingsModal onClose={() => setRenaming(false)} />}
-      <div className="topbar">
-        <button className="btn btn-sm" onClick={onClose} aria-label="關閉">
-          ✕
-        </button>
-        <strong style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>
-          {shortDate(item.date)} {item.startTime ?? ''}
-        </strong>
-        <ConfirmButton
-          label="刪除"
-          question="刪除這個項目？"
-          onConfirm={() => {
-            removeItem(item.id)
-            onClose()
-          }}
-        />
-      </div>
+    <>
+      <div className="scroll">
+        {renaming && <SettingsModal onClose={() => setRenaming(false)} />}
+        <div className="topbar">
+          <strong style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>
+            {shortDate(item.date)} {item.startTime ?? ''}
+          </strong>
+          <ConfirmButton
+            label="刪除"
+            question="刪除這個項目？"
+            onConfirm={() => {
+              removeItem(item.id)
+              onClose()
+            }}
+          />
+        </div>
 
       <div className="sec">
         <input
           className="field"
           style={{ fontSize: 16 }}
           value={item.title}
-          onChange={(e) => updateItem(item.id, { title: e.target.value })}
+          onChange={(e) => patchItem({ title: e.target.value })}
           aria-label="標題"
         />
         <div style={{ marginTop: 8, width: 132 }}>
@@ -136,7 +173,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
             onChange={(e) => setTimeDraft(e.target.value)}
             onBlur={() => {
               const t = normalizeTime(timeDraft)
-              updateItem(item.id, { startTime: t })
+              patchItem({ startTime: t })
               setTimeDraft(t ?? '')
             }}
           />
@@ -150,7 +187,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
           className="field"
           rows={3}
           value={item.guide ?? ''}
-          onChange={(e) => updateItem(item.id, { guide: e.target.value })}
+          onChange={(e) => patchItem({ guide: e.target.value })}
         />
       </div>
 
@@ -175,29 +212,49 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
             className="field"
             rows={3}
             placeholder="實際去了之後的感想"
-            value={mine?.text ?? ''}
-            onChange={(e) => setReview(item.id, e.target.value)}
+            value={reviewDraft}
+            onChange={(e) => setReviewDraft(e.target.value)}
           />
         </div>
       )}
 
       <div className="sec">
         <span className="label">備註</span>
+        {item.notes.length > 0 && (
+          <p className="dim" style={{ fontSize: 11, margin: '0 0 6px' }}>
+            勾選要顯示在行程總覽的備註。
+          </p>
+        )}
         {item.notes.map((n, idx) => (
-          <div key={idx} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+          <div key={n.id} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+            <input
+              type="checkbox"
+              checked={Boolean(n.showInOverview)}
+              onChange={(e) =>
+                patchItem({
+                  notes: item.notes.map((v) =>
+                    v.id === n.id ? { ...v, showInOverview: e.target.checked || undefined } : v,
+                  ),
+                })
+              }
+              aria-label={`在行程總覽顯示備註 ${idx + 1}`}
+              style={{ flex: 'none', width: 18, height: 18 }}
+            />
             <input
               className="field"
-              value={n}
+              value={n.text}
               onChange={(e) =>
-                updateItem(item.id, {
-                  notes: item.notes.map((v, i) => (i === idx ? e.target.value : v)),
+                patchItem({
+                  notes: item.notes.map((v) =>
+                    v.id === n.id ? { ...v, text: e.target.value } : v,
+                  ),
                 })
               }
               aria-label={`備註 ${idx + 1}`}
             />
             <button
               className="btn btn-sm"
-              onClick={() => updateItem(item.id, { notes: item.notes.filter((_, i) => i !== idx) })}
+              onClick={() => patchItem({ notes: item.notes.filter((v) => v.id !== n.id) })}
               aria-label="刪除這筆備註"
             >
               ✕
@@ -227,7 +284,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
               style={{ flex: 1, minWidth: 0 }}
               value={l.label}
               onChange={(e) =>
-                updateItem(item.id, {
+                patchItem({
                   links: item.links.map((v) => (v.id === l.id ? { ...v, label: e.target.value } : v)),
                 })
               }
@@ -240,7 +297,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
             </a>
             <button
               className="btn btn-sm"
-              onClick={() => updateItem(item.id, { links: item.links.filter((v) => v.id !== l.id) })}
+              onClick={() => patchItem({ links: item.links.filter((v) => v.id !== l.id) })}
               aria-label="刪除這個連結"
             >
               ✕
@@ -299,7 +356,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
             <span className="mono dim cl-sub">{formatMoney(lineTotal(c), c.currency)}</span>
             <button
               className="btn btn-sm"
-              onClick={() => updateItem(item.id, { costs: item.costs.filter((v) => v.id !== c.id) })}
+              onClick={() => patchItem({ costs: item.costs.filter((v) => v.id !== c.id) })}
               aria-label="刪除這筆費用"
             >
               ✕
@@ -347,7 +404,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
               className="field"
               value={item.category ?? ''}
               onChange={(e) =>
-                updateItem(item.id, { category: (e.target.value || undefined) as typeof item.category })
+                patchItem({ category: (e.target.value || undefined) as typeof item.category })
               }
             >
               <option value="">未分類</option>
@@ -362,7 +419,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
               id="d-method"
               className="field"
               value={item.paymentMethodId ?? ''}
-              onChange={(e) => updateItem(item.id, { paymentMethodId: e.target.value || undefined })}
+              onChange={(e) => patchItem({ paymentMethodId: e.target.value || undefined })}
             >
               <option value="">—</option>
               {methods.map((m) => (
@@ -370,39 +427,14 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
               ))}
             </select>
           </div>
-          <div style={{ flex: 1, minWidth: 120 }}>
-            {/* 純提醒欄位，不影響回饋計算 —— 用途是行前訂房時記得哪家還沒付。 */}
-            <label className="label" htmlFor="d-pay">付款狀態（提醒）</label>
-            <select
-              id="d-pay"
-              className="field"
-              value={item.paymentStatus ?? ''}
-              onChange={(e) =>
-                updateItem(item.id, {
-                  paymentStatus: (e.target.value || undefined) as typeof item.paymentStatus,
-                })
-              }
-            >
-              <option value="">—</option>
-              {PAYMENT_STATUSES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          {item.paymentStatus === '自動結帳' && (
-            <div style={{ flex: 1, minWidth: 120 }}>
-              <label className="label" htmlFor="d-charge">扣款日</label>
-              <input
-                id="d-charge"
-                type="date"
-                className="field"
-                value={item.chargeDate ?? ''}
-                onChange={(e) => updateItem(item.id, { chargeDate: e.target.value || undefined })}
-              />
-            </div>
-          )}
         </div>
       )}
-    </div>
+      </div>
+
+      <div className="editor-actions">
+        <button className="btn" onClick={onClose}>取消</button>
+        <button className="btn btn-primary" onClick={complete}>完成</button>
+      </div>
+    </>
   )
 }

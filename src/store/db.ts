@@ -1,6 +1,7 @@
 import { get, set } from 'idb-keyval'
 import { emptyData, type AppData, type Review } from '../types'
 import { normalizeStoredDate, normalizeStoredTime } from '../lib/date'
+import { normalizeItemNotes } from '../lib/itemNotes'
 
 const DATA_KEY = 'travelapp:data'
 const SETTINGS_KEY = 'travelapp:settings'
@@ -48,14 +49,20 @@ export const DEFAULT_PACKING = [
 
 export const defaultSettings = (): Settings => ({ memberName: '我' })
 
-/** 付款狀態的用詞改過兩次，載入時一併轉換，不讓新舊詞彙並存。 */
-const LEGACY_STATUS: Record<string, string> = {
-  未付: '尚未付款',
-  現場付: '尚未付款',
-  已刷卡: '已付款',
-}
+type LegacyItem = { id: string; review?: string; notes?: unknown }
 
-type LegacyItem = { id: string; review?: string; paymentStatus?: string }
+const migrateItem = (value: AppData['items'][number]): AppData['items'][number] => {
+  const item = { ...value } as unknown as Record<string, unknown>
+  // 付款狀態已移除；清掉舊欄位，避免它們繼續在本機與雲端之間往返。
+  delete item.paymentStatus
+  delete item.chargeDate
+  return {
+    ...item,
+    date: normalizeStoredDate(item.date) ?? item.date,
+    startTime: normalizeStoredTime(item.startTime) ?? item.startTime,
+    notes: normalizeItemNotes(item.notes, String(item.id)),
+  } as AppData['items'][number]
+}
 
 export const loadData = async (): Promise<AppData> => {
   const raw = await get<AppData>(DATA_KEY)
@@ -85,15 +92,7 @@ export const loadData = async (): Promise<AppData> => {
       endDate: normalizeStoredDate(trip.endDate) ?? trip.endDate,
     })),
     plans: raw.plans ?? [],
-    items: (raw.items ?? []).map((i) => ({
-      ...i,
-      date: normalizeStoredDate(i.date) ?? i.date,
-      startTime: normalizeStoredTime(i.startTime) ?? i.startTime,
-      chargeDate: normalizeStoredDate(i.chargeDate) ?? i.chargeDate,
-      ...(i.paymentStatus && LEGACY_STATUS[i.paymentStatus]
-        ? { paymentStatus: LEGACY_STATUS[i.paymentStatus] as typeof i.paymentStatus }
-        : {}),
-    })),
+    items: (raw.items ?? []).map(migrateItem),
     reviews: [...(raw.reviews ?? []), ...migratedReviews],
     notes: raw.notes ?? [],
     payments: raw.payments ?? [],

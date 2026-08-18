@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import type { Plan, Trip } from '../types'
 import ConfirmButton from './ConfirmButton'
+import Modal from './Modal'
 
 interface Props {
   trip: Trip
@@ -13,13 +15,13 @@ interface Props {
 export default function PlanSwitcher({ trip, plans, activeId, onPick }: Props) {
   const duplicatePlan = useStore((s) => s.duplicatePlan)
   const removePlan = useStore((s) => s.removePlan)
-  const itemCount = useStore(
-    (s) => s.data.items.filter((i) => i.planId === activeId && !i.deleted).length,
-  )
+  const allItems = useStore((s) => s.data.items)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const active = plans.find((p) => p.id === activeId)
   const planning = plans.find((p) => p.kind === 'planning')
   const actual = plans.find((p) => p.kind === 'actual')
+  const itemCount = allItems.filter((i) => i.planId === actual?.id && !i.deleted).length
 
   const createActual = () => {
     const source = active ?? planning
@@ -36,6 +38,29 @@ export default function PlanSwitcher({ trip, plans, activeId, onPick }: Props) {
 
   return (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      {settingsOpen && actual && (
+        <Modal
+          title="版本設定"
+          onCancel={() => setSettingsOpen(false)}
+          onComplete={() => setSettingsOpen(false)}
+        >
+          <div style={{ paddingTop: 12 }}>
+            <span className="label">實際版</span>
+            <p className="dim" style={{ fontSize: 12, margin: '0 0 10px' }}>
+              刪除後會連同實際版的 {itemCount} 筆行程與回饋紀錄一起移除，規劃版不受影響。
+            </p>
+            <ConfirmButton
+              label="刪除實際版"
+              question={`確定刪除實際版與 ${itemCount} 筆行程？`}
+              onConfirm={() => {
+                deleteActual()
+                setSettingsOpen(false)
+              }}
+            />
+          </div>
+        </Modal>
+      )}
+
       <select
         className={active?.kind === 'actual' ? 'chip chip-actual' : 'chip chip-accent'}
         value={activeId ?? ''}
@@ -55,12 +80,15 @@ export default function PlanSwitcher({ trip, plans, activeId, onPick }: Props) {
         </button>
       )}
 
-      {active?.kind === 'actual' && (
-        <ConfirmButton
-          label="刪除實際版"
-          question={`連同 ${itemCount} 筆行程一起刪除，回饋紀錄也會消失？`}
-          onConfirm={deleteActual}
-        />
+      {actual && (
+        <button
+          className="btn btn-sm"
+          onClick={() => setSettingsOpen(true)}
+          aria-label="版本設定"
+          title="版本設定"
+        >
+          ⚙
+        </button>
       )}
     </div>
   )

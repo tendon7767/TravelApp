@@ -12,7 +12,7 @@ interface Props {
 
 /** 標題、遊玩說明、備註、連結、費用項目全找 —— 「租車的預約連結在哪一列」這種問題不該用捲的。 */
 const haystack = (i: Item): string =>
-  [i.title, i.guide ?? '', ...i.notes, ...i.links.map((l) => `${l.label} ${l.url}`), ...i.costs.map((c) => c.label)]
+  [i.title, i.guide ?? '', ...i.notes.map((n) => n.text), ...i.links.map((l) => `${l.label} ${l.url}`), ...i.costs.map((c) => c.label)]
     .join(' ')
     .toLowerCase()
 
