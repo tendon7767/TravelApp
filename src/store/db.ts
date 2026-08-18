@@ -9,7 +9,22 @@ export interface Settings {
   memberName: string
   activeTripId?: string
   activePlanId?: string
+  /** 打包清單範本，新旅程會自動帶入。存的是品項名稱。 */
+  packingTemplate?: string[]
 }
+
+export const DEFAULT_PACKING = [
+  '護照',
+  '國際駕照與台灣駕照',
+  '信用卡',
+  '外幣現金',
+  '手機充電器與行動電源',
+  '轉接頭',
+  '常備藥',
+  '行李秤',
+  '雨具',
+  '盥洗用品',
+]
 
 export const defaultSettings = (): Settings => ({ memberName: '我' })
 
@@ -50,6 +65,7 @@ export const loadData = async (): Promise<AppData> => {
         : i,
     ),
     reviews: [...(raw.reviews ?? []), ...migratedReviews],
+    notes: raw.notes ?? [],
     payments: raw.payments ?? [],
     transports: raw.transports ?? [],
   }

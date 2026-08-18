@@ -110,6 +110,21 @@ export interface Review extends SyncFields {
   text: string
 }
 
+/** 筆記內容是段落與勾選項的混排 —— 打包清單能成立的前提。 */
+export interface NoteBlock {
+  id: string
+  kind: 'text' | 'check'
+  text: string
+  done?: boolean
+}
+
+export interface Note extends SyncFields {
+  tripId: string
+  title: string
+  blocks: NoteBlock[]
+  links: LinkRef[]
+}
+
 /** 租車 vs 電車巴士這種方案並排比價，與行程無關，純試算。 */
 export interface TransportOption extends SyncFields {
   tripId: string
@@ -122,6 +137,7 @@ export interface AppData {
   plans: Plan[]
   items: Item[]
   reviews: Review[]
+  notes: Note[]
   payments: PaymentMethod[]
   transports: TransportOption[]
 }
@@ -131,6 +147,7 @@ export const emptyData = (): AppData => ({
   plans: [],
   items: [],
   reviews: [],
+  notes: [],
   payments: [],
   transports: [],
 })

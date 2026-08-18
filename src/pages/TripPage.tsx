@@ -7,6 +7,7 @@ import PlanSwitcher from '../components/PlanSwitcher'
 import SearchPanel from '../components/SearchPanel'
 import ExpensesTab from '../components/ExpensesTab'
 import RewardsTab from '../components/RewardsTab'
+import NotesTab from '../components/NotesTab'
 
 // 花費統計不常看，從導航列移走，改由行程頁的「全程合計」點進去。
 const TABS = [
@@ -115,9 +116,7 @@ export default function TripPage() {
           {!searching && tab === 'rewards' && (
             <RewardsTab trip={trip} onSelect={(id) => setParam('sel', id)} />
           )}
-          {!searching && tab === 'notes' && (
-            <div className="empty">「筆記」在 M3 製作。</div>
-          )}
+          {!searching && tab === 'notes' && <NotesTab trip={trip} />}
         </div>
 
         {selectedId && plan && (

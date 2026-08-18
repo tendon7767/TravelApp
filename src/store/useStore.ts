@@ -3,6 +3,8 @@ import {
   emptyData,
   type AppData,
   type Item,
+  type Note,
+  type NoteBlock,
   type PaymentMethod,
   type Plan,
   type Review,
@@ -12,7 +14,15 @@ import {
 } from '../types'
 import { newId } from '../lib/id'
 import { addDays, dayCount, todayISO } from '../lib/date'
-import { defaultSettings, loadData, loadSettings, saveData, saveSettings, type Settings } from './db'
+import {
+  DEFAULT_PACKING,
+  defaultSettings,
+  loadData,
+  loadSettings,
+  saveData,
+  saveSettings,
+  type Settings,
+} from './db'
 
 
 interface State {
@@ -38,6 +48,12 @@ interface State {
 
   /** 每個人只寫自己那則，用暱稱當識別，所以不會互相覆蓋。 */
   setReview: (itemId: string, text: string) => void
+
+  createNote: (tripId: string, title?: string) => Note
+  updateNote: (id: string, patch: Partial<Note>) => void
+  removeNote: (id: string) => void
+  /** 把某張打包清單存成範本，下次新旅程沿用。 */
+  savePackingTemplate: (noteId: string) => void
 
   createPayment: (tripId: string) => PaymentMethod
   updatePayment: (id: string, patch: Partial<PaymentMethod>) => void
@@ -113,7 +129,25 @@ export const useStore = create<State>((setState, getState) => {
     createTrip: (input) => {
       const trip: Trip = { ...input, ...stamp() }
       const plan: Plan = { ...stamp(), tripId: trip.id, name: '規劃版', kind: 'planning' }
-      mutate((d) => ({ ...d, trips: [...d.trips, trip], plans: [...d.plans, plan] }))
+      // 每趟都要打包，與其讓使用者每次從零開始，不如直接帶上次存的範本。
+      const packing: Note = {
+        ...stamp(),
+        tripId: trip.id,
+        title: '打包清單',
+        links: [],
+        blocks: (getState().settings.packingTemplate ?? DEFAULT_PACKING).map<NoteBlock>((text) => ({
+          id: newId(),
+          kind: 'check',
+          text,
+          done: false,
+        })),
+      }
+      mutate((d) => ({
+        ...d,
+        trips: [...d.trips, trip],
+        plans: [...d.plans, plan],
+        notes: [...d.notes, packing],
+      }))
       getState().setActive(trip.id, plan.id)
       return { trip, plan }
     },
@@ -133,6 +167,7 @@ export const useStore = create<State>((setState, getState) => {
           plans: d.plans.map((p) => (p.tripId === id && !p.deleted ? kill(p) : p)),
           items: d.items.map((i) => (planIds.has(i.planId) && !i.deleted ? kill(i) : i)),
           reviews: d.reviews.map((r) => (tripItemIds.has(r.itemId) && !r.deleted ? kill(r) : r)),
+          notes: d.notes.map((n) => (n.tripId === id && !n.deleted ? kill(n) : n)),
           payments: d.payments.map((p) => (p.tripId === id && !p.deleted ? kill(p) : p)),
           transports: d.transports.map((t) => (t.tripId === id && !t.deleted ? kill(t) : t)),
         }
@@ -216,6 +251,28 @@ export const useStore = create<State>((setState, getState) => {
       }
       const review: Review = { ...stamp(), itemId, author, text }
       mutate((d) => ({ ...d, reviews: [...d.reviews, review] }))
+    },
+
+    createNote: (tripId, title = '') => {
+      const note: Note = { ...stamp(), tripId, title, blocks: [], links: [] }
+      mutate((d) => ({ ...d, notes: [...d.notes, note] }))
+      return note
+    },
+
+    updateNote: (id, patch) => mutate((d) => ({ ...d, notes: patchIn(d.notes, id, patch) })),
+
+    removeNote: (id) =>
+      mutate((d) => ({ ...d, notes: patchIn(d.notes, id, { deleted: true } as Partial<Note>) })),
+
+    savePackingTemplate: (noteId) => {
+      const note = getState().data.notes.find((n) => n.id === noteId)
+      if (!note) return
+      const packingTemplate = note.blocks
+        .filter((b) => b.kind === 'check' && b.text.trim())
+        .map((b) => b.text.trim())
+      const settings = { ...getState().settings, packingTemplate }
+      setState({ settings })
+      void saveSettings(settings)
     },
 
     createPayment: (tripId) => {
