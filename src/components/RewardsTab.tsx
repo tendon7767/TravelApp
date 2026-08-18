@@ -4,6 +4,7 @@ import type { Trip } from '../types'
 import { computeMethod, spendCapOf, type MethodResult } from '../lib/rewards'
 import { formatMoney } from '../lib/money'
 import { shortDate } from '../lib/date'
+import { methodLabel, OWNERLESS, ownerColor } from '../lib/owners'
 import PaymentEditor from './PaymentEditor'
 
 interface Props {
@@ -20,6 +21,7 @@ export default function RewardsTab({ trip, onSelect }: Props) {
   const updatePayment = useStore((s) => s.updatePayment)
   const copyPaymentsFrom = useStore((s) => s.copyPaymentsFrom)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null)
 
   // 回饋只認實際版：規劃版的預估金額不是真的刷出去的錢。
   const actual = useMemo(
@@ -61,12 +63,14 @@ export default function RewardsTab({ trip, onSelect }: Props) {
   const byOwner = useMemo(() => {
     const map = new Map<string, MethodResult[]>()
     for (const r of results) {
-      const key = r.method.owner?.trim() || '未指定持有人'
+      const key = r.method.owner?.trim() || OWNERLESS
       map.set(key, [...(map.get(key) ?? []), r])
     }
     return [...map.entries()]
   }, [results])
 
+  const owners = useMemo(() => byOwner.map(([owner]) => owner), [byOwner])
+  const shown = ownerFilter ? byOwner.filter(([owner]) => owner === ownerFilter) : byOwner
   const editing = methods.find((m) => m.id === editingId)
 
   return (
@@ -93,10 +97,36 @@ export default function RewardsTab({ trip, onSelect }: Props) {
         </div>
       )}
 
-      {byOwner.map(([owner, list]) => (
+      {owners.length > 1 && (
+        <div className="daystrip" style={{ position: 'static' }}>
+          <button
+            className="daypill"
+            data-on={ownerFilter === null}
+            onClick={() => setOwnerFilter(null)}
+          >
+            全部
+          </button>
+          {owners.map((owner) => (
+            <button
+              key={owner}
+              className="daypill"
+              data-on={ownerFilter === owner}
+              style={ownerFilter === owner ? { background: ownerColor(owner), color: '#fff' } : undefined}
+              onClick={() => setOwnerFilter(owner)}
+            >
+              {owner}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {shown.map(([owner, list]) => (
         <div key={owner}>
-          <div className="dayhead" style={{ position: 'static' }}>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>{owner}</span>
+          <div
+            className="dayhead"
+            style={{ position: 'static', borderLeft: `3px solid ${ownerColor(owner)}` }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 500, color: ownerColor(owner) }}>{owner}</span>
             <span className="mono dim" style={{ fontSize: 12 }}>
               已累積回饋 {formatMoney(list.reduce((s, r) => s + r.totalReward, 0), list[0].method.currency)}
             </span>
@@ -106,6 +136,7 @@ export default function RewardsTab({ trip, onSelect }: Props) {
             <MethodCard
               key={res.method.id}
               res={res}
+              accent={ownerColor(owner)}
               planningCount={inPlanning[res.method.id] ?? 0}
               onEdit={() => setEditingId(editingId === res.method.id ? null : res.method.id)}
               onSelect={onSelect}
@@ -119,7 +150,7 @@ export default function RewardsTab({ trip, onSelect }: Props) {
           <span className="label">這趟沒帶</span>
           {methods.filter((m) => !m.enabled).map((m) => (
             <button key={m.id} className="chip" style={{ marginRight: 4 }} onClick={() => updatePayment(m.id, { enabled: true })}>
-              {m.name || '未命名'} ＋帶上
+              {methodLabel(m.name, m.owner)} ＋帶上
             </button>
           ))}
         </div>
@@ -143,11 +174,13 @@ export default function RewardsTab({ trip, onSelect }: Props) {
 function MethodCard({
   res,
   planningCount,
+  accent,
   onEdit,
   onSelect,
 }: {
   res: MethodResult
   planningCount: number
+  accent: string
   onEdit: () => void
   onSelect: (id: string) => void
 }) {
@@ -159,12 +192,13 @@ function MethodCard({
   const pct = totalCap && totalCap !== Infinity ? Math.min(100, (res.spend / totalCap) * 100) : 0
 
   return (
-    <div className="sec">
+    <div className="sec" style={{ borderLeft: `3px solid ${accent}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontSize: 14, fontWeight: 500 }}>
           {res.method.name || '未命名'}
           <span className="dim" style={{ fontSize: 11, marginLeft: 6 }}>
             {res.method.kind === 'card' ? '信用卡' : '電子支付'}
+            {res.method.owner?.trim() ? ` · ${res.method.owner.trim()}` : ''}
           </span>
         </span>
         <button className="btn btn-sm" onClick={onEdit}>設定</button>

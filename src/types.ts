@@ -58,8 +58,10 @@ export interface Item extends SyncFields {
   /** HH:mm，留空代表純支出、不佔時間軸位置 */
   startTime?: string
   title: string
-  /** 遊玩說明：這裡有什麼好吃好玩好看的 */
+  /** 遊玩說明：這裡有什麼好吃好玩好看的，行前就會寫 */
   guide?: string
+  /** 心得：跑完之後的感想，只在實際版顯示 */
+  review?: string
   /** 實務提醒，與遊玩說明分開 */
   notes: string[]
   links: LinkRef[]

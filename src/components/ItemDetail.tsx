@@ -8,6 +8,7 @@ import { normalizeTime, shortDate } from '../lib/date'
 import { isSubmitEnter } from '../lib/keys'
 import ConfirmButton from './ConfirmButton'
 import NumberField from './NumberField'
+import { methodLabel } from '../lib/owners'
 import { amountInMethodCurrency, computeMethod, suggestSplit } from '../lib/rewards'
 
 interface Props {
@@ -25,6 +26,10 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
   const [timeDraft, setTimeDraft] = useState(item?.startTime ?? '')
   const allPayments = useStore((s) => s.data.payments)
   const allItems = useStore((s) => s.data.items)
+  // 心得是跑完行程才寫的東西，規劃版放這欄只是雜訊。
+  const isActual = useStore((s) =>
+    s.data.plans.some((p) => p.id === item?.planId && p.kind === 'actual' && !p.deleted),
+  )
 
   const methods = useMemo(
     () => allPayments.filter((p) => p.tripId === trip.id && !p.deleted && p.enabled),
@@ -131,6 +136,20 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
           onChange={(e) => updateItem(item.id, { guide: e.target.value })}
         />
       </div>
+
+      {isActual && (
+        <div className="sec">
+          <label className="label" htmlFor="d-review">心得</label>
+          <textarea
+            id="d-review"
+            className="field"
+            rows={3}
+            placeholder="實際去了之後的感想"
+            value={item.review ?? ''}
+            onChange={(e) => updateItem(item.id, { review: e.target.value })}
+          />
+        </div>
+      )}
 
       <div className="sec">
         <span className="label">備註</span>
@@ -305,7 +324,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
           >
             <option value="">—</option>
             {methods.map((m) => (
-              <option key={m.id} value={m.id}>{m.name || '未命名'}</option>
+              <option key={m.id} value={m.id}>{methodLabel(m.name, m.owner)}</option>
             ))}
           </select>
         </div>
