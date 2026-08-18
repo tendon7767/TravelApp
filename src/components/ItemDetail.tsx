@@ -232,7 +232,8 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     ...(isActual ? (['review'] as const) : []),
   ]
   const allSectionsOpen = editableSections.every((section) => editingSections.has(section))
-  const hasEditing = editingSections.size > 0 || choosingCategory
+  // 行程類型、總覽勾選與支付方式不一定會展開區塊；只要已有草稿，也算編輯狀態。
+  const hasEditing = editingSections.size > 0 || choosingCategory || dirty
 
   const beginEditAll = () => {
     setFocusLinkId(null)
@@ -901,12 +902,16 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
       </div>
 
       <div className="editor-actions">
-        <button className="btn" onClick={requestCancel}>
-          {hasEditing ? '取消編輯' : '離開'}
-        </button>
-        <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>
-          {hasEditing ? '完成編輯' : '完成'}
-        </button>
+        {hasEditing ? (
+          <>
+            <button className="btn" onClick={requestCancel}>取消編輯</button>
+            <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>
+              完成編輯
+            </button>
+          </>
+        ) : (
+          <button className="btn detail-leave-wide" onClick={requestCancel}>離開</button>
+        )}
       </div>
     </>
   )

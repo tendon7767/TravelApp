@@ -947,6 +947,11 @@ a { color: var(--accent); }
 .sheetactions .btn,
 .editor-actions .btn { min-width: 92px; }
 
+.editor-actions .detail-leave-wide {
+  width: 100%;
+  min-height: 40px;
+}
+
 .editor-actions .btn-primary:disabled {
   opacity: 0.42;
   cursor: default;
