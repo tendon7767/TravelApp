@@ -1,5 +1,6 @@
 import { get, set } from 'idb-keyval'
 import { emptyData, type AppData, type Review } from '../types'
+import { normalizeStoredDate, normalizeStoredTime } from '../lib/date'
 
 const DATA_KEY = 'travelapp:data'
 const SETTINGS_KEY = 'travelapp:settings'
@@ -74,13 +75,23 @@ export const loadData = async (): Promise<AppData> => {
 
   // 逐個給預設值，舊版存下來的資料少了新集合時才不會炸掉。
   return {
-    trips: raw.trips ?? [],
+    // iOS Safari 對 date input 的 value 格式較嚴格；啟動時也要清理 IndexedDB 裡
+    // 舊後端曾存下的完整 ISO timestamp，不能只在下一次遠端拉取時修正。
+    trips: (raw.trips ?? []).map((trip) => ({
+      ...trip,
+      startDate: normalizeStoredDate(trip.startDate),
+      endDate: normalizeStoredDate(trip.endDate),
+    })),
     plans: raw.plans ?? [],
-    items: (raw.items ?? []).map((i) =>
-      i.paymentStatus && LEGACY_STATUS[i.paymentStatus]
-        ? { ...i, paymentStatus: LEGACY_STATUS[i.paymentStatus] as typeof i.paymentStatus }
-        : i,
-    ),
+    items: (raw.items ?? []).map((i) => ({
+      ...i,
+      date: normalizeStoredDate(i.date),
+      startTime: normalizeStoredTime(i.startTime),
+      chargeDate: normalizeStoredDate(i.chargeDate),
+      ...(i.paymentStatus && LEGACY_STATUS[i.paymentStatus]
+        ? { paymentStatus: LEGACY_STATUS[i.paymentStatus] as typeof i.paymentStatus }
+        : {}),
+    })),
     reviews: [...(raw.reviews ?? []), ...migratedReviews],
     notes: raw.notes ?? [],
     payments: raw.payments ?? [],

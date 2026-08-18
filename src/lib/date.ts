@@ -1,8 +1,30 @@
 const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
 
+/**
+ * 試算表若把日期/時間自動轉成 Date，舊後端會送回完整 ISO timestamp。
+ * 轉回裝置本地的原始日期與時間，讓 Safari 的 date/time input 也能接受。
+ */
+export const normalizeStoredDate = (value: unknown): string => {
+  if (typeof value !== 'string') return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  if (!value.includes('T')) return value
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : toISO(date)
+}
+
+export const normalizeStoredTime = (value: unknown): string => {
+  if (typeof value !== 'string') return ''
+  const plain = value.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/)
+  if (plain) return `${plain[1].padStart(2, '0')}:${plain[2]}`
+  if (!value.includes('T')) return value
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
 /** 一律以本地時間解讀 YYYY-MM-DD，避免 new Date('2026-10-31') 被當成 UTC 而位移一天。 */
 export const parseDate = (iso: string): Date => {
-  const [y, m, d] = iso.split('-').map(Number)
+  const [y, m, d] = normalizeStoredDate(iso).split('-').map(Number)
   return new Date(y, m - 1, d)
 }
 

@@ -1,4 +1,5 @@
 import type { AppData } from '../types'
+import { normalizeStoredDate, normalizeStoredTime } from '../lib/date'
 
 export interface SyncConfig {
   /** Apps Script 網頁應用程式網址，只部署一次，所有旅程共用 */
@@ -116,20 +117,6 @@ export interface MergeResult {
  * tolerant of that format so an invite opened before the backend is upgraded does
  * not leave native date/time inputs with invalid values.
  */
-const localDateOnly = (value: unknown): unknown => {
-  if (typeof value !== 'string' || !value.includes('T')) return value
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-
-const localTimeOnly = (value: unknown): unknown => {
-  if (typeof value !== 'string' || !value.includes('T')) return value
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
-}
-
 const normalizeRemoteRow = (
   collection: SyncedCollection,
   row: Record<string, unknown>,
@@ -137,16 +124,16 @@ const normalizeRemoteRow = (
   if (collection === 'trips') {
     return {
       ...row,
-      startDate: localDateOnly(row.startDate),
-      endDate: localDateOnly(row.endDate),
+      startDate: normalizeStoredDate(row.startDate),
+      endDate: normalizeStoredDate(row.endDate),
     }
   }
   if (collection === 'items') {
     return {
       ...row,
-      date: localDateOnly(row.date),
-      chargeDate: localDateOnly(row.chargeDate),
-      startTime: localTimeOnly(row.startTime),
+      date: normalizeStoredDate(row.date),
+      chargeDate: normalizeStoredDate(row.chargeDate),
+      startTime: normalizeStoredTime(row.startTime),
     }
   }
   return row
