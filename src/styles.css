@@ -556,6 +556,12 @@ a { color: var(--accent); }
   padding: 0 14px 14px;
 }
 
+/* 支付方式等固定表單：保留必要的內容捲動，但到邊界立即停止，不產生拖曳位移。 */
+.sheetbody-fixed {
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: auto;
+}
+
 .sheetactions,
 .editor-actions {
   display: flex;

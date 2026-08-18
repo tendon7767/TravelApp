@@ -9,7 +9,7 @@ interface Props {
   completeLabel?: string
   completeDanger?: boolean
   dirty?: boolean
-  /** 表單仍可正常捲動，但不套用內容層拖曳回彈。 */
+  /** 表單仍可正常捲動，但固定在原位，不套用任何邊界拖曳位移。 */
   elastic?: boolean
   children: ReactNode
 }
@@ -65,7 +65,7 @@ export default function Modal({
           {elastic ? (
             <ElasticScroll className="sheetbody">{children}</ElasticScroll>
           ) : (
-            <div className="sheetbody">{children}</div>
+            <div className="sheetbody sheetbody-fixed">{children}</div>
           )}
           <div className="sheetactions">
             <button className="btn" onClick={requestCancel}>{cancelLabel}</button>
@@ -93,7 +93,7 @@ export default function Modal({
                 <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的修改嗎？</p>
               </ElasticScroll>
             ) : (
-              <div className="sheetbody">
+              <div className="sheetbody sheetbody-fixed">
                 <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的修改嗎？</p>
               </div>
             )}
