@@ -168,6 +168,11 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     onClose()
   }
 
+  const cancel = () => {
+    if (dirty) setConfirmingCancel(true)
+    else onClose()
+  }
+
   return (
     <>
       {confirmingCancel && (
@@ -475,10 +480,15 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
           </div>
         </div>
       )}
+
+      <div className="editor-actions editor-actions-desktop">
+        <button className="btn" onClick={cancel}>取消</button>
+        <button className="btn btn-primary" onClick={complete}>完成</button>
+      </div>
       </div>
 
-      <div className="editor-actions">
-        <button className="btn" onClick={() => (dirty ? setConfirmingCancel(true) : onClose())}>取消</button>
+      <div className="editor-actions editor-actions-mobile">
+        <button className="btn" onClick={cancel}>取消</button>
         <button className="btn btn-primary" onClick={complete}>完成</button>
       </div>
     </>
