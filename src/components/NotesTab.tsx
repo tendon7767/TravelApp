@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import type { Note, NoteBlock, Trip } from '../types'
 import { newId } from '../lib/id'
 import { makeLink } from '../lib/maps'
 import { isSubmitEnter } from '../lib/keys'
 import ConfirmButton from './ConfirmButton'
+import Modal from './Modal'
 import { DEFAULT_PACKING } from '../store/db'
 
 export default function NotesTab({ trip }: { trip: Trip }) {
@@ -80,45 +81,110 @@ function NoteCard({
   const savePackingTemplate = useStore((s) => s.savePackingTemplate)
   const [linkDraft, setLinkDraft] = useState('')
   const [saved, setSaved] = useState(false)
+  const [draft, setDraft] = useState<Note | null>(null)
+  const [confirmingCancel, setConfirmingCancel] = useState(false)
 
-  const setBlocks = (blocks: NoteBlock[]) => updateNote(note.id, { blocks })
+  /*
+   * 進入編輯就複製一份來改，按完成才寫回。
+   * 即時寫入的話，打「岡山城」三個字會產生三次記錄變更，
+   * 同步是後寫入者勝，同行者剛寫完的內容可能被你打到一半的半成品蓋掉。
+   * 只認 note.id 當依賴：編輯途中若同步拉回新版本，不該把你正在改的草稿沖掉。
+   */
+  useEffect(() => {
+    setDraft(
+      editing
+        ? { ...note, blocks: note.blocks.map((b) => ({ ...b })), links: note.links.map((l) => ({ ...l })) }
+        : null,
+    )
+  }, [editing, note.id])
 
-  const patchBlock = (id: string, patch: Partial<NoteBlock>) =>
-    setBlocks(note.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)))
+  const view = editing ? (draft ?? note) : note
+
+  /** 編輯中改草稿，非編輯狀態（例如打勾）直接寫入。 */
+  const patch = (value: Partial<Note>) => {
+    if (editing) setDraft((current) => (current ? { ...current, ...value } : current))
+    else updateNote(note.id, value)
+  }
+
+  const setBlocks = (blocks: NoteBlock[]) => patch({ blocks })
+
+  const patchBlock = (id: string, value: Partial<NoteBlock>) =>
+    setBlocks(view.blocks.map((b) => (b.id === id ? { ...b, ...value } : b)))
 
   /** 打勾清單一條接一條打，Enter 直接開下一行，不用每次去按新增。 */
   const addBlock = (kind: NoteBlock['kind'], after?: string) => {
     const block: NoteBlock = { id: newId(), kind, text: '', done: kind === 'check' ? false : undefined }
-    if (!after) return setBlocks([...note.blocks, block])
-    const idx = note.blocks.findIndex((b) => b.id === after)
-    setBlocks([...note.blocks.slice(0, idx + 1), block, ...note.blocks.slice(idx + 1)])
+    if (!after) return setBlocks([...view.blocks, block])
+    const idx = view.blocks.findIndex((b) => b.id === after)
+    setBlocks([...view.blocks.slice(0, idx + 1), block, ...view.blocks.slice(idx + 1)])
   }
 
   const addLink = () => {
     if (!linkDraft.trim()) return
-    updateNote(note.id, { links: [...note.links, makeLink(linkDraft)] })
+    patch({ links: [...view.links, makeLink(linkDraft)] })
     setLinkDraft('')
   }
 
-  const checks = note.blocks.filter((b) => b.kind === 'check')
+  const dirty =
+    editing &&
+    draft !== null &&
+    (draft.title !== note.title ||
+      JSON.stringify(draft.blocks) !== JSON.stringify(note.blocks) ||
+      JSON.stringify(draft.links) !== JSON.stringify(note.links))
+
+  /** 有未送出的修改就先問一聲，與行程項目的行為一致。 */
+  const cancel = () => {
+    if (dirty) setConfirmingCancel(true)
+    else onDone()
+  }
+
+  const complete = () => {
+    if (draft) updateNote(note.id, { title: draft.title, blocks: draft.blocks, links: draft.links })
+    onDone()
+  }
+
+  const checks = view.blocks.filter((b) => b.kind === 'check')
   const packed = checks.filter((b) => b.done).length
   const isPacking = note.title.trim() === '打包清單'
 
   return (
     <div className="sec">
+      {confirmingCancel && (
+        <Modal
+          title="尚未儲存變更"
+          onCancel={() => setConfirmingCancel(false)}
+          onComplete={() => {
+            setConfirmingCancel(false)
+            onDone()
+          }}
+          cancelLabel="繼續編輯"
+          completeLabel="放棄變更"
+          completeDanger
+        >
+          <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這則筆記的修改嗎？</p>
+        </Modal>
+      )}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
         {editing ? (
           <input
             className="field"
             style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600 }}
-            value={note.title}
-            onChange={(e) => updateNote(note.id, { title: e.target.value })}
+            value={view.title}
+            onChange={(e) => patch({ title: e.target.value })}
             aria-label="筆記標題"
           />
         ) : (
-          <strong style={{ flex: 1, minWidth: 0, fontSize: 16 }}>{note.title || '未命名筆記'}</strong>
+          <strong style={{ flex: 1, minWidth: 0, fontSize: 16 }}>{view.title || '未命名筆記'}</strong>
         )}
-        <button className={editing ? 'btn btn-primary btn-sm' : 'btn btn-sm'} onClick={editing ? onDone : onEdit}>
+        {editing && (
+          <button className="btn btn-sm" onClick={cancel}>
+            取消
+          </button>
+        )}
+        <button
+          className={editing ? 'btn btn-primary btn-sm' : 'btn btn-sm'}
+          onClick={editing ? complete : onEdit}
+        >
           {editing ? '完成' : '編輯'}
         </button>
         {editing && (
@@ -139,7 +205,7 @@ function NoteCard({
         </div>
       )}
 
-      {note.blocks.map((b) => (
+      {view.blocks.map((b) => (
         <div key={b.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 5 }}>
           {b.kind === 'check' ? (
             <input
@@ -178,7 +244,7 @@ function NoteCard({
               </button>
               <button
                 className="btn btn-sm"
-                onClick={() => setBlocks(note.blocks.filter((v) => v.id !== b.id))}
+                onClick={() => setBlocks(view.blocks.filter((v) => v.id !== b.id))}
                 aria-label="刪除這一行"
               >
                 ✕
@@ -209,6 +275,7 @@ function NoteCard({
             <button
               className="btn btn-sm"
               onClick={() => {
+                if (draft) updateNote(note.id, { blocks: draft.blocks })
                 savePackingTemplate(note.id)
                 setSaved(true)
                 setTimeout(() => setSaved(false), 2500)
@@ -223,7 +290,7 @@ function NoteCard({
       {!isPacking && editing && (
         <div style={{ marginTop: 10 }}>
           <span className="label">連結</span>
-          {note.links.map((l) => (
+          {view.links.map((l) => (
             <div key={l.id} style={{ display: 'flex', gap: 6, marginBottom: 5, alignItems: 'center' }}>
               <span className="dim" aria-hidden="true" style={{ flex: 'none' }}>
                 {l.kind === 'map' ? '◎' : '↗'}
@@ -234,8 +301,8 @@ function NoteCard({
                 value={l.label}
                 placeholder={l.url}
                 onChange={(e) =>
-                  updateNote(note.id, {
-                    links: note.links.map((v) => (v.id === l.id ? { ...v, label: e.target.value } : v)),
+                  patch({
+                    links: view.links.map((v) => (v.id === l.id ? { ...v, label: e.target.value } : v)),
                   })
                 }
                 aria-label="連結名稱"
@@ -243,7 +310,7 @@ function NoteCard({
               <a className="btn btn-sm" href={l.url} target="_blank" rel="noreferrer">開啟</a>
               <button
                 className="btn btn-sm"
-                onClick={() => updateNote(note.id, { links: note.links.filter((v) => v.id !== l.id) })}
+                onClick={() => patch({ links: view.links.filter((v) => v.id !== l.id) })}
                 aria-label="刪除這個連結"
               >
                 ✕
@@ -263,9 +330,9 @@ function NoteCard({
         </div>
       )}
 
-      {!isPacking && !editing && note.links.length > 0 && (
+      {!isPacking && !editing && view.links.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
-          {note.links.map((link) => (
+          {view.links.map((link) => (
             <a key={link.id} className="chip" href={link.url} target="_blank" rel="noreferrer">
               {link.kind === 'map' ? '◎' : '↗'} {link.label || link.url}
             </a>
