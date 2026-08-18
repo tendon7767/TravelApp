@@ -1,6 +1,8 @@
 import { del, get, set } from 'idb-keyval'
 import type { Item } from '../types'
 
+export type ItemDraftSection = 'basic' | 'guide' | 'map' | 'notes' | 'links' | 'costs' | 'review'
+
 /**
  * 未送出的編輯內容存進 IndexedDB。
  * 草稿原本只活在 React 狀態裡，桌機有 beforeunload 攔得住，
@@ -11,6 +13,8 @@ export interface ItemDraft {
   item: Item
   timeDraft: string
   reviewDraft: string
+  /** 詳細資訊改成分區編輯後，要知道重新開啟時該還原哪一區。 */
+  section?: ItemDraftSection
   savedAt: number
 }
 

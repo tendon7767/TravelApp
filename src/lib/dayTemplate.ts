@@ -1,14 +1,14 @@
-import type { ExpenseCategory } from '../types'
+import type { ItineraryCategory } from '../types'
 
 export interface TemplateRow {
   time: string
   title: string
-  cat?: ExpenseCategory
+  cat?: ItineraryCategory
 }
 
 /**
  * 取自現有試算表每天重複出現的骨架。
- * 預先帶好費用類型，之後只要填金額，就不會再發生「有金額卻沒分類」被小計漏掉的情形。
+ * 預先帶好行程類型，行程總覽與類型支出統計可以直接沿用。
  */
 export const DAY_TEMPLATE: TemplateRow[] = [
   { time: '08:00', title: '起床' },

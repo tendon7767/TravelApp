@@ -44,5 +44,5 @@ export const formatTotals = (totals: Record<string, number>): string =>
 
 export const hasCost = (item: Item): boolean => item.costs.some((c) => lineTotal(c) !== 0)
 
-/** 有金額卻沒分類 —— 試算表漏掉 NT$3,264 就是這種情況，要標紅。 */
+/** 有金額卻沒行程類型 —— 類型支出統計無法歸類，要明確提醒。 */
 export const isUncategorized = (item: Item): boolean => hasCost(item) && !item.category

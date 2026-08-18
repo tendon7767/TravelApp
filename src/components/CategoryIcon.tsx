@@ -1,15 +1,22 @@
-import type { ExpenseCategory } from '../types'
+import type { ItineraryCategory } from '../types'
 
 interface Props {
-  category?: ExpenseCategory
+  category?: ItineraryCategory
   size?: number
   className?: string
 }
 
-/** 費用類型共用圖示。維持線框造型，深色規劃版與淺色實際版都能清楚辨識。 */
+/** 行程類型共用圖示。維持線框造型，深色規劃版與淺色實際版都能清楚辨識。 */
 export default function CategoryIcon({ category, size = 18, className = '' }: Props) {
   const paths = (() => {
     switch (category) {
+      case '景點':
+        return (
+          <>
+            <path d="M12 21s6-5.4 6-11a6 6 0 1 0-12 0c0 5.6 6 11 6 11Z" />
+            <circle cx="12" cy="10" r="2" />
+          </>
+        )
       case '交通':
         return (
           <>
@@ -33,7 +40,7 @@ export default function CategoryIcon({ category, size = 18, className = '' }: Pr
             <path d="M7 11V8h4a3 3 0 0 1 3 3" />
           </>
         )
-      case '娛樂':
+      case '活動':
         return (
           <>
             <path d="M5 6h14v4a2 2 0 0 0 0 4v4H5v-4a2 2 0 0 0 0-4V6Z" />

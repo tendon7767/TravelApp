@@ -56,6 +56,8 @@ const migrateItem = (value: AppData['items'][number]): AppData['items'][number] 
   // 付款狀態已移除；清掉舊欄位，避免它們繼續在本機與雲端之間往返。
   delete item.paymentStatus
   delete item.chargeDate
+  // 「費用類型」改為「行程類型」後，娛樂以較廣義、較好理解的活動取代。
+  if (item.category === '娛樂') item.category = '活動'
   return {
     ...item,
     date: normalizeStoredDate(item.date) ?? item.date,

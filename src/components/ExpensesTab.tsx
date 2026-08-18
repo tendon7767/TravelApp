@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useStore } from '../store/useStore'
-import { EXPENSE_CATEGORIES, type Item, type Plan, type Trip } from '../types'
+import { ITINERARY_CATEGORIES, type Item, type Plan, type Trip } from '../types'
 import { eachDay, shortDate } from '../lib/date'
 import {
   formatMoney,
@@ -71,7 +71,7 @@ export default function ExpensesTab({ trip, plan, onSelect, onBack }: Props) {
       {missing.length > 0 && (
         <div className="sec" style={{ background: 'var(--danger-bg)' }}>
           <div style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 6 }}>
-            {missing.length} 筆有金額但沒填類型，不會進分類小計
+            {missing.length} 筆有金額但沒填行程類型，不會進類型小計
           </div>
           {missing.map((i) => (
             <button key={i.id} className="chip" style={{ marginRight: 4 }} onClick={() => onSelect(i.id)}>
@@ -82,8 +82,8 @@ export default function ExpensesTab({ trip, plan, onSelect, onBack }: Props) {
       )}
 
       <div className="sec">
-        <span className="label">分類小計</span>
-        {[...EXPENSE_CATEGORIES, '未分類'].map((cat) => {
+        <span className="label">行程類型支出</span>
+        {[...ITINERARY_CATEGORIES, '未分類'].map((cat) => {
           const totals = byCategory.get(cat)
           if (!totals) return null
           const home = toHome(totals, trip)
@@ -93,7 +93,7 @@ export default function ExpensesTab({ trip, plan, onSelect, onBack }: Props) {
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   <CategoryIcon
-                    category={cat === '未分類' ? undefined : cat as (typeof EXPENSE_CATEGORIES)[number]}
+                    category={cat === '未分類' ? undefined : cat as (typeof ITINERARY_CATEGORIES)[number]}
                     size={17}
                   />
                   {cat}

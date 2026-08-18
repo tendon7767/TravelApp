@@ -136,6 +136,7 @@ const normalizeRemoteRow = (
   if (collection === 'items') {
     delete normalized.paymentStatus
     delete normalized.chargeDate
+    if (normalized.category === '娛樂') normalized.category = '活動'
     return {
       ...normalized,
       date: normalizeStoredDate(row.date) ?? row.date,

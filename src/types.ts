@@ -1,5 +1,5 @@
-export const EXPENSE_CATEGORIES = ['交通', '餐飲', '住宿', '娛樂', '購物', '其他'] as const
-export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]
+export const ITINERARY_CATEGORIES = ['景點', '交通', '餐飲', '住宿', '活動', '購物', '其他'] as const
+export type ItineraryCategory = (typeof ITINERARY_CATEGORIES)[number]
 
 /** 每筆記錄都帶同步欄位，M4 接上試算表時直接沿用，不必回頭改資料結構。 */
 export interface SyncFields {
@@ -68,8 +68,8 @@ export interface Item extends SyncFields {
   notes: ItemNote[]
   links: LinkRef[]
   costs: CostLine[]
-  /** 有金額卻沒填會被標紅 */
-  category?: ExpenseCategory
+  /** 行程本身的類型；沿用既有 category 儲存欄位，避免破壞舊試算表。 */
+  category?: ItineraryCategory
   paymentMethodId?: string
 }
 

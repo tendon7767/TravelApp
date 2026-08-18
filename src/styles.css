@@ -21,10 +21,11 @@
   --topbar-h: 60px;
   --tabbar-h: calc(46px + env(safe-area-inset-bottom));
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --cat-景點: #e11d48;
   --cat-交通: #1677d2;
   --cat-餐飲: #f97316;
   --cat-住宿: #8b5cf6;
-  --cat-娛樂: #16a34a;
+  --cat-活動: #16a34a;
   --cat-購物: #db2777;
   --cat-其他: #64748b;
   --actual-bg: #f3f7fd;
@@ -484,6 +485,253 @@ a { color: var(--accent); }
   border-bottom: 0.5px solid var(--border);
   background: var(--surface);
 }
+
+/* 詳細資訊預設是閱讀頁；只有正在編輯的區塊才出現表單。 */
+.detail-scroll { background: var(--bg); }
+
+.detail-section {
+  padding: 14px;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--surface);
+}
+
+.detail-summary { padding-top: 16px; }
+
+.detail-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  margin-bottom: 7px;
+}
+
+.detail-kicker,
+.detail-key {
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.detail-edit-btn {
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.detail-edit-btn:hover { background: var(--accent-bg); }
+
+.detail-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.detail-meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 3px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.detail-form-stack {
+  display: grid;
+  gap: 5px;
+}
+
+.detail-form-stack .label:not(:first-child) { margin-top: 5px; }
+
+.detail-category-block {
+  margin-top: 13px;
+  padding-top: 11px;
+  border-top: 0.5px solid var(--border);
+}
+
+.detail-category-block > .detail-key {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.detail-value-action {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.detail-value-action .dim {
+  margin-left: 2px;
+  font-size: 11px;
+}
+
+.detail-add-text,
+.detail-empty-action {
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.detail-empty-action {
+  width: 100%;
+  padding: 7px 0;
+  text-align: left;
+}
+
+.detail-copy {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.detail-link-list,
+.detail-note-list { display: grid; gap: 6px; }
+
+.detail-link-card {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.detail-link-card .dim { font-size: 11px; }
+
+.detail-link-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: var(--accent);
+  background: var(--accent-bg);
+  font-size: 15px;
+}
+
+.detail-note-row,
+.detail-note-edit-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.detail-note-row {
+  padding: 5px 0;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.detail-note-row input,
+.detail-note-edit-row input[type='checkbox'] {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+}
+
+.detail-note-edit-row { align-items: center; margin-bottom: 6px; }
+.detail-note-edit-row .field { flex: 1; min-width: 0; }
+.detail-help { margin: 5px 0 0; font-size: 11px; }
+
+.detail-cost-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 0;
+  color: var(--text-2);
+  text-align: left;
+  font-size: 13px;
+}
+
+.detail-cost-summary strong { color: var(--text); font-size: 14px; }
+.detail-cost-summary .dim { font-size: 11px; }
+
+.detail-cost-list {
+  margin: 2px 0 8px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.detail-cost-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  padding: 4px 0;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.detail-cost-row .mono { color: var(--text); }
+
+.detail-payment-row,
+.detail-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--border);
+}
+
+.detail-payment-select {
+  width: auto;
+  max-width: 70%;
+  padding: 6px 28px 6px 9px;
+  font-size: 13px;
+}
+
+.detail-total-row { font-size: 13px; }
+
+.detail-split-hint {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  color: var(--ok);
+  background: var(--ok-bg);
+  font-size: 12px;
+}
+
+.detail-split-hint p { margin: 3px 0 0; color: var(--text-3); font-size: 11px; }
+
+.detail-review { margin-top: 8px; }
+.detail-review p { margin: 2px 0 0; color: var(--text-2); font-size: 14px; white-space: pre-wrap; }
+
+.detail-author {
+  margin-bottom: 5px;
+  color: var(--text-3);
+  font-size: 11px;
+  text-decoration: underline;
+}
+
+.detail-restored {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  color: var(--accent);
+  background: var(--accent-bg);
+  font-size: 12px;
+}
+
+.detail-restored span { flex: 1; }
 
 /* 費用明細：窄螢幕讓品項獨佔一行，不然單價、數量、幣別會把它壓成零寬 */
 .costline {
