@@ -6,13 +6,20 @@ interface Props {
   question: string
   onConfirm: () => void
   danger?: boolean
+  confirmLabel?: string
 }
 
 /**
  * 兩段式確認。不用 window.confirm，因為那在加到主畫面的 PWA 裡樣式不受控，
  * 而且會擋住整個畫面看不到自己正要刪掉什麼。
  */
-export default function ConfirmButton({ label, question, onConfirm, danger = true }: Props) {
+export default function ConfirmButton({
+  label,
+  question,
+  onConfirm,
+  danger = true,
+  confirmLabel = '刪除',
+}: Props) {
   const [armed, setArmed] = useState(false)
 
   useEffect(() => {
@@ -47,7 +54,7 @@ export default function ConfirmButton({ label, question, onConfirm, danger = tru
           onConfirm()
         }}
       >
-        刪除
+        {confirmLabel}
       </button>
     </span>
   )

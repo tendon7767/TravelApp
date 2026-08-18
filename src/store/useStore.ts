@@ -103,6 +103,13 @@ interface State {
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 const syncFlights = new Map<string, Promise<void>>()
+const syncVersions = new Map<string, number>()
+
+const invalidateTripSync = (tripId: string) => {
+  syncVersions.set(tripId, (syncVersions.get(tripId) ?? 0) + 1)
+  // fetch 本身無法可靠取消，但移除 map 後重新加入同一趟時可立刻開始新的同步。
+  syncFlights.delete(tripId)
+}
 
 export const useStore = create<State>((setState, getState) => {
   /** 寫入 IndexedDB 用防抖，避免每按一次鍵就打一次資料庫。 */
@@ -193,24 +200,42 @@ export const useStore = create<State>((setState, getState) => {
 
     updateTrip: (id, patch) => mutate((d) => ({ ...d, trips: patchIn(d.trips, id, patch) })),
 
-    /** 旅程、底下的版本與項目一起下墓碑，不留孤兒資料。 */
-    removeTrip: (id) =>
-      mutate((d) => {
-        const now = Date.now()
-        const by = getState().settings.memberName
-        const planIds = new Set(d.plans.filter((p) => p.tripId === id).map((p) => p.id))
-        const tripItemIds = new Set(d.items.filter((i) => planIds.has(i.planId)).map((i) => i.id))
-        const kill = <T extends SyncFields>(r: T) => ({ ...r, deleted: true, updatedAt: now, updatedBy: by })
-        return {
-          trips: d.trips.map((t) => (t.id === id && !t.deleted ? kill(t) : t)),
-          plans: d.plans.map((p) => (p.tripId === id && !p.deleted ? kill(p) : p)),
-          items: d.items.map((i) => (planIds.has(i.planId) && !i.deleted ? kill(i) : i)),
-          reviews: d.reviews.map((r) => (tripItemIds.has(r.itemId) && !r.deleted ? kill(r) : r)),
-          notes: d.notes.map((n) => (n.tripId === id && !n.deleted ? kill(n) : n)),
-          payments: d.payments.map((p) => (p.tripId === id && !p.deleted ? kill(p) : p)),
-          transports: d.transports.map((t) => (t.tripId === id && !t.deleted ? kill(t) : t)),
-        }
-      }),
+    /**
+     * 只從這台裝置移除：直接清掉 IndexedDB 記錄與本機連結，不建立同步墓碑。
+     * 雲端試算表完全不動，之後重新開邀請連結就能下載同一趟旅程。
+     */
+    removeTrip: (id) => {
+      const { data, settings } = getState()
+      const planIds = new Set(data.plans.filter((p) => p.tripId === id).map((p) => p.id))
+      const itemIds = new Set(data.items.filter((i) => planIds.has(i.planId)).map((i) => i.id))
+      const nextData: AppData = {
+        trips: data.trips.filter((t) => t.id !== id),
+        plans: data.plans.filter((p) => p.tripId !== id),
+        items: data.items.filter((i) => !planIds.has(i.planId)),
+        reviews: data.reviews.filter((r) => !itemIds.has(r.itemId)),
+        notes: data.notes.filter((n) => n.tripId !== id),
+        payments: data.payments.filter((p) => p.tripId !== id),
+        transports: data.transports.filter((t) => t.tripId !== id),
+      }
+      const tripLinks = { ...(settings.tripLinks ?? {}) }
+      delete tripLinks[id]
+      const nextSettings: Settings = {
+        ...settings,
+        tripLinks,
+        activeTripId: settings.activeTripId === id ? undefined : settings.activeTripId,
+        activePlanId: planIds.has(settings.activePlanId ?? '') ? undefined : settings.activePlanId,
+      }
+
+      invalidateTripSync(id)
+      setState({
+        data: nextData,
+        settings: nextSettings,
+        localRev: getState().localRev + 1,
+        sync: { busy: false, overwritten: [] },
+      })
+      persist(nextData)
+      void saveSettings(nextSettings)
+    },
 
     duplicatePlan: (planId, name, kind) => {
       const { data } = getState()
@@ -336,6 +361,7 @@ export const useStore = create<State>((setState, getState) => {
       const remoteTrip = pulled.records.trips.find((row) => row.id && !row.deleted)
       if (!remoteTrip) throw new Error('邀請的試算表裡找不到旅程資料')
       const tripId = String(remoteTrip.id)
+      invalidateTripSync(tripId)
       const merged = mergeRemote(getState().data, pulled.records)
       const link: TripLinkState = { sheetId, secret, lastSyncAt: pulled.now, lastPushedAt: Date.now() }
       const settings = {
@@ -355,6 +381,9 @@ export const useStore = create<State>((setState, getState) => {
       const existing = syncFlights.get(tripId)
       if (existing) return existing
 
+      const syncVersion = syncVersions.get(tripId) ?? 0
+      const invalidated = () => (syncVersions.get(tripId) ?? 0) !== syncVersion
+
       const flight = (async () => {
         const { settings } = getState()
         const link = settings.tripLinks?.[tripId]
@@ -364,6 +393,7 @@ export const useStore = create<State>((setState, getState) => {
         try {
           // 先拉再推：先合併遠端的變更，本機較新的修改才不會在推送後被下一次拉取覆蓋。
           const pulled = await pullRemote(settings.gasUrl, link, link.lastSyncAt)
+          if (invalidated()) return
           const merged = mergeRemote(getState().data, pulled.records)
           setState({ data: merged.data })
           persist(merged.data)
@@ -374,6 +404,7 @@ export const useStore = create<State>((setState, getState) => {
           const pushResult = hasOutgoing
             ? await pushRemote(settings.gasUrl, link, outgoing)
             : undefined
+          if (invalidated()) return
 
           // 我方 pull 之後、push 之前若剛好有人送出更新，伺服器會拒絕我方較舊版本。
           // 立刻再拉一次，讓畫面當場收斂，不必等下次 focus 或手動同步。
@@ -381,6 +412,7 @@ export const useStore = create<State>((setState, getState) => {
           let overwritten = merged.overwritten
           if (pushResult?.rejected) {
             const repulled = await pullRemote(settings.gasUrl, link, pulled.now)
+            if (invalidated()) return
             const reconciled = mergeRemote(getState().data, repulled.records)
             setState({ data: reconciled.data })
             persist(reconciled.data)

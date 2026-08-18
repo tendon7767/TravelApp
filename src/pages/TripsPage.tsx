@@ -152,8 +152,9 @@ export default function TripsPage() {
             編輯
           </button>
           <ConfirmButton
-            label="刪除"
-            question={`連同整趟 ${itemCounts[t.id] ?? 0} 筆行程刪除？`}
+            label="從本機移除"
+            question={`從此裝置移除 ${itemCounts[t.id] ?? 0} 筆行程？雲端會保留。`}
+            confirmLabel="移除"
             onConfirm={() => removeTrip(t.id)}
           />
         </div>
