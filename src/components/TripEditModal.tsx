@@ -5,10 +5,12 @@ import { dayCount } from '../lib/date'
 import Modal from './Modal'
 import NumberField from './NumberField'
 import SyncSection from './SyncSection'
+import ConfirmButton from './ConfirmButton'
 
 /** 縮短日期範圍會讓範圍外的項目變成看不到的孤兒，所以先數給使用者看。 */
 export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: () => void }) {
   const updateTrip = useStore((s) => s.updateTrip)
+  const removeTrip = useStore((s) => s.removeTrip)
   const allPlans = useStore((s) => s.data.plans)
   const allItems = useStore((s) => s.data.items)
   const [form, setForm] = useState({
@@ -25,6 +27,11 @@ export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: 
       (i) => !i.deleted && planIds.has(i.planId) && (i.date < form.startDate || i.date > form.endDate),
     ).length
   }, [allPlans, allItems, trip.id, form.startDate, form.endDate])
+
+  const itemCount = useMemo(() => {
+    const planIds = new Set(allPlans.filter((p) => p.tripId === trip.id && !p.deleted).map((p) => p.id))
+    return allItems.filter((i) => !i.deleted && planIds.has(i.planId)).length
+  }, [allPlans, allItems, trip.id])
 
   const save = () => {
     const name = form.name.trim()
@@ -111,6 +118,22 @@ export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: 
             有 {stranded} 筆行程落在新的日期範圍外，儲存後會看不到（資料還在，把日期改回來就會出現）。
           </p>
         )}
+
+        <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
+          <span className="label">本機資料</span>
+          <p className="dim" style={{ fontSize: 12, margin: '0 0 8px' }}>
+            只會從這台裝置移除，雲端資料會保留；之後重新開啟邀請連結即可加入相同旅程。
+          </p>
+          <ConfirmButton
+            label="從本機移除"
+            question={`從此裝置移除 ${itemCount} 筆行程？`}
+            confirmLabel="移除"
+            onConfirm={() => {
+              removeTrip(trip.id)
+              onClose()
+            }}
+          />
+        </div>
       </div>
     </Modal>
   )

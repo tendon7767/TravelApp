@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { draftTrip, useStore } from '../store/useStore'
 import { dayCount, shortDate } from '../lib/date'
-import ConfirmButton from '../components/ConfirmButton'
 import NumberField from '../components/NumberField'
 import SettingsModal from '../components/SettingsModal'
 import TripEditModal from '../components/TripEditModal'
@@ -12,20 +11,6 @@ export default function TripsPage() {
   const allTrips = useStore((s) => s.data.trips)
   const trips = useMemo(() => allTrips.filter((t) => !t.deleted), [allTrips])
   const createTrip = useStore((s) => s.createTrip)
-  const removeTrip = useStore((s) => s.removeTrip)
-  const allPlans = useStore((s) => s.data.plans)
-  const allItems = useStore((s) => s.data.items)
-
-  // 刪除前先告訴使用者會連帶刪掉幾筆，光說「確定刪除？」不足以判斷代價。
-  const itemCounts = useMemo(() => {
-    const planToTrip = new Map(allPlans.filter((p) => !p.deleted).map((p) => [p.id, p.tripId]))
-    const counts: Record<string, number> = {}
-    for (const i of allItems) {
-      const tripId = planToTrip.get(i.planId)
-      if (!i.deleted && tripId) counts[tripId] = (counts[tripId] ?? 0) + 1
-    }
-    return counts
-  }, [allPlans, allItems])
   const navigate = useNavigate()
   const [form, setForm] = useState(draftTrip())
   const [open, setOpen] = useState(false)
@@ -139,6 +124,14 @@ export default function TripsPage() {
       {trips.map((t) => (
         <div key={t.id} className="row" style={{ alignItems: 'center', gap: 6 }}>
           <button
+            className="btn btn-sm"
+            onClick={() => setEditingTripId(t.id)}
+            aria-label={`編輯 ${t.name}`}
+            title="旅程設定"
+          >
+            ⚙
+          </button>
+          <button
             style={{ flex: 1, textAlign: 'left', minWidth: 0 }}
             onClick={() => navigate(`/trip/${t.id}`)}
           >
@@ -148,15 +141,6 @@ export default function TripsPage() {
               {t.foreignCurrency} {t.rate}
             </div>
           </button>
-          <button className="btn btn-sm" onClick={() => setEditingTripId(t.id)}>
-            編輯
-          </button>
-          <ConfirmButton
-            label="從本機移除"
-            question={`從此裝置移除 ${itemCounts[t.id] ?? 0} 筆行程？雲端會保留。`}
-            confirmLabel="移除"
-            onConfirm={() => removeTrip(t.id)}
-          />
         </div>
       ))}
     </div>
