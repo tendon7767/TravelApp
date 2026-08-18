@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { EXPENSE_CATEGORIES, type CostLine, type Item, type Trip } from '../types'
 import { newId } from '../lib/id'
@@ -16,6 +16,7 @@ interface Props {
   trip: Trip
   itemId: string
   onClose: () => void
+  onDirtyChange: (dirty: boolean) => void
 }
 
 const copyItem = (item?: Item): Item | undefined =>
@@ -28,7 +29,7 @@ const copyItem = (item?: Item): Item | undefined =>
       }
     : undefined
 
-export default function ItemDetail({ trip, itemId, onClose }: Props) {
+export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Props) {
   const storedItem = useStore((s) => s.data.items.find((i) => i.id === itemId))
   const updateItem = useStore((s) => s.updateItem)
   const removeItem = useStore((s) => s.removeItem)
@@ -79,6 +80,37 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
     const spent = computeMethod(method, others, trip).txns.map((t) => t.amount)
     return suggestSplit(method, amountInMethodCurrency(item, method, trip), spent)
   }, [item, method, allItems, trip])
+
+  const dirty = useMemo(() => {
+    if (!item || !storedItem) return false
+    return (
+      item.title !== storedItem.title ||
+      item.date !== storedItem.date ||
+      normalizeTime(timeDraft) !== normalizeTime(storedItem.startTime ?? '') ||
+      (item.guide ?? '') !== (storedItem.guide ?? '') ||
+      item.category !== storedItem.category ||
+      item.paymentMethodId !== storedItem.paymentMethodId ||
+      JSON.stringify(item.notes) !== JSON.stringify(storedItem.notes) ||
+      JSON.stringify(item.links) !== JSON.stringify(storedItem.links) ||
+      JSON.stringify(item.costs) !== JSON.stringify(storedItem.costs) ||
+      reviewDraft !== (mine?.text ?? '')
+    )
+  }, [item, storedItem, timeDraft, reviewDraft, mine?.text])
+
+  useEffect(() => {
+    onDirtyChange(dirty)
+    return () => onDirtyChange(false)
+  }, [dirty, onDirtyChange])
+
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
 
   if (!item || item.deleted) return <div className="empty">項目已刪除。</div>
 

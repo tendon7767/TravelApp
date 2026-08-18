@@ -1,55 +1,66 @@
 :root {
-  --bg: #f7f6f3;
+  --bg: #f3f7fd;
   --surface: #ffffff;
-  --surface-2: #f0efeb;
-  --text: #1c1c1b;
-  --text-2: #63625d;
-  --text-3: #92908a;
-  --border: rgba(0, 0, 0, 0.09);
-  --border-2: rgba(0, 0, 0, 0.16);
-  --accent: #1f6feb;
-  --accent-bg: #e8f0fe;
-  --danger: #c0392b;
-  --danger-bg: #fdeceb;
-  --ok: #1a7f4b;
-  --ok-bg: #e6f4ec;
+  --surface-2: #e8f0fb;
+  --text: #152238;
+  --text-2: #4b5f7a;
+  --text-3: #71829b;
+  --border: rgba(30, 64, 175, 0.12);
+  --border-2: rgba(30, 64, 175, 0.24);
+  --accent: #2563eb;
+  --accent-bg: #dbeafe;
+  --danger: #dc2626;
+  --danger-bg: #fee2e2;
+  --ok: #059669;
+  --ok-bg: #d1fae5;
+  --note-bg: #fff3c4;
+  --note-ink: #854d0e;
+  --note-border: #f59e0b;
   --radius: 10px;
+  --topbar-h: 60px;
   --tabbar-h: calc(46px + env(safe-area-inset-bottom));
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-  --cat-交通: #2f7fd4;
-  --cat-餐飲: #d98324;
-  --cat-住宿: #7b62c9;
-  --cat-娛樂: #3f9142;
-  --cat-購物: #c7538c;
-  --cat-其他: #8b8a84;
-  --actual-bg: #f6f2e8;
-  --actual-surface: #fffdf7;
-  --actual-surface-2: #efe8d6;
-  --actual-chip: #f2e3bd;
-  --actual-ink: #7a5a10;
+  --cat-交通: #1677d2;
+  --cat-餐飲: #f97316;
+  --cat-住宿: #8b5cf6;
+  --cat-娛樂: #16a34a;
+  --cat-購物: #db2777;
+  --cat-其他: #64748b;
+  --actual-bg: #ecfdf8;
+  --actual-surface: #ffffff;
+  --actual-surface-2: #ccf5e7;
+  --actual-chip: #a7f3d0;
+  --actual-ink: #047857;
+  --actual-accent: #0f9f77;
+  --actual-accent-bg: #d1fae5;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #171715;
-    --surface: #212120;
-    --surface-2: #2c2c2a;
-    --text: #edece8;
-    --text-2: #a8a69f;
-    --text-3: #7c7a74;
-    --border: rgba(255, 255, 255, 0.11);
-    --border-2: rgba(255, 255, 255, 0.2);
-    --accent: #6ba6ff;
-    --accent-bg: #1b2b45;
-    --danger: #ef8377;
-    --danger-bg: #3a1f1c;
-    --ok: #6cc48d;
-    --ok-bg: #17301f;
-    --actual-bg: #1d1a12;
-    --actual-surface: #272318;
-    --actual-surface-2: #332e20;
-    --actual-chip: #4a3d18;
-    --actual-ink: #f0d492;
+    --bg: #101827;
+    --surface: #172238;
+    --surface-2: #22314d;
+    --text: #f1f5ff;
+    --text-2: #b4c2d8;
+    --text-3: #8495b0;
+    --border: rgba(147, 197, 253, 0.14);
+    --border-2: rgba(147, 197, 253, 0.28);
+    --accent: #60a5fa;
+    --accent-bg: #19365e;
+    --danger: #fb7185;
+    --danger-bg: #4b1f2a;
+    --ok: #6ee7b7;
+    --ok-bg: #123c31;
+    --note-bg: #493711;
+    --note-ink: #fde68a;
+    --note-border: #fbbf24;
+    --actual-bg: #09251e;
+    --actual-surface: #10332a;
+    --actual-surface-2: #185040;
+    --actual-chip: #1d6b53;
+    --actual-ink: #8ff2cf;
+    --actual-accent: #34d399;
+    --actual-accent-bg: #164e3f;
   }
 }
 
@@ -68,6 +79,7 @@ body {
 }
 
 button, input, select, textarea { font: inherit; color: inherit; }
+input[type='checkbox'] { accent-color: var(--accent); }
 
 button {
   cursor: pointer;
@@ -93,7 +105,7 @@ a { color: var(--accent); }
 .dim { color: var(--text-3); }
 
 .btn {
-  border: 0.5px solid var(--border-2);
+  border: 1px solid var(--border-2);
   border-radius: var(--radius);
   padding: 7px 13px;
   background: var(--surface);
@@ -102,12 +114,18 @@ a { color: var(--accent); }
   flex: none;
 }
 .btn:active { transform: scale(0.98); }
-.btn-primary { background: var(--text); color: var(--bg); border-color: transparent; }
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 2px 7px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.btn-danger { background: var(--danger); color: #fff; border-color: transparent; }
 .btn-sm { padding: 4px 9px; font-size: 13px; }
 
 .field {
   width: 100%;
-  border: 0.5px solid var(--border-2);
+  border: 1px solid var(--border-2);
   border-radius: var(--radius);
   padding: 8px 10px;
   background: var(--surface);
@@ -126,6 +144,7 @@ a { color: var(--accent); }
   background: var(--surface);
   border: 0.5px solid var(--border);
   border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(36, 65, 110, 0.07);
 }
 
 /* 頂端：旅程名稱、版本、匯率 */
@@ -155,17 +174,19 @@ a { color: var(--accent); }
 .chip-accent { background: var(--accent-bg); color: var(--accent); border-color: transparent; }
 .chip-actual { background: var(--actual-chip); color: var(--actual-ink); border-color: transparent; }
 
-/* 實際版整體換一層暖色底，讓你一眼知道自己在改哪一版 */
+/* 實際版改用明亮綠色系，和規劃版的藍色一眼區分。 */
 .app[data-actual='true'] {
   --bg: var(--actual-bg);
   --surface: var(--actual-surface);
   --surface-2: var(--actual-surface-2);
+  --accent: var(--actual-accent);
+  --accent-bg: var(--actual-accent-bg);
 }
 
 /* 日期橫條 */
 .daystrip {
   position: sticky;
-  top: 53px;
+  top: var(--topbar-h);
   z-index: 19;
   display: flex;
   gap: 5px;
@@ -197,7 +218,7 @@ a { color: var(--accent); }
   background: var(--surface-2);
   border-bottom: 0.5px solid var(--border);
   position: sticky;
-  top: 92px;
+  top: calc(var(--topbar-h) + 39px);
   z-index: 18;
 }
 
@@ -214,6 +235,24 @@ a { color: var(--accent); }
 }
 .row[data-sel="true"] { background: var(--accent-bg); }
 .row:hover { background: var(--surface-2); }
+
+.overview-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 5px;
+  padding: 3px 7px;
+  border-left: 3px solid var(--note-border);
+  border-radius: 5px;
+  background: var(--note-bg);
+  color: var(--note-ink);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
 
 .dot {
   width: 7px;
@@ -274,7 +313,7 @@ a { color: var(--accent); }
 .tab[data-on="true"] { color: var(--text); }
 .tabicon { display: block; font-size: 18px; line-height: 1.2; }
 
-.scroll { flex: 1; overflow-y: auto; }
+.scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 
 /* 詳細頁：手機蓋滿，桌機變右欄 */
 .split { display: flex; flex: 1; min-height: 0; }
@@ -286,6 +325,7 @@ a { color: var(--accent); }
   background: var(--bg);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 @media (min-width: 860px) {
@@ -293,13 +333,13 @@ a { color: var(--accent); }
   .pane-detail {
     position: sticky;
     inset: auto;
-    top: 53px;
+    top: var(--topbar-h);
     bottom: auto;
     align-self: flex-start;
     z-index: auto;
     width: 400px;
     flex: none;
-    height: calc(100vh - 53px);
+    height: calc(100dvh - var(--topbar-h));
     border-left: 0.5px solid var(--border);
   }
 }
@@ -330,6 +370,16 @@ a { color: var(--accent); }
    不然手勢會捲到背後的行程，捲動軸自己在跑但內容不動。 */
 @media (max-width: 859px) {
   body.detail-open { overflow: hidden; }
+  .pane-detail { inset: 0; z-index: 40; }
+  .pane-detail .editor-actions {
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 24px rgba(21, 34, 56, 0.13);
+  }
+  .editor-actions .btn {
+    flex: 1;
+    min-height: 44px;
+    font-weight: 600;
+  }
 }
 
 .fab {

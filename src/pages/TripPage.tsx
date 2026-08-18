@@ -8,6 +8,7 @@ import SearchPanel from '../components/SearchPanel'
 import ExpensesTab from '../components/ExpensesTab'
 import RewardsTab from '../components/RewardsTab'
 import NotesTab from '../components/NotesTab'
+import Modal from '../components/Modal'
 
 // 花費統計不常看，從導航列移走，改由行程頁的「全程合計」點進去。
 const TABS = [
@@ -21,6 +22,9 @@ export default function TripPage() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const [online, setOnline] = useState(() => navigator.onLine)
+  const [detailDirty, setDetailDirty] = useState(false)
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
+  const topbarRef = useRef<HTMLDivElement>(null)
 
   const trip = useStore((s) => s.data.trips.find((t) => t.id === tripId && !t.deleted))
   const hasAnyTrip = useStore((s) => s.data.trips.some((t) => !t.deleted))
@@ -45,13 +49,17 @@ export default function TripPage() {
   // 導航列高度會隨字型與安全區變動，硬寫數字必然對不準，量到多少就是多少。
   const tabbarRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const el = tabbarRef.current
-    if (!el) return
-    const sync = () =>
-      document.documentElement.style.setProperty('--tabbar-h', `${el.offsetHeight}px`)
+    const topbar = topbarRef.current
+    const tabbar = tabbarRef.current
+    if (!topbar || !tabbar) return
+    const sync = () => {
+      document.documentElement.style.setProperty('--topbar-h', `${topbar.offsetHeight}px`)
+      document.documentElement.style.setProperty('--tabbar-h', `${tabbar.offsetHeight}px`)
+    }
     sync()
     const ro = new ResizeObserver(sync)
-    ro.observe(el)
+    ro.observe(topbar)
+    ro.observe(tabbar)
     return () => ro.disconnect()
   }, [])
 
@@ -117,6 +125,14 @@ export default function TripPage() {
     setParams(next, { replace: true })
   }
 
+  const requestNavigation = (action: () => void) => {
+    if (selectedId && detailDirty) setPendingNavigation(() => action)
+    else action()
+  }
+
+  const navigateParam = (key: string, value?: string) =>
+    requestNavigation(() => setParam(key, value))
+
   if (!trip) {
     return (
       <div className="empty">
@@ -127,8 +143,30 @@ export default function TripPage() {
 
   return (
     <div className="app" data-actual={plan?.kind === 'actual'}>
-      <div className="topbar">
-        <button className="btn btn-sm" onClick={() => navigate('/')} aria-label="回到旅程列表">
+      {pendingNavigation && (
+        <Modal
+          title="尚未儲存變更"
+          onCancel={() => setPendingNavigation(null)}
+          onComplete={() => {
+            const action = pendingNavigation
+            setPendingNavigation(null)
+            setDetailDirty(false)
+            action()
+          }}
+          cancelLabel="繼續編輯"
+          completeLabel="放棄變更"
+          completeDanger
+        >
+          <p style={{ margin: '12px 0 0' }}>詳細行程有尚未儲存的修改，確定要離開嗎？</p>
+        </Modal>
+      )}
+
+      <div className="topbar" ref={topbarRef}>
+        <button
+          className="btn btn-sm"
+          onClick={() => requestNavigation(() => navigate('/'))}
+          aria-label="回到旅程列表"
+        >
           ‹
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -163,12 +201,12 @@ export default function TripPage() {
         )}
         <button
           className="btn btn-sm"
-          onClick={() => setParam('q', searching ? undefined : '1')}
+          onClick={() => navigateParam('q', searching ? undefined : '1')}
           aria-label="搜尋"
         >
           {searching ? '✕' : '⌕'}
         </button>
-        <PlanSwitcher trip={trip} plans={plans} activeId={plan?.id} onPick={(id) => setParam('plan', id)} />
+        <PlanSwitcher trip={trip} plans={plans} activeId={plan?.id} onPick={(id) => navigateParam('plan', id)} />
       </div>
 
       {sync.overwritten.length > 0 && (
@@ -185,8 +223,8 @@ export default function TripPage() {
           {searching && plan && (
             <SearchPanel
               plan={plan}
-              onPick={(id) => setParam('sel', id)}
-              onClose={() => setParam('q')}
+              onPick={(id) => navigateParam('sel', id)}
+              onClose={() => navigateParam('q')}
             />
           )}
           {!searching && tab === 'itinerary' && plan && (
@@ -194,20 +232,20 @@ export default function TripPage() {
               trip={trip}
               plan={plan}
               selectedId={selectedId}
-              onSelect={(id) => setParam('sel', id)}
-              onOpenExpenses={() => setParam('tab', 'expenses')}
+              onSelect={(id) => navigateParam('sel', id)}
+              onOpenExpenses={() => navigateParam('tab', 'expenses')}
             />
           )}
           {!searching && tab === 'expenses' && plan && (
             <ExpensesTab
               trip={trip}
               plan={plan}
-              onSelect={(id) => setParam('sel', id)}
-              onBack={() => setParam('tab', 'itinerary')}
+              onSelect={(id) => navigateParam('sel', id)}
+              onBack={() => navigateParam('tab', 'itinerary')}
             />
           )}
           {!searching && tab === 'rewards' && (
-            <RewardsTab trip={trip} plan={plan} onSelect={(id) => setParam('sel', id)} />
+            <RewardsTab trip={trip} plan={plan} onSelect={(id) => navigateParam('sel', id)} />
           )}
           {!searching && tab === 'notes' && <NotesTab trip={trip} />}
         </div>
@@ -219,6 +257,7 @@ export default function TripPage() {
               trip={trip}
               itemId={selectedId}
               onClose={() => setParam('sel')}
+              onDirtyChange={setDetailDirty}
             />
           </div>
         )}
@@ -235,7 +274,7 @@ export default function TripPage() {
               next.set('tab', t.key)
               next.delete('sel')
               next.delete('q')
-              setParams(next, { replace: true })
+              requestNavigation(() => setParams(next, { replace: true }))
             }}
           >
             <span className="tabicon" aria-hidden="true">

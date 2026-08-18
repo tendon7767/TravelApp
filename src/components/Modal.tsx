@@ -4,6 +4,9 @@ interface Props {
   title: string
   onCancel: () => void
   onComplete: () => void
+  cancelLabel?: string
+  completeLabel?: string
+  completeDanger?: boolean
   children: ReactNode
 }
 
@@ -11,7 +14,15 @@ interface Props {
  * 手機從底部蓋上來、桌機置中。
  * 原本把編輯面板釘在列表最上方，點下方卡片時面板開在畫面外，看起來像沒反應。
  */
-export default function Modal({ title, onCancel, onComplete, children }: Props) {
+export default function Modal({
+  title,
+  onCancel,
+  onComplete,
+  cancelLabel = '取消',
+  completeLabel = '完成',
+  completeDanger = false,
+  children,
+}: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCancel()
     document.addEventListener('keydown', onKey)
@@ -36,8 +47,10 @@ export default function Modal({ title, onCancel, onComplete, children }: Props) 
         </div>
         <div className="sheetbody">{children}</div>
         <div className="sheetactions">
-          <button className="btn" onClick={onCancel}>取消</button>
-          <button className="btn btn-primary" onClick={onComplete}>完成</button>
+          <button className="btn" onClick={onCancel}>{cancelLabel}</button>
+          <button className={completeDanger ? 'btn btn-danger' : 'btn btn-primary'} onClick={onComplete}>
+            {completeLabel}
+          </button>
         </div>
       </div>
     </div>
