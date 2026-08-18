@@ -361,6 +361,7 @@ a { color: var(--accent); }
 
 .link-edit-row { margin-bottom: 6px; }
 .link-add-row .field { flex: 1; min-width: 0; }
+.link-lookup-error { font-size: 11px; margin: 5px 0 0; }
 
 @media (max-width: 420px) {
   .category-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); }

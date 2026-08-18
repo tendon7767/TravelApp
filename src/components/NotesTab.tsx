@@ -8,6 +8,7 @@ import ConfirmButton from './ConfirmButton'
 import Modal from './Modal'
 import { DEFAULT_PACKING } from '../store/db'
 import TrashIcon from './TrashIcon'
+import { fetchLinkMetadata } from '../sync/client'
 
 export default function NotesTab({ trip }: { trip: Trip }) {
   const allNotes = useStore((s) => s.data.notes)
@@ -56,6 +57,7 @@ export default function NotesTab({ trip }: { trip: Trip }) {
       {notes.map((note) => (
         <NoteCard
           key={note.id}
+          trip={trip}
           note={note}
           editing={editingId === note.id}
           onEdit={() => setEditingId(note.id)}
@@ -67,11 +69,13 @@ export default function NotesTab({ trip }: { trip: Trip }) {
 }
 
 function NoteCard({
+  trip,
   note,
   editing,
   onEdit,
   onDone,
 }: {
+  trip: Trip
   note: Note
   editing: boolean
   onEdit: () => void
@@ -80,7 +84,11 @@ function NoteCard({
   const updateNote = useStore((s) => s.updateNote)
   const removeNote = useStore((s) => s.removeNote)
   const savePackingTemplate = useStore((s) => s.savePackingTemplate)
+  const gasUrl = useStore((s) => s.settings.gasUrl)
+  const tripLink = useStore((s) => s.settings.tripLinks?.[trip.id])
   const [linkDraft, setLinkDraft] = useState('')
+  const [resolvingLink, setResolvingLink] = useState(false)
+  const [linkLookupError, setLinkLookupError] = useState('')
   const [saved, setSaved] = useState(false)
   const [draft, setDraft] = useState<Note | null>(null)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
@@ -122,9 +130,32 @@ function NoteCard({
     setBlocks([...view.blocks.slice(0, idx + 1), block, ...view.blocks.slice(idx + 1)])
   }
 
-  const addLink = () => {
-    if (!linkDraft.trim()) return
-    patch({ links: [...view.links, makeLink(linkDraft)] })
+  const addLink = async () => {
+    if (!linkDraft.trim() || resolvingLink) return
+    const parsed = makeLink(linkDraft)
+    let link = parsed
+    setLinkLookupError('')
+
+    if (gasUrl && tripLink && /^https?:\/\//i.test(parsed.url)) {
+      setResolvingLink(true)
+      try {
+        const metadata = await fetchLinkMetadata(gasUrl, tripLink, parsed.url)
+        link = {
+          ...parsed,
+          url: metadata.url || parsed.url,
+          label:
+            metadata.label.trim() ||
+            parsed.label ||
+            (parsed.kind === 'map' ? view.title : ''),
+        }
+      } catch {
+        setLinkLookupError('無法讀取連結名稱，已使用預設備援名稱。')
+      } finally {
+        setResolvingLink(false)
+      }
+    }
+    if (!link.label && link.kind === 'map') link = { ...link, label: view.title }
+    patch({ links: [...view.links, link] })
     setLinkDraft('')
   }
 
@@ -325,11 +356,14 @@ function NoteCard({
               className="field"
               value={linkDraft}
               onChange={(e) => setLinkDraft(e.target.value)}
-              onKeyDown={(e) => isSubmitEnter(e) && addLink()}
+              onKeyDown={(e) => isSubmitEnter(e) && void addLink()}
               aria-label="新增連結"
             />
-            <button className="btn" onClick={addLink}>加入</button>
+            <button className="btn" disabled={resolvingLink} onClick={() => void addLink()}>
+              {resolvingLink ? '讀取中…' : '加入'}
+            </button>
           </div>
+          {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
         </div>
       )}
 

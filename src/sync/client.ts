@@ -92,8 +92,13 @@ export const pushRemote = (
     records,
   })
 
-export const expandShortUrl = (gasUrl: string, url: string) =>
-  call<{ url: string; label: string }>(gasUrl, { action: 'expandUrl', url })
+export const fetchLinkMetadata = (gasUrl: string, link: TripLink, url: string) =>
+  call<{ url: string; label: string }>(gasUrl, {
+    action: 'expandUrl',
+    sheetId: link.sheetId,
+    secret: link.secret,
+    url,
+  })
 
 export const newSecret = (): string =>
   Array.from(crypto.getRandomValues(new Uint8Array(12)))

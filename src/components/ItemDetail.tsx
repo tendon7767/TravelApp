@@ -27,6 +27,7 @@ import {
 } from '../store/drafts'
 import CategoryIcon from './CategoryIcon'
 import TrashIcon from './TrashIcon'
+import { fetchLinkMetadata } from '../sync/client'
 
 interface Props {
   trip: Trip
@@ -70,6 +71,8 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   const allReviews = useStore((state) => state.data.reviews)
   const setReview = useStore((state) => state.setReview)
   const me = useStore((state) => state.settings.memberName)
+  const gasUrl = useStore((state) => state.settings.gasUrl)
+  const tripLink = useStore((state) => state.settings.tripLinks?.[trip.id])
   const isActual = useStore((state) =>
     state.data.plans.some(
       (plan) => plan.id === storedItem?.planId && plan.kind === 'actual' && !plan.deleted,
@@ -82,6 +85,8 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   const [reviewDraft, setReviewDraft] = useState('')
   const [mapDraft, setMapDraft] = useState('')
   const [webDraft, setWebDraft] = useState('')
+  const [resolvingLink, setResolvingLink] = useState<LinkRef['kind'] | null>(null)
+  const [linkLookupError, setLinkLookupError] = useState('')
   const [noteDraft, setNoteDraft] = useState('')
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
   const [choosingCategory, setChoosingCategory] = useState(false)
@@ -324,11 +329,30 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
       ],
     })
 
-  const addLink = (kind: LinkRef['kind']) => {
+  const addLink = async (kind: LinkRef['kind']) => {
     const value = kind === 'map' ? mapDraft : webDraft
-    if (!value.trim()) return
+    if (!value.trim() || resolvingLink) return
     if (kind === 'map' && item.links.some((link) => link.kind === 'map')) return
-    const link = { ...makeLink(value), kind }
+    const parsed = { ...makeLink(value), kind }
+    let link = parsed
+    setLinkLookupError('')
+
+    if (gasUrl && tripLink && /^https?:\/\//i.test(parsed.url)) {
+      setResolvingLink(kind)
+      try {
+        const metadata = await fetchLinkMetadata(gasUrl, tripLink, parsed.url)
+        link = {
+          ...parsed,
+          url: metadata.url || parsed.url,
+          label: metadata.label.trim() || parsed.label || (kind === 'map' ? item.title : ''),
+        }
+      } catch {
+        setLinkLookupError('無法讀取連結名稱，已使用預設備援名稱。')
+      } finally {
+        setResolvingLink(null)
+      }
+    }
+    if (!link.label && kind === 'map') link = { ...link, label: item.title }
     patchItem({ links: [...item.links, link] })
     if (kind === 'map') setMapDraft('')
     else setWebDraft('')
@@ -587,11 +611,18 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                     placeholder="貼上 Google Maps 網址"
                     autoFocus
                     onChange={(event) => setMapDraft(event.target.value)}
-                    onKeyDown={(event) => isSubmitEnter(event) && addLink('map')}
+                    onKeyDown={(event) => isSubmitEnter(event) && void addLink('map')}
                   />
-                  <button className="btn" onClick={() => addLink('map')}>加入</button>
+                  <button
+                    className="btn"
+                    disabled={resolvingLink !== null}
+                    onClick={() => void addLink('map')}
+                  >
+                    {resolvingLink === 'map' ? '解析中…' : '加入'}
+                  </button>
                 </div>
               )}
+              {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
             </>
           ) : mapLinks.length > 0 ? (
             mapLinks.map((link) => (
@@ -841,10 +872,17 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                   placeholder="貼上訂位、票券或網站網址"
                   autoFocus={webLinks.length === 0}
                   onChange={(event) => setWebDraft(event.target.value)}
-                  onKeyDown={(event) => isSubmitEnter(event) && addLink('web')}
+                  onKeyDown={(event) => isSubmitEnter(event) && void addLink('web')}
                 />
-                <button className="btn" onClick={() => addLink('web')}>加入</button>
+                <button
+                  className="btn"
+                  disabled={resolvingLink !== null}
+                  onClick={() => void addLink('web')}
+                >
+                  {resolvingLink === 'web' ? '讀取中…' : '加入'}
+                </button>
               </div>
+              {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
             </>
           ) : webLinks.length > 0 ? (
             <div className="detail-link-list">

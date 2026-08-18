@@ -14,7 +14,7 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-19c'
+var BACKEND_VERSION = '2026-08-19d'
 
 /** 每次修復邏輯有變動就換一個 key，讓既有試算表重新執行修復。 */
 var TEXT_COLUMNS_REPAIR_KEY = 'textColumnsFixedV2'
@@ -383,15 +383,113 @@ function push(body) {
   }
 }
 
+/** 網頁應用程式公開在網路上，解析網址前要先驗證旅程密鑰，也不能存取本機或私有網段。 */
+function checkedPublicUrl(value) {
+  var url = String(value || '').trim()
+  var match = url.match(/^https?:\/\/([^\/?#]+)/i)
+  if (!match) throw new Error('只支援 http 或 https 網址')
+
+  var host = match[1].replace(/:\d+$/, '').toLowerCase()
+  if (
+    host.indexOf('@') >= 0 ||
+    host === 'localhost' ||
+    /\.(local|internal)$/.test(host) ||
+    /^\[/.test(host) ||
+    /^\d+$/.test(host) ||
+    /^(0|10|127)\./.test(host) ||
+    /^169\.254\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  ) {
+    throw new Error('不允許解析本機或私有網址')
+  }
+  return url
+}
+
+function redirectUrl(base, location) {
+  var target = String(location || '').trim()
+  if (/^https?:\/\//i.test(target)) return target
+  var origin = String(base).match(/^(https?:\/\/[^\/?#]+)/i)
+  if (!origin) return target
+  if (/^\/\//.test(target)) return origin[1].split(':')[0] + ':' + target
+  if (/^\//.test(target)) return origin[1] + target
+  return String(base).replace(/[?#].*$/, '').replace(/\/[^\/]*$/, '/') + target
+}
+
+function responseHeader(headers, name) {
+  var wanted = name.toLowerCase()
+  var keys = Object.keys(headers || {})
+  for (var i = 0; i < keys.length; i++) {
+    if (keys[i].toLowerCase() === wanted) return headers[keys[i]]
+  }
+  return ''
+}
+
+function decodeHtmlText(value) {
+  return String(value || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x([0-9a-f]+);/gi, function (_, code) {
+      return String.fromCharCode(parseInt(code, 16))
+    })
+    .replace(/&#(\d+);/g, function (_, code) {
+      return String.fromCharCode(parseInt(code, 10))
+    })
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function labelFromUrl(url) {
+  var place = String(url).match(/\/maps\/place\/([^\/@?#]+)/)
+  var query = String(url).match(/[?&](?:destination|query|q)=([^&#]+)/)
+  var encoded = place && place[1] ? place[1] : query && query[1] ? query[1] : ''
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded.replace(/\+/g, ' '))
+    } catch (err) {
+      return encoded.replace(/\+/g, ' ')
+    }
+  }
+  return ''
+}
+
 /**
- * 短網址（maps.app.goo.gl）的地名藏在重新導向之後，瀏覽器因同源政策讀不到，
- * 但這支程式跑在 Google 伺服器上，沒有這個限制。
+ * 手機版 Google Maps 只給短網址；一般網站的標題也因瀏覽器同源政策無法直接讀取。
+ * 後端最多追蹤五次重新導向，再從 Maps 網址取地名或從 HTML <title> 取顯示名稱。
  */
 function expandUrl(body) {
-  var res = UrlFetchApp.fetch(body.url, { followRedirects: false, muteHttpExceptions: true })
-  var target = res.getHeaders()['Location'] || res.getHeaders()['location'] || body.url
-  var label = ''
-  var m = String(target).match(/\/maps\/place\/([^\/@]+)/)
-  if (m && m[1]) label = decodeURIComponent(m[1].replace(/\+/g, ' '))
-  return { url: target, label: label }
+  openChecked(body)
+  var current = checkedPublicUrl(body.url)
+  var response = null
+
+  for (var i = 0; i < 5; i++) {
+    response = UrlFetchApp.fetch(current, {
+      followRedirects: false,
+      muteHttpExceptions: true,
+      headers: {
+        Accept: 'text/html,application/xhtml+xml',
+        'User-Agent': 'Mozilla/5.0 TravelApp Link Preview',
+      },
+    })
+    var code = response.getResponseCode()
+    var location = responseHeader(response.getHeaders(), 'location')
+    if (code < 300 || code >= 400 || !location) break
+    current = checkedPublicUrl(redirectUrl(current, location))
+  }
+
+  var label = labelFromUrl(current)
+  if (!label && response) {
+    try {
+      var html = response.getContentText().slice(0, 200000)
+      var title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
+      if (title && title[1]) label = decodeHtmlText(title[1])
+    } catch (err) {
+      // 有些網址回傳的不是文字；仍回傳已展開的網址，前端會使用原本的備援標籤。
+    }
+  }
+  return { url: current, label: label }
 }
