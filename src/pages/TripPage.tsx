@@ -22,6 +22,10 @@ export default function TripPage() {
   const navigate = useNavigate()
 
   const trip = useStore((s) => s.data.trips.find((t) => t.id === tripId && !t.deleted))
+  const linked = useStore((s) => Boolean(tripId && s.settings.tripLinks?.[tripId]))
+  const sync = useStore((s) => s.sync)
+  const syncTrip = useStore((s) => s.syncTrip)
+  const dismissOverwritten = useStore((s) => s.dismissOverwritten)
   const allPlans = useStore((s) => s.data.plans)
   const plans = useMemo(
     () => allPlans.filter((p) => p.tripId === tripId && !p.deleted),
@@ -47,6 +51,16 @@ export default function TripPage() {
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
+
+  // 進入旅程與切回視窗時各同步一次。旅途中常常是切出去查地圖再切回來，
+  // 那正是同行者剛改完東西的時機。
+  useEffect(() => {
+    if (!tripId || !linked) return
+    void syncTrip(tripId)
+    const onFocus = () => void syncTrip(tripId)
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [tripId, linked, syncTrip])
 
   // 手機版詳細頁是覆蓋在上面的固定層，底下的行程仍會跟著手勢捲動。
   useEffect(() => {
@@ -77,6 +91,18 @@ export default function TripPage() {
             {trip.foreignCurrency} 匯率 {trip.rate}
           </div>
         </div>
+        {linked && (
+          <button
+            className="btn btn-sm"
+            onClick={() => tripId && void syncTrip(tripId)}
+            disabled={sync.busy}
+            aria-label="同步"
+            title={sync.error ?? (sync.lastAt ? `上次同步 ${new Date(sync.lastAt).toLocaleTimeString('zh-TW')}` : '尚未同步')}
+            style={sync.error ? { color: 'var(--danger)' } : undefined}
+          >
+            {sync.busy ? '⋯' : sync.error ? '⚠' : '⟳'}
+          </button>
+        )}
         <button
           className="btn btn-sm"
           onClick={() => setParam('q', searching ? undefined : '1')}
@@ -86,6 +112,15 @@ export default function TripPage() {
         </button>
         <PlanSwitcher trip={trip} plans={plans} activeId={plan?.id} onPick={(id) => setParam('plan', id)} />
       </div>
+
+      {sync.overwritten.length > 0 && (
+        <div className="sec" style={{ background: 'var(--accent-bg)', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ flex: 1, fontSize: 12 }}>
+            有 {sync.overwritten.length} 筆被 {sync.overwritten[0].by} 的較新版本更新
+          </span>
+          <button className="btn btn-sm" onClick={dismissOverwritten}>知道了</button>
+        </div>
+      )}
 
       <div className="split">
         <div className="pane-list">

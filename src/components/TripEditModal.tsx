@@ -4,6 +4,7 @@ import type { Trip } from '../types'
 import { dayCount } from '../lib/date'
 import Modal from './Modal'
 import NumberField from './NumberField'
+import SyncSection from './SyncSection'
 
 /** 縮短日期範圍會讓範圍外的項目變成看不到的孤兒，所以先數給使用者看。 */
 export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: () => void }) {
@@ -99,6 +100,11 @@ export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: 
         {form.endDate < form.startDate && (
           <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>回程日不能早於出發日。</p>
         )}
+
+        <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
+          <span className="label">雲端同步</span>
+          <SyncSection trip={trip} />
+        </div>
 
         {stranded > 0 && (
           <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>

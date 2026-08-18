@@ -22,13 +22,32 @@ import {
   saveData,
   saveSettings,
   type Settings,
+  type TripLinkState,
 } from './db'
+import {
+  createRemoteTrip,
+  mergeRemote,
+  newSecret,
+  ping,
+  pullRemote,
+  pushRemote,
+} from '../sync/client'
+import { collectTripRecords } from '../sync/collect'
 
+
+export interface SyncState {
+  busy: boolean
+  error?: string
+  lastAt?: number
+  /** 本機修改被同行者較新的版本蓋掉時記下來，不讓它默默消失 */
+  overwritten: { id: string; by: string }[]
+}
 
 interface State {
   data: AppData
   settings: Settings
   ready: boolean
+  sync: SyncState
 
   init: () => Promise<void>
   setMemberName: (name: string) => void
@@ -48,6 +67,14 @@ interface State {
 
   /** 每個人只寫自己那則，用暱稱當識別，所以不會互相覆蓋。 */
   setReview: (itemId: string, text: string) => void
+
+  setGasUrl: (url: string) => Promise<void>
+  /** 幫這趟在雲端硬碟建立試算表並記下密鑰 */
+  connectTrip: (tripId: string) => Promise<void>
+  /** 用邀請連結加入別人建立的旅程 */
+  joinTrip: (gasUrl: string, sheetId: string, secret: string) => Promise<string | undefined>
+  syncTrip: (tripId: string) => Promise<void>
+  dismissOverwritten: () => void
 
   createNote: (tripId: string, title?: string) => Note
   updateNote: (id: string, patch: Partial<Note>) => void
@@ -95,6 +122,7 @@ export const useStore = create<State>((setState, getState) => {
     data: emptyData(),
     settings: defaultSettings(),
     ready: false,
+    sync: { busy: false, overwritten: [] },
 
     init: async () => {
       const [data, settings] = await Promise.all([loadData(), loadSettings()])
@@ -252,6 +280,90 @@ export const useStore = create<State>((setState, getState) => {
       const review: Review = { ...stamp(), itemId, author, text }
       mutate((d) => ({ ...d, reviews: [...d.reviews, review] }))
     },
+
+    setGasUrl: async (url) => {
+      const gasUrl = url.trim()
+      if (gasUrl) await ping(gasUrl)
+      const settings = { ...getState().settings, gasUrl }
+      setState({ settings })
+      await saveSettings(settings)
+    },
+
+    connectTrip: async (tripId) => {
+      const { settings, data } = getState()
+      if (!settings.gasUrl) throw new Error('尚未設定後端網址')
+      const trip = data.trips.find((t) => t.id === tripId)
+      if (!trip) throw new Error('找不到旅程')
+
+      const secret = newSecret()
+      const { sheetId } = await createRemoteTrip(settings.gasUrl, trip.name, secret)
+      const link: TripLinkState = { sheetId, secret, lastSyncAt: 0, lastPushedAt: 0 }
+      const next = { ...settings, tripLinks: { ...settings.tripLinks, [tripId]: link } }
+      setState({ settings: next })
+      await saveSettings(next)
+      await getState().syncTrip(tripId)
+    },
+
+    joinTrip: async (gasUrl, sheetId, secret) => {
+      const pulled = await pullRemote(gasUrl, { sheetId, secret }, 0)
+      const merged = mergeRemote(getState().data, pulled.records)
+      const tripId = String(merged.data.trips[merged.data.trips.length - 1]?.id ?? '')
+      const link: TripLinkState = { sheetId, secret, lastSyncAt: pulled.now, lastPushedAt: Date.now() }
+      const settings = {
+        ...getState().settings,
+        gasUrl,
+        tripLinks: { ...getState().settings.tripLinks, [tripId]: link },
+      }
+      setState({ data: merged.data, settings })
+      persist(merged.data)
+      await saveSettings(settings)
+      return tripId
+    },
+
+    syncTrip: async (tripId) => {
+      const { settings } = getState()
+      const link = settings.tripLinks?.[tripId]
+      if (!settings.gasUrl || !link) return
+
+      setState({ sync: { ...getState().sync, busy: true, error: undefined } })
+      try {
+        // 先拉再推：先合併遠端的變更，本機較新的修改才不會在推送後被下一次拉取覆蓋。
+        const pulled = await pullRemote(settings.gasUrl, link, link.lastSyncAt)
+        const merged = mergeRemote(getState().data, pulled.records)
+        setState({ data: merged.data })
+        persist(merged.data)
+
+        const pushedAt = Date.now()
+        const outgoing = collectTripRecords(merged.data, tripId, link.lastPushedAt)
+        const hasOutgoing = Object.values(outgoing).some((rows) => rows && rows.length)
+        if (hasOutgoing) await pushRemote(settings.gasUrl, link, outgoing)
+
+        const nextLink: TripLinkState = {
+          ...link,
+          lastSyncAt: pulled.now,
+          lastPushedAt: pushedAt,
+        }
+        const nextSettings = {
+          ...getState().settings,
+          tripLinks: { ...getState().settings.tripLinks, [tripId]: nextLink },
+        }
+        setState({
+          settings: nextSettings,
+          sync: {
+            busy: false,
+            lastAt: Date.now(),
+            overwritten: merged.overwritten.map((o) => ({ id: o.id, by: o.by })),
+          },
+        })
+        await saveSettings(nextSettings)
+      } catch (err) {
+        setState({
+          sync: { ...getState().sync, busy: false, error: err instanceof Error ? err.message : String(err) },
+        })
+      }
+    },
+
+    dismissOverwritten: () => setState({ sync: { ...getState().sync, overwritten: [] } }),
 
     createNote: (tripId, title = '') => {
       const note: Note = { ...stamp(), tripId, title, blocks: [], links: [] }

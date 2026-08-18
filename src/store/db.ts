@@ -11,6 +11,19 @@ export interface Settings {
   activePlanId?: string
   /** 打包清單範本，新旅程會自動帶入。存的是品項名稱。 */
   packingTemplate?: string[]
+  /** Apps Script 網頁應用程式網址，只部署一次，所有旅程共用 */
+  gasUrl?: string
+  /** 每趟旅程對應的試算表與密鑰。這是本機設定，不會同步。 */
+  tripLinks?: Record<string, TripLinkState>
+}
+
+export interface TripLinkState {
+  sheetId: string
+  secret: string
+  /** 伺服器時間，用來做增量拉取，不受各裝置時鐘誤差影響 */
+  lastSyncAt: number
+  /** 本機時間，用來判斷哪些記錄改過還沒推上去 */
+  lastPushedAt: number
 }
 
 export const DEFAULT_PACKING = [

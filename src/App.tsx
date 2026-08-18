@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useStore } from './store/useStore'
 import TripsPage from './pages/TripsPage'
 import TripPage from './pages/TripPage'
+import JoinPage from './pages/JoinPage'
 
 export default function App() {
   const ready = useStore((s) => s.ready)
@@ -18,6 +19,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<TripsPage />} />
       <Route path="/trip/:tripId" element={<TripPage />} />
+      <Route path="/join" element={<JoinPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
