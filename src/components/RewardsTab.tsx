@@ -66,6 +66,17 @@ export default function RewardsTab({ trip, onSelect }: Props) {
 
   return (
     <>
+      <div className="sec" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <button className="btn btn-sm" onClick={() => setEditingId(createPayment(trip.id).id)}>
+          ＋ 新增支付方式
+        </button>
+        {otherTrips.map((t) => (
+          <button key={t.id} className="btn btn-sm" onClick={() => copyPaymentsFrom(t.id, trip.id)}>
+            從「{t.name}」複製卡片
+          </button>
+        ))}
+      </div>
+
       {!actual && (
         <div className="sec" style={{ background: 'var(--accent-bg)' }}>
           <div style={{ fontSize: 14, marginBottom: 4 }}>尚未開始跑行程</div>
@@ -142,16 +153,6 @@ export default function RewardsTab({ trip, onSelect }: Props) {
         </div>
       )}
 
-      <div className="sec" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <button className="btn btn-sm" onClick={() => setEditingId(createPayment(trip.id).id)}>
-          ＋ 新增支付方式
-        </button>
-        {otherTrips.map((t) => (
-          <button key={t.id} className="btn btn-sm" onClick={() => copyPaymentsFrom(t.id, trip.id)}>
-            從「{t.name}」複製卡片
-          </button>
-        ))}
-      </div>
     </>
   )
 }
