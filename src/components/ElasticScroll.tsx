@@ -13,6 +13,7 @@ interface Props extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
 
 const MAX_PULL = 52
 const RETURN_MS = 320
+const WHEEL_SETTLE_MS = 80
 
 /**
  * 只移動捲動區裡的內容，外面的 header、日期列與操作列不參與回彈。
@@ -46,11 +47,13 @@ const ElasticScroll = forwardRef<HTMLDivElement, Props>(function ElasticScroll(
     let startY = 0
     let lastY = 0
     let rawPull = 0
+    let wheelTimer: number | undefined
 
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const draw = (raw: number) => {
       const direction = Math.sign(raw)
-      const distance = MAX_PULL * (1 - Math.exp((-Math.abs(raw) * 0.42) / MAX_PULL))
+      // 手指拖 50px 時畫面約移動 33px；上一版只有約 18px，實機上幾乎看不出來。
+      const distance = MAX_PULL * (1 - Math.exp((-Math.abs(raw) * 1.05) / MAX_PULL))
       content.style.transform = `translate3d(0, ${direction * distance}px, 0)`
     }
 
@@ -58,6 +61,11 @@ const ElasticScroll = forwardRef<HTMLDivElement, Props>(function ElasticScroll(
       if (returnTimer.current !== undefined) window.clearTimeout(returnTimer.current)
       returnTimer.current = undefined
       content.style.transition = 'none'
+    }
+
+    const clearWheelTimer = () => {
+      if (wheelTimer !== undefined) window.clearTimeout(wheelTimer)
+      wheelTimer = undefined
     }
 
     const returnToRest = () => {
@@ -82,6 +90,7 @@ const ElasticScroll = forwardRef<HTMLDivElement, Props>(function ElasticScroll(
 
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1) return
+      clearWheelTimer()
       clearReturn()
       const touch = event.touches[0]
       tracking = true
@@ -131,16 +140,44 @@ const ElasticScroll = forwardRef<HTMLDivElement, Props>(function ElasticScroll(
       returnToRest()
     }
 
+    const onWheel = (event: WheelEvent) => {
+      const atTop = scroller.scrollTop <= 0.5
+      const atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 0.5
+      if ((!atTop || event.deltaY >= 0) && (!atBottom || event.deltaY <= 0)) return
+
+      event.preventDefault()
+      clearWheelTimer()
+      clearReturn()
+      content.style.willChange = 'transform'
+      edge = atTop ? 'top' : 'bottom'
+
+      const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? 16
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? scroller.clientHeight
+          : 1
+      const impulse = Math.max(-48, Math.min(48, -event.deltaY * unit))
+      rawPull = Math.max(-120, Math.min(120, rawPull + impulse))
+      draw(rawPull)
+      wheelTimer = window.setTimeout(() => {
+        wheelTimer = undefined
+        returnToRest()
+      }, WHEEL_SETTLE_MS)
+    }
+
     scroller.addEventListener('touchstart', onTouchStart, { passive: true })
     scroller.addEventListener('touchmove', onTouchMove, { passive: false })
     scroller.addEventListener('touchend', onTouchEnd, { passive: true })
     scroller.addEventListener('touchcancel', onTouchEnd, { passive: true })
+    scroller.addEventListener('wheel', onWheel, { passive: false })
     return () => {
+      clearWheelTimer()
       clearReturn()
       scroller.removeEventListener('touchstart', onTouchStart)
       scroller.removeEventListener('touchmove', onTouchMove)
       scroller.removeEventListener('touchend', onTouchEnd)
       scroller.removeEventListener('touchcancel', onTouchEnd)
+      scroller.removeEventListener('wheel', onWheel)
     }
   }, [])
 

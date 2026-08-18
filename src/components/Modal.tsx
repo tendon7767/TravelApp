@@ -9,6 +9,8 @@ interface Props {
   completeLabel?: string
   completeDanger?: boolean
   dirty?: boolean
+  /** 表單仍可正常捲動，但不套用內容層拖曳回彈。 */
+  elastic?: boolean
   children: ReactNode
 }
 
@@ -24,6 +26,7 @@ export default function Modal({
   completeLabel = '完成',
   completeDanger = false,
   dirty = false,
+  elastic = true,
   children,
 }: Props) {
   const [confirmingCancel, setConfirmingCancel] = useState(false)
@@ -59,7 +62,11 @@ export default function Modal({
           <div className="sheethead">
             <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>{title}</strong>
           </div>
-          <ElasticScroll className="sheetbody">{children}</ElasticScroll>
+          {elastic ? (
+            <ElasticScroll className="sheetbody">{children}</ElasticScroll>
+          ) : (
+            <div className="sheetbody">{children}</div>
+          )}
           <div className="sheetactions">
             <button className="btn" onClick={requestCancel}>{cancelLabel}</button>
             <button className={completeDanger ? 'btn btn-danger' : 'btn btn-primary'} onClick={onComplete}>
@@ -81,9 +88,15 @@ export default function Modal({
             <div className="sheethead">
               <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>尚未儲存變更</strong>
             </div>
-            <ElasticScroll className="sheetbody">
-              <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的修改嗎？</p>
-            </ElasticScroll>
+            {elastic ? (
+              <ElasticScroll className="sheetbody">
+                <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的修改嗎？</p>
+              </ElasticScroll>
+            ) : (
+              <div className="sheetbody">
+                <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的修改嗎？</p>
+              </div>
+            )}
             <div className="sheetactions">
               <button className="btn" onClick={() => setConfirmingCancel(false)}>繼續編輯</button>
               <button className="btn btn-danger" onClick={onCancel}>放棄變更</button>
