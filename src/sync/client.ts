@@ -121,22 +121,25 @@ const normalizeRemoteRow = (
   collection: SyncedCollection,
   row: Record<string, unknown>,
 ): Record<string, unknown> => {
+  // 路由參數永遠是字串；Sheets 若把看似數字的 ID 回傳成 number，
+  // React Router 的嚴格比對會找不到剛加入的旅程。
+  const normalized = { ...row, id: String(row.id) }
   if (collection === 'trips') {
     return {
-      ...row,
+      ...normalized,
       startDate: normalizeStoredDate(row.startDate),
       endDate: normalizeStoredDate(row.endDate),
     }
   }
   if (collection === 'items') {
     return {
-      ...row,
+      ...normalized,
       date: normalizeStoredDate(row.date),
       chargeDate: normalizeStoredDate(row.chargeDate),
       startTime: normalizeStoredTime(row.startTime),
     }
   }
-  return row
+  return normalized
 }
 
 /**

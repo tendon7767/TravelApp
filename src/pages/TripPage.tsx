@@ -22,6 +22,7 @@ export default function TripPage() {
   const navigate = useNavigate()
 
   const trip = useStore((s) => s.data.trips.find((t) => t.id === tripId && !t.deleted))
+  const hasAnyTrip = useStore((s) => s.data.trips.some((t) => !t.deleted))
   const linked = useStore((s) => Boolean(tripId && s.settings.tripLinks?.[tripId]))
   const sync = useStore((s) => s.sync)
   const syncTrip = useStore((s) => s.syncTrip)
@@ -84,6 +85,12 @@ export default function TripPage() {
     return () => document.body.classList.remove('detail-open')
   }, [selectedId])
 
+  // iOS 從主畫面恢復 PWA 時可能保留更新前的 hash 路徑。該 ID 已不存在就回列表，
+  // 讓使用者選目前真正存在的旅程，不停在無法操作的錯誤頁。
+  useEffect(() => {
+    if (!trip) navigate('/', { replace: true })
+  }, [trip, navigate])
+
   const setParam = (key: string, value?: string) => {
     const next = new URLSearchParams(params)
     if (value) next.set(key, value)
@@ -91,7 +98,13 @@ export default function TripPage() {
     setParams(next, { replace: true })
   }
 
-  if (!trip) return <div className="empty">找不到這趟旅程。</div>
+  if (!trip) {
+    return (
+      <div className="empty">
+        {hasAnyTrip ? '正在回到旅程列表…' : '請重新開啟邀請連結加入旅程…'}
+      </div>
+    )
+  }
 
   return (
     <div className="app" data-actual={plan?.kind === 'actual'}>
