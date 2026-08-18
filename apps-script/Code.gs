@@ -59,6 +59,34 @@ var SCHEMA = {
 /** 每列都帶的同步欄位。syncedAt 由伺服器蓋章，用來做增量拉取，不受各裝置時鐘誤差影響。 */
 var SYNC_FIELDS = ['updatedAt', 'updatedBy', 'deleted', 'syncedAt']
 
+
+/**
+ * 早期版本建立的試算表沒把日期／時間欄設成純文字，
+ * 於是「2026-10-31」「08:00」被 Sheets 吃成日期／時間值。
+ * 讀取端雖然會還原，但存進去的資料是髒的，這裡在第一次 push 時一次修好，
+ * 用 _meta 的旗標記住，不必每次都跑。
+ */
+function repairTextColumnsOnce(ss) {
+  var meta = ss.getSheetByName('_meta')
+  var rows = meta.getDataRange().getValues()
+  for (var i = 0; i < rows.length; i++) if (rows[i][0] === 'textColumnsFixed') return
+
+  Object.keys(SCHEMA).forEach(function (name) {
+    var spec = SCHEMA[name]
+    var cols = spec.dates.concat(spec.times)
+    if (!cols.length) return
+    var sheet = ss.getSheetByName(name)
+    if (!sheet) return
+    var header = sheet.getDataRange().getValues()[0]
+    cols.forEach(function (field) {
+      var column = header.indexOf(field) + 1
+      if (column > 0) sheet.getRange(2, column, sheet.getMaxRows() - 1, 1).setNumberFormat('@')
+    })
+  })
+
+  meta.appendRow(['textColumnsFixed', '1'])
+}
+
 function doPost(e) {
   var body = {}
   try {
@@ -237,6 +265,7 @@ function push(body) {
   lock.waitLock(30000)
   try {
     var ss = openChecked(body)
+    repairTextColumnsOnce(ss)
     var now = Date.now()
     var applied = 0
     var rejected = 0
