@@ -43,7 +43,8 @@ const call = async <T>(gasUrl: string, payload: Record<string, unknown>): Promis
   return data
 }
 
-export const ping = (gasUrl: string) => call<{ ok: boolean }>(gasUrl, { action: 'ping' })
+export const ping = (gasUrl: string) =>
+  call<{ ok: boolean; version?: string }>(gasUrl, { action: 'ping' })
 
 export const createRemoteTrip = (
   gasUrl: string,

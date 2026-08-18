@@ -75,7 +75,8 @@ interface State {
   /** 每個人只寫自己那則，用暱稱當識別，所以不會互相覆蓋。 */
   setReview: (itemId: string, text: string) => void
 
-  setGasUrl: (url: string) => Promise<void>
+  /** 回傳後端版本字串，用來確認新版本真的部署上去了 */
+  setGasUrl: (url: string) => Promise<string | undefined>
   /** 指定試算表要建在哪個資料夾，回傳解析後的完整路徑供介面顯示 */
   setDriveFolder: (input: string) => Promise<string>
   /** 幫這趟在雲端硬碟建立試算表並記下密鑰 */
@@ -319,10 +320,11 @@ export const useStore = create<State>((setState, getState) => {
 
     setGasUrl: async (url) => {
       const gasUrl = url.trim()
-      if (gasUrl) await ping(gasUrl)
+      const pong = gasUrl ? await ping(gasUrl) : undefined
       const settings = { ...getState().settings, gasUrl }
       setState({ settings })
       await saveSettings(settings)
+      return pong?.version
     },
 
     setDriveFolder: async (input) => {

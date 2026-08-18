@@ -42,8 +42,15 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const connect = async () => {
     setStatus('測試連線中…')
     try {
-      await setGasUrl(urlDraft)
-      setStatus(urlDraft.trim() ? '連線成功' : '已清除')
+      const version = await setGasUrl(urlDraft)
+      // 顯示後端版本，否則沒辦法分辨「部署了新版」和「還在跑舊版」。
+      setStatus(
+        urlDraft.trim()
+          ? version
+            ? `連線成功 · 後端版本 ${version}`
+            : '連線成功，但後端沒回報版本（可能是舊版，請重新部署）'
+          : '已清除',
+      )
     } catch (err) {
       setStatus(err instanceof Error ? `連不上：${err.message}` : String(err))
     }

@@ -13,6 +13,9 @@
 
 var FOLDER_NAME = '旅遊資料'
 
+/** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
+var BACKEND_VERSION = '2026-08-19b'
+
 /**
  * 每個分頁的欄位。json 裡的欄位以 JSON 字串存進單一儲存格。
  * dates/times 必須明確格式化，否則試算表會自動轉成 Date，API 回傳時日期會受時區位移。
@@ -71,16 +74,38 @@ function repairTextColumnsOnce(ss) {
   var rows = meta.getDataRange().getValues()
   for (var i = 0; i < rows.length; i++) if (rows[i][0] === 'textColumnsFixed') return
 
+  var tz = ss.getSpreadsheetTimeZone()
   Object.keys(SCHEMA).forEach(function (name) {
     var spec = SCHEMA[name]
     var cols = spec.dates.concat(spec.times)
     if (!cols.length) return
     var sheet = ss.getSheetByName(name)
     if (!sheet) return
+
+    var lastRow = sheet.getLastRow()
     var header = sheet.getDataRange().getValues()[0]
+
     cols.forEach(function (field) {
       var column = header.indexOf(field) + 1
-      if (column > 0) sheet.getRange(2, column, sheet.getMaxRows() - 1, 1).setNumberFormat('@')
+      if (column <= 0) return
+      var isTime = spec.times.indexOf(field) >= 0
+
+      // 只改格式救不了既有資料：舊儲存格裡是 Date 物件，得先轉成字串再寫回去。
+      if (lastRow > 1) {
+        var range = sheet.getRange(2, column, lastRow - 1, 1)
+        var values = range.getValues()
+        var fixed = values.map(function (r) {
+          var v = r[0]
+          if (Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) {
+            return [Utilities.formatDate(v, tz, isTime ? 'HH:mm' : 'yyyy-MM-dd')]
+          }
+          return [v === null || v === undefined ? '' : String(v)]
+        })
+        sheet.getRange(2, column, sheet.getMaxRows() - 1, 1).setNumberFormat('@')
+        range.setValues(fixed)
+      } else {
+        sheet.getRange(2, column, sheet.getMaxRows() - 1, 1).setNumberFormat('@')
+      }
     })
   })
 
@@ -108,7 +133,7 @@ function doPost(e) {
       case 'expandUrl':
         return json(expandUrl(body))
       case 'ping':
-        return json({ ok: true })
+        return json({ ok: true, version: BACKEND_VERSION })
       default:
         return json({ error: 'unknown action' })
     }
@@ -246,6 +271,8 @@ function pull(body) {
   lock.waitLock(30000)
   try {
     var ss = openChecked(body)
+    // 修復也掛在 pull：push 只有本機有變更時才會呼叫，只掛 push 等於大多數情況都不會執行。
+    repairTextColumnsOnce(ss)
     var records = {}
     Object.keys(SCHEMA).forEach(function (name) {
       records[name] = readSheet(ss, name, body.since)
