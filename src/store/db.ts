@@ -13,7 +13,7 @@ export interface Settings {
   packingTemplate?: string[]
   /** Apps Script 網頁應用程式網址，只部署一次，所有旅程共用 */
   gasUrl?: string
-  /** 試算表要建在雲端硬碟的哪個資料夾。留空則用根目錄的 TravelApp。 */
+  /** 所有旅程資料夾的共同上層。留空則用根目錄的「旅遊資料」。 */
   driveFolderId?: string
   /** 每趟旅程對應的試算表與密鑰。這是本機設定，不會同步。 */
   tripLinks?: Record<string, TripLinkState>
@@ -21,6 +21,8 @@ export interface Settings {
 
 export interface TripLinkState {
   sheetId: string
+  /** 這趟在雲端硬碟的專屬資料夾，之後照片、匯出檔也放這裡 */
+  folderId?: string
   secret: string
   /** 伺服器時間，用來做增量拉取，不受各裝置時鐘誤差影響 */
   lastSyncAt: number

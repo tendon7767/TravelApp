@@ -48,7 +48,13 @@ export const createRemoteTrip = (
   name: string,
   secret: string,
   folderId?: string,
-) => call<{ sheetId: string }>(gasUrl, { action: 'create', name, secret, folderId })
+) =>
+  call<{ sheetId: string; folderId: string }>(gasUrl, {
+    action: 'create',
+    name,
+    secret,
+    folderId,
+  })
 
 export const fetchFolderInfo = (gasUrl: string, folderId?: string) =>
   call<{ id: string; name: string; path: string }>(gasUrl, { action: 'folderInfo', folderId })

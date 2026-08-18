@@ -311,13 +311,13 @@ export const useStore = create<State>((setState, getState) => {
       if (!trip) throw new Error('找不到旅程')
 
       const secret = newSecret()
-      const { sheetId } = await createRemoteTrip(
+      const { sheetId, folderId } = await createRemoteTrip(
         settings.gasUrl,
         trip.name,
         secret,
         settings.driveFolderId,
       )
-      const link: TripLinkState = { sheetId, secret, lastSyncAt: 0, lastPushedAt: 0 }
+      const link: TripLinkState = { sheetId, folderId, secret, lastSyncAt: 0, lastPushedAt: 0 }
       const next = { ...settings, tripLinks: { ...settings.tripLinks, [tripId]: link } }
       setState({ settings: next })
       await saveSettings(next)

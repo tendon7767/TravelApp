@@ -80,21 +80,22 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         </p>
 
         <label className="label" style={{ marginTop: 14 }} htmlFor="s-folder">
-          試算表存放位置
+          旅程資料夾的存放位置
         </label>
         <input
           id="s-folder"
           className="field"
           value={folderDraft}
           onChange={(e) => setFolderDraft(e.target.value)}
-          placeholder="貼上雲端硬碟資料夾網址，留空則用 TravelApp"
+          placeholder="貼上雲端硬碟資料夾網址，留空則用「旅遊資料」"
         />
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
           <button className="btn btn-sm" onClick={() => void checkFolder()}>確認並儲存</button>
           {folderStatus && <span className="dim" style={{ fontSize: 12 }}>{folderStatus}</span>}
         </div>
         <p className="dim" style={{ fontSize: 12, marginTop: 8 }}>
-          在雲端硬碟打開想放的資料夾，複製網址貼上即可。留空的話會用根目錄的 TravelApp 資料夾。
+          每趟旅程會在這個位置底下開一個以旅程名稱命名的資料夾，試算表放在裡面。
+          留空的話用根目錄的「旅遊資料」。
         </p>
       </div>
     </Modal>

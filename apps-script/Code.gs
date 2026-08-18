@@ -11,7 +11,7 @@
  * 沒有密鑰的請求一律拒絕，等於邀請連結就是通行證。
  */
 
-var FOLDER_NAME = 'TravelApp'
+var FOLDER_NAME = '旅遊資料'
 
 /** 每個分頁的欄位。JSON_FIELDS 裡的欄位以 JSON 字串存進單一儲存格。 */
 var SCHEMA = {
@@ -77,17 +77,23 @@ function json(obj) {
 }
 
 /**
- * 指定了 folderId 就放那裡，沒指定就用雲端硬碟根目錄的 TravelApp 資料夾（找不到就建一個）。
+ * 所有旅程的共同上層。指定了 folderId 就用它，否則用根目錄的「旅遊資料」（找不到就建）。
  */
-function folder(folderId) {
+function baseFolder(folderId) {
   if (folderId) return DriveApp.getFolderById(folderId)
   var found = DriveApp.getFoldersByName(FOLDER_NAME)
   return found.hasNext() ? found.next() : DriveApp.createFolder(FOLDER_NAME)
 }
 
+/** 每趟旅程自己一個資料夾，用旅程名稱命名，之後照片、匯出檔都放得進去。 */
+function tripFolder(base, name) {
+  var existing = base.getFoldersByName(name)
+  return existing.hasNext() ? existing.next() : base.createFolder(name)
+}
+
 /** 讓 App 能先確認資料夾存在、並把完整路徑顯示出來，避免建到不知道哪去。 */
 function folderInfo(body) {
-  var f = folder(body.folderId)
+  var f = baseFolder(body.folderId)
   var parts = [f.getName()]
   var parents = f.getParents()
   var guard = 0
@@ -101,9 +107,11 @@ function folderInfo(body) {
 }
 
 function createTrip(body) {
-  var ss = SpreadsheetApp.create(body.name || '未命名旅程')
+  var name = body.name || '未命名旅程'
+  var ss = SpreadsheetApp.create(name)
   var file = DriveApp.getFileById(ss.getId())
-  folder(body.folderId).addFile(file)
+  var dir = tripFolder(baseFolder(body.folderId), name)
+  dir.addFile(file)
   DriveApp.getRootFolder().removeFile(file)
 
   Object.keys(SCHEMA).forEach(function (name) {
@@ -118,7 +126,18 @@ function createTrip(body) {
   meta.appendRow(['secret', body.secret])
 
   ss.deleteSheet(ss.getSheetByName('工作表1') || ss.getSheets()[0])
-  return { sheetId: ss.getId() }
+  return { sheetId: ss.getId(), folderId: dir.getId() }
+}
+
+/** 旅程改名後，雲端硬碟裡的資料夾與試算表跟著改，免得日後在硬碟裡認不出來。 */
+function renameToMatch(ss, name) {
+  if (!name) return
+  if (ss.getName() !== name) ss.rename(name)
+  var parents = DriveApp.getFileById(ss.getId()).getParents()
+  if (parents.hasNext()) {
+    var dir = parents.next()
+    if (dir.getName() !== name && dir.getName() !== FOLDER_NAME) dir.setName(name)
+  }
 }
 
 function openChecked(body) {
@@ -182,6 +201,11 @@ function push(body) {
     var ss = openChecked(body)
     var now = Date.now()
     var applied = 0
+
+    var trips = (body.records && body.records.trips) || []
+    for (var t = 0; t < trips.length; t++) {
+      if (!trips[t].deleted) renameToMatch(ss, trips[t].name)
+    }
 
     Object.keys(SCHEMA).forEach(function (name) {
       var incoming = (body.records && body.records[name]) || []
