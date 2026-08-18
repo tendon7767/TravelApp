@@ -52,12 +52,29 @@ export const parseLink = (url: string): ParsedLink => {
   return { kind: 'map', label: '', needsExpand: true }
 }
 
-export const makeLink = (url: string, fallbackLabel = ''): LinkRef => {
+/**
+ * 短網址（maps.app.goo.gl）的地名藏在重新導向之後，瀏覽器跨網域讀不到，
+ * 所以退而求其次：
+ *   1. 從 Google 地圖「分享」貼出來的內容通常是「地點名稱換行網址」，名稱直接拿來用
+ *   2. 完整的 /maps/place/ 網址本地就能拆出地名
+ *   3. 都不行就給一個看得懂的預設標籤，讓使用者自己改
+ */
+export const makeLink = (input: string): LinkRef => {
+  const text = input.trim()
+  const url = text.match(/https?:\/\/\S+/)?.[0] ?? text
+  const pasted = text
+    .replace(url, '')
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.length > 0)
+
   const parsed = parseLink(url)
+  const fallback = parsed.kind === 'map' ? 'Google 地圖' : url
+
   return {
     id: newId(),
-    url: url.trim(),
+    url,
     kind: parsed.kind,
-    label: parsed.label || fallbackLabel || url.trim(),
+    label: pasted || parsed.label || fallback,
   }
 }

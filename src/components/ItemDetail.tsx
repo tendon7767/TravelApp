@@ -145,7 +145,6 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
           id="d-guide"
           className="field"
           rows={3}
-          placeholder="這裡有什麼好吃、好玩、好看的"
           value={item.guide ?? ''}
           onChange={(e) => updateItem(item.id, { guide: e.target.value })}
         />
@@ -204,7 +203,6 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
         <div style={{ display: 'flex', gap: 6 }}>
           <input
             className="field"
-            placeholder="實務提醒，例如取車在土庄港"
             value={noteDraft}
             onChange={(e) => setNoteDraft(e.target.value)}
             onKeyDown={(e) => isSubmitEnter(e) && addNote()}
@@ -217,11 +215,22 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
         <span className="label">連結</span>
         {item.links.map((l) => (
           <div key={l.id} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
-            <a className="chip" href={l.url} target="_blank" rel="noreferrer" style={{ flex: 1, minWidth: 0 }}>
-              <span aria-hidden="true">{l.kind === 'map' ? '◎' : '↗'}</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {l.label}
-              </span>
+            <span className="dim" aria-hidden="true" style={{ flex: 'none' }}>
+              {l.kind === 'map' ? '◎' : '↗'}
+            </span>
+            <input
+              className="field"
+              style={{ flex: 1, minWidth: 0 }}
+              value={l.label}
+              onChange={(e) =>
+                updateItem(item.id, {
+                  links: item.links.map((v) => (v.id === l.id ? { ...v, label: e.target.value } : v)),
+                })
+              }
+              aria-label="連結名稱"
+            />
+            <a className="btn btn-sm" href={l.url} target="_blank" rel="noreferrer">
+              開啟
             </a>
             <button
               className="btn btn-sm"
@@ -235,7 +244,6 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
         <div style={{ display: 'flex', gap: 6 }}>
           <input
             className="field"
-            placeholder="貼上 Google Maps 或任何網址"
             value={linkDraft}
             onChange={(e) => setLinkDraft(e.target.value)}
             onKeyDown={(e) => isSubmitEnter(e) && addLink()}
