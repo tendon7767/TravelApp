@@ -225,22 +225,22 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
           <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的修改嗎？</p>
         </Modal>
       )}
+      {renaming && <SettingsModal onClose={() => setRenaming(false)} />}
+      <div className="topbar detail-head">
+        <strong style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>
+          {shortDate(item.date)} {item.startTime ?? ''}
+        </strong>
+        <ConfirmButton
+          label="刪除"
+          question="刪除這個項目？"
+          onConfirm={() => {
+            removeItem(item.id)
+            void clearItemDraft(item.id)
+            onClose()
+          }}
+        />
+      </div>
       <div className="scroll">
-        {renaming && <SettingsModal onClose={() => setRenaming(false)} />}
-        <div className="topbar">
-          <strong style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>
-            {shortDate(item.date)} {item.startTime ?? ''}
-          </strong>
-          <ConfirmButton
-            label="刪除"
-            question="刪除這個項目？"
-            onConfirm={() => {
-              removeItem(item.id)
-              void clearItemDraft(item.id)
-              onClose()
-            }}
-          />
-        </div>
 
       {restored && (
         <div className="sec" style={{ background: 'var(--accent-bg)', display: 'flex', gap: 8, alignItems: 'center' }}>

@@ -11,6 +11,7 @@ import ConfirmButton from './ConfirmButton'
 export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: () => void }) {
   const updateTrip = useStore((s) => s.updateTrip)
   const removeTrip = useStore((s) => s.removeTrip)
+  const removePlan = useStore((s) => s.removePlan)
   const allPlans = useStore((s) => s.data.plans)
   const allItems = useStore((s) => s.data.items)
   const [form, setForm] = useState({
@@ -38,6 +39,12 @@ export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: 
     const planIds = new Set(allPlans.filter((p) => p.tripId === trip.id && !p.deleted).map((p) => p.id))
     return allItems.filter((i) => !i.deleted && planIds.has(i.planId)).length
   }, [allPlans, allItems, trip.id])
+  const actualPlan = allPlans.find(
+    (plan) => plan.tripId === trip.id && plan.kind === 'actual' && !plan.deleted,
+  )
+  const actualItemCount = actualPlan
+    ? allItems.filter((item) => item.planId === actualPlan.id && !item.deleted).length
+    : 0
 
   const save = () => {
     const name = form.name.trim()
@@ -123,6 +130,20 @@ export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: 
           <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>
             有 {stranded} 筆行程落在新的日期範圍外，儲存後會看不到（資料還在，把日期改回來就會出現）。
           </p>
+        )}
+
+        {actualPlan && (
+          <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
+            <span className="label">實際版</span>
+            <p className="dim" style={{ fontSize: 12, margin: '0 0 8px' }}>
+              刪除後會連同實際版的 {actualItemCount} 筆行程與回饋紀錄一起移除，規劃版不受影響。
+            </p>
+            <ConfirmButton
+              label="刪除實際版"
+              question={`確定刪除實際版與 ${actualItemCount} 筆行程？`}
+              onConfirm={() => removePlan(actualPlan.id)}
+            />
+          </div>
         )}
 
         <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 4 }}>

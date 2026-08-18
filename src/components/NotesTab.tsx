@@ -90,6 +90,7 @@ function NoteCard({
    * 同步是後寫入者勝，同行者剛寫完的內容可能被你打到一半的半成品蓋掉。
    * 只認 note.id 當依賴：編輯途中若同步拉回新版本，不該把你正在改的草稿沖掉。
    */
+  // oxlint-disable react-hooks/exhaustive-deps -- 編輯途中刻意保留進入時的快照。
   useEffect(() => {
     setDraft(
       editing
@@ -97,6 +98,7 @@ function NoteCard({
         : null,
     )
   }, [editing, note.id])
+  // oxlint-enable react-hooks/exhaustive-deps
 
   const view = editing ? (draft ?? note) : note
 

@@ -64,6 +64,7 @@ export default function TripsPage() {
         </button>
       </div>
 
+      <div className="page-scroll">
       {open && (
         <div className="sec" style={{ display: 'grid', gap: 10 }}>
           <div>
@@ -170,6 +171,7 @@ export default function TripsPage() {
           </button>
         </div>
       ))}
+      </div>
     </div>
   )
 }

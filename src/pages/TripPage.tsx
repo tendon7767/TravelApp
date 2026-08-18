@@ -176,7 +176,6 @@ export default function TripPage() {
           <div className="dim" style={{ fontSize: 11 }}>
             {trip.foreignCurrency} 匯率 {trip.rate}
             {linked && !online && ' · 離線'}
-            {linked && online && sync.busy && ' · 同步中'}
             {linked && online && !sync.busy && sync.error && ' · 同步失敗'}
           </div>
         </div>
@@ -185,7 +184,7 @@ export default function TripPage() {
             className="btn btn-sm"
             onClick={() => tripId && void syncTrip(tripId)}
             disabled={sync.busy || !online}
-            aria-label="同步"
+            aria-label={sync.busy ? '同步中' : '同步'}
             title={
               !online
                 ? '目前離線，恢復網路後會自動同步'
@@ -196,7 +195,7 @@ export default function TripPage() {
             }
             style={sync.error && online ? { color: 'var(--danger)' } : undefined}
           >
-            {!online ? '○' : sync.busy ? '⋯' : sync.error ? '⚠' : '⟳'}
+            {!online ? '○' : sync.busy ? '同步中…' : sync.error ? '⚠' : '⟳'}
           </button>
         )}
         <button
