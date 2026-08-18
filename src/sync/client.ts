@@ -127,16 +127,16 @@ const normalizeRemoteRow = (
   if (collection === 'trips') {
     return {
       ...normalized,
-      startDate: normalizeStoredDate(row.startDate),
-      endDate: normalizeStoredDate(row.endDate),
+      startDate: normalizeStoredDate(row.startDate) ?? row.startDate,
+      endDate: normalizeStoredDate(row.endDate) ?? row.endDate,
     }
   }
   if (collection === 'items') {
     return {
       ...normalized,
-      date: normalizeStoredDate(row.date),
-      chargeDate: normalizeStoredDate(row.chargeDate),
-      startTime: normalizeStoredTime(row.startTime),
+      date: normalizeStoredDate(row.date) ?? row.date,
+      chargeDate: normalizeStoredDate(row.chargeDate) ?? row.chargeDate,
+      startTime: normalizeStoredTime(row.startTime) ?? row.startTime,
     }
   }
   return normalized
@@ -162,10 +162,25 @@ export const mergeRemote = (
     const indexById = new Map(list.map((r, i) => [String(r.id), i]))
 
     for (const rawRow of rows) {
-      const row = normalizeRemoteRow(name, rawRow)
+      let row = normalizeRemoteRow(name, rawRow)
       const id = String(row.id)
       const at = Number(row.updatedAt) || 0
       const idx = indexById.get(id)
+
+      // 日期是行程的必要欄位。遠端格式若無法解析，保留本機值；新資料則拒絕套用，
+      // 不能因為一次 pull 就把仍可用的本機行程變成空白或無法顯示。
+      if (name === 'trips') {
+        const valid = normalizeStoredDate(row.startDate) && normalizeStoredDate(row.endDate)
+        if (!valid && idx === undefined) continue
+        if (!valid && idx !== undefined) {
+          const mine = list[idx]
+          row = { ...row, startDate: mine.startDate, endDate: mine.endDate }
+        }
+      }
+      if (name === 'items' && !normalizeStoredDate(row.date)) {
+        if (idx === undefined) continue
+        row = { ...row, date: list[idx].date }
+      }
 
       if (idx === undefined) {
         list.push(row)

@@ -79,15 +79,15 @@ export const loadData = async (): Promise<AppData> => {
     // 舊後端曾存下的完整 ISO timestamp，不能只在下一次遠端拉取時修正。
     trips: (raw.trips ?? []).map((trip) => ({
       ...trip,
-      startDate: normalizeStoredDate(trip.startDate),
-      endDate: normalizeStoredDate(trip.endDate),
+      startDate: normalizeStoredDate(trip.startDate) ?? trip.startDate,
+      endDate: normalizeStoredDate(trip.endDate) ?? trip.endDate,
     })),
     plans: raw.plans ?? [],
     items: (raw.items ?? []).map((i) => ({
       ...i,
-      date: normalizeStoredDate(i.date),
-      startTime: normalizeStoredTime(i.startTime),
-      chargeDate: normalizeStoredDate(i.chargeDate),
+      date: normalizeStoredDate(i.date) ?? i.date,
+      startTime: normalizeStoredTime(i.startTime) ?? i.startTime,
+      chargeDate: normalizeStoredDate(i.chargeDate) ?? i.chargeDate,
       ...(i.paymentStatus && LEGACY_STATUS[i.paymentStatus]
         ? { paymentStatus: LEGACY_STATUS[i.paymentStatus] as typeof i.paymentStatus }
         : {}),

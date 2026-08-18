@@ -4,27 +4,45 @@ const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '�
  * 試算表若把日期/時間自動轉成 Date，舊後端會送回完整 ISO timestamp。
  * 轉回裝置本地的原始日期與時間，讓 Safari 的 date/time input 也能接受。
  */
-export const normalizeStoredDate = (value: unknown): string => {
-  if (typeof value !== 'string') return ''
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
-  if (!value.includes('T')) return value
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : toISO(date)
+export const normalizeStoredDate = (value: unknown): string | undefined => {
+  if (typeof value === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+    if (!value.includes('T')) return undefined
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? undefined : toISO(date)
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    // Google Sheets 的日期序號：1970-01-01 是 25569。
+    const date = new Date(Math.round((value - 25569) * 86_400_000))
+    if (Number.isNaN(date.getTime())) return undefined
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return toISO(value)
+  return undefined
 }
 
-export const normalizeStoredTime = (value: unknown): string => {
-  if (typeof value !== 'string') return ''
-  const plain = value.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/)
-  if (plain) return `${plain[1].padStart(2, '0')}:${plain[2]}`
-  if (!value.includes('T')) return value
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+export const normalizeStoredTime = (value: unknown): string | undefined => {
+  if (typeof value === 'string') {
+    const plain = value.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/)
+    if (plain) return `${plain[1].padStart(2, '0')}:${plain[2]}`
+    if (!value.includes('T')) return undefined
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return undefined
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const minutes = Math.round(((value % 1) + 1) % 1 * 24 * 60) % (24 * 60)
+    return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`
+  }
+  return undefined
 }
 
 /** 一律以本地時間解讀 YYYY-MM-DD，避免 new Date('2026-10-31') 被當成 UTC 而位移一天。 */
 export const parseDate = (iso: string): Date => {
-  const [y, m, d] = normalizeStoredDate(iso).split('-').map(Number)
+  const [y, m, d] = (normalizeStoredDate(iso) ?? iso).split('-').map(Number)
   return new Date(y, m - 1, d)
 }
 
