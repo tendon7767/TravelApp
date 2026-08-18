@@ -388,6 +388,12 @@ export const useStore = create<State>((setState, getState) => {
         const { settings } = getState()
         const link = settings.tripLinks?.[tripId]
         if (!settings.gasUrl || !link) return
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          setState({
+            sync: { ...getState().sync, busy: false, error: '目前離線，恢復網路後會自動同步' },
+          })
+          return
+        }
 
         setState({ sync: { ...getState().sync, busy: true, error: undefined } })
         try {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import ItineraryTab from '../components/ItineraryTab'
@@ -20,6 +20,7 @@ export default function TripPage() {
   const { tripId } = useParams()
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
+  const [online, setOnline] = useState(() => navigator.onLine)
 
   const trip = useStore((s) => s.data.trips.find((t) => t.id === tripId && !t.deleted))
   const hasAnyTrip = useStore((s) => s.data.trips.some((t) => !t.deleted))
@@ -54,28 +55,46 @@ export default function TripPage() {
     return () => ro.disconnect()
   }, [])
 
-  // 進入旅程與切回視窗時各同步一次。旅途中常常是切出去查地圖再切回來，
-  // 那正是同行者剛改完東西的時機。
-  // 另外在切走的當下推一次，否則「改完就鎖螢幕」的修改會卡在裝置裡。
+  // 可見時每 15 秒同步同行者的更新；背景停止輪詢。進入、切回、恢復網路時立即同步，
+  // 切走前再推一次，避免「改完就鎖螢幕」的修改卡在裝置裡。
   useEffect(() => {
     if (!tripId || !linked) return
-    void syncTrip(tripId)
-    const onFocus = () => void syncTrip(tripId)
-    const onHide = () => document.visibilityState === 'hidden' && void syncTrip(tripId)
+    const syncIfVisible = () => {
+      if (navigator.onLine && document.visibilityState === 'visible') void syncTrip(tripId)
+    }
+    const onFocus = () => syncIfVisible()
+    const onVisibility = () => {
+      if (!navigator.onLine) return
+      if (document.visibilityState === 'hidden') void syncTrip(tripId)
+      else syncIfVisible()
+    }
+    const onOnline = () => {
+      setOnline(true)
+      syncIfVisible()
+    }
+    const onOffline = () => setOnline(false)
+
+    syncIfVisible()
+    const poll = window.setInterval(syncIfVisible, 15_000)
     window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
+      window.clearInterval(poll)
       window.removeEventListener('focus', onFocus)
-      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [tripId, linked, syncTrip])
 
-  // 本機改完東西後停手幾秒就自動推上去。用 localRev 當觸發來源，
+  // 本機停止編輯 2 秒就同步。用 localRev 當觸發來源，
   // 同步拉回來的資料不會遞增它，所以不會自己觸發自己。
   const firstRev = useRef(localRev)
   useEffect(() => {
     if (!tripId || !linked || localRev === firstRev.current) return
-    const timer = setTimeout(() => void syncTrip(tripId), 6000)
+    const timer = setTimeout(() => navigator.onLine && void syncTrip(tripId), 2000)
     return () => clearTimeout(timer)
   }, [localRev, tripId, linked, syncTrip])
 
@@ -118,18 +137,28 @@ export default function TripPage() {
           </div>
           <div className="dim" style={{ fontSize: 11 }}>
             {trip.foreignCurrency} 匯率 {trip.rate}
+            {linked && !online && ' · 離線'}
+            {linked && online && sync.busy && ' · 同步中'}
+            {linked && online && !sync.busy && sync.error && ' · 同步失敗'}
           </div>
         </div>
         {linked && (
           <button
             className="btn btn-sm"
             onClick={() => tripId && void syncTrip(tripId)}
-            disabled={sync.busy}
+            disabled={sync.busy || !online}
             aria-label="同步"
-            title={sync.error ?? (sync.lastAt ? `上次同步 ${new Date(sync.lastAt).toLocaleTimeString('zh-TW')}` : '尚未同步')}
-            style={sync.error ? { color: 'var(--danger)' } : undefined}
+            title={
+              !online
+                ? '目前離線，恢復網路後會自動同步'
+                : sync.error ??
+                  (sync.lastAt
+                    ? `上次同步 ${new Date(sync.lastAt).toLocaleTimeString('zh-TW')}`
+                    : '尚未同步')
+            }
+            style={sync.error && online ? { color: 'var(--danger)' } : undefined}
           >
-            {sync.busy ? '⋯' : sync.error ? '⚠' : '⟳'}
+            {!online ? '○' : sync.busy ? '⋯' : sync.error ? '⚠' : '⟳'}
           </button>
         )}
         <button
