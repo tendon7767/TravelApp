@@ -647,22 +647,44 @@ a { color: var(--accent); }
 }
 
 .detail-note-row {
+  align-items: center;
   padding: 5px 0;
   color: var(--text-2);
   font-size: 14px;
 }
 
-.detail-note-row input,
-.detail-note-edit-row input[type='checkbox'] {
+.detail-note-bullet {
+  flex: none;
+  color: var(--text-3);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.detail-note-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.detail-overview-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  color: var(--text-3);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.detail-overview-toggle input[type='checkbox'] {
   flex: none;
   width: 18px;
   height: 18px;
-  margin: 1px 0 0;
+  margin: 0;
 }
 
 .detail-note-edit-row { align-items: center; margin-bottom: 6px; }
 .detail-note-edit-row .field { flex: 1; min-width: 0; }
-.detail-help { margin: 5px 0 0; font-size: 11px; }
 
 .detail-cost-summary {
   display: grid;

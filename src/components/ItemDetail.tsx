@@ -570,12 +570,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
             <>
               {item.notes.map((note, index) => (
                 <div key={note.id} className="detail-note-edit-row">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(note.showInOverview)}
-                    onChange={(event) => toggleNoteOverview(note.id, event.target.checked)}
-                    aria-label={`在行程總覽顯示備註 ${index + 1}`}
-                  />
+                  <span className="detail-note-bullet" aria-hidden="true">•</span>
                   <input
                     className="field"
                     value={note.text}
@@ -587,6 +582,15 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                       })
                     }
                   />
+                  <label className="detail-overview-toggle">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(note.showInOverview)}
+                      onChange={(event) => toggleNoteOverview(note.id, event.target.checked)}
+                      aria-label={`在行程總覽顯示備註 ${index + 1}`}
+                    />
+                    <span>顯示於總覽</span>
+                  </label>
                   <button
                     className="btn btn-sm"
                     aria-label="刪除這筆備註"
@@ -609,20 +613,23 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                 />
                 <button className="btn" onClick={addNote}>加入</button>
               </div>
-              <p className="dim detail-help">勾選後會顯示在行程總覽。</p>
             </>
           ) : item.notes.length > 0 ? (
             <div className="detail-note-list">
               {item.notes.map((note, index) => (
-                <label key={note.id} className="detail-note-row">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(note.showInOverview)}
-                    onChange={(event) => toggleNoteOverview(note.id, event.target.checked)}
-                    aria-label={`在行程總覽顯示備註 ${index + 1}`}
-                  />
-                  <span>{note.text}</span>
-                </label>
+                <div key={note.id} className="detail-note-row">
+                  <span className="detail-note-bullet" aria-hidden="true">•</span>
+                  <span className="detail-note-text">{note.text}</span>
+                  <label className="detail-overview-toggle">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(note.showInOverview)}
+                      onChange={(event) => toggleNoteOverview(note.id, event.target.checked)}
+                      aria-label={`在行程總覽顯示備註 ${index + 1}`}
+                    />
+                    <span>顯示於總覽</span>
+                  </label>
+                </div>
               ))}
             </div>
           ) : (
