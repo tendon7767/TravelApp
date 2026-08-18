@@ -14,7 +14,10 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-19b'
+var BACKEND_VERSION = '2026-08-19c'
+
+/** 每次修復邏輯有變動就換一個 key，讓既有試算表重新執行修復。 */
+var TEXT_COLUMNS_REPAIR_KEY = 'textColumnsFixedV2'
 
 /**
  * 每個分頁的欄位。json 裡的欄位以 JSON 字串存進單一儲存格。
@@ -66,13 +69,13 @@ var SYNC_FIELDS = ['updatedAt', 'updatedBy', 'deleted', 'syncedAt']
 /**
  * 早期版本建立的試算表沒把日期／時間欄設成純文字，
  * 於是「2026-10-31」「08:00」被 Sheets 吃成日期／時間值。
- * 讀取端雖然會還原，但存進去的資料是髒的，這裡在第一次 push 時一次修好，
- * 用 _meta 的旗標記住，不必每次都跑。
+ * 讀取端雖然會還原，但存進去的資料是髒的，這裡會在新版後端第一次 pull/push 時修好，
+ * 用帶版本的 _meta 旗標記住，修復規則升級時仍能重新執行。
  */
 function repairTextColumnsOnce(ss) {
   var meta = ss.getSheetByName('_meta')
   var rows = meta.getDataRange().getValues()
-  for (var i = 0; i < rows.length; i++) if (rows[i][0] === 'textColumnsFixed') return
+  for (var i = 0; i < rows.length; i++) if (rows[i][0] === TEXT_COLUMNS_REPAIR_KEY) return
 
   var tz = ss.getSpreadsheetTimeZone()
   Object.keys(SCHEMA).forEach(function (name) {
@@ -109,7 +112,24 @@ function repairTextColumnsOnce(ss) {
     })
   })
 
-  meta.appendRow(['textColumnsFixed', '1'])
+  meta.appendRow([TEXT_COLUMNS_REPAIR_KEY, '1'])
+}
+
+/**
+ * Sheets 可能把看似日期／時間的字串自動轉型。每次寫入都先把「實際目標列」設為純文字，
+ * 再以 setValues 寫入，不能只依賴建立試算表時設定整欄，也不能用 appendRow 略過這層保護。
+ */
+function writeRecordRow(sheet, header, spec, row, line) {
+  if (row > sheet.getMaxRows()) {
+    sheet.insertRowsAfter(sheet.getMaxRows(), row - sheet.getMaxRows())
+  }
+
+  spec.dates.concat(spec.times).forEach(function (field) {
+    var column = header.indexOf(field) + 1
+    if (column > 0) sheet.getRange(row, column).setNumberFormat('@')
+  })
+
+  sheet.getRange(row, 1, 1, line.length).setValues([line])
 }
 
 /**
@@ -340,14 +360,16 @@ function push(body) {
           var v = rec[key]
           if (v === undefined || v === null) return ''
           if (spec.json.indexOf(key) >= 0) return JSON.stringify(v)
+          if (spec.dates.indexOf(key) >= 0 || spec.times.indexOf(key) >= 0) return String(v)
           return v
         })
         if (row) {
-          sheet.getRange(row, 1, 1, line.length).setValues([line])
+          writeRecordRow(sheet, header, spec, row, line)
           values[row - 1] = line
         } else {
-          sheet.appendRow(line)
-          rowById[rec.id] = sheet.getLastRow()
+          row = sheet.getLastRow() + 1
+          writeRecordRow(sheet, header, spec, row, line)
+          rowById[rec.id] = row
           values.push(line)
         }
         if (name === 'trips' && !rec.deleted) renameToMatch(ss, rec.name)
