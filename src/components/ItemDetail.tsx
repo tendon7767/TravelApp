@@ -9,6 +9,7 @@ import { isSubmitEnter } from '../lib/keys'
 import ConfirmButton from './ConfirmButton'
 import NumberField from './NumberField'
 import { methodLabel } from '../lib/owners'
+import SettingsModal from './SettingsModal'
 import { amountInMethodCurrency, computeMethod, suggestSplit } from '../lib/rewards'
 
 interface Props {
@@ -24,6 +25,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
   const [linkDraft, setLinkDraft] = useState('')
   const [noteDraft, setNoteDraft] = useState('')
   const [timeDraft, setTimeDraft] = useState(item?.startTime ?? '')
+  const [renaming, setRenaming] = useState(false)
   const allPayments = useStore((s) => s.data.payments)
   const allItems = useStore((s) => s.data.items)
   const allReviews = useStore((s) => s.data.reviews)
@@ -91,6 +93,7 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
 
   return (
     <div className="scroll">
+      {renaming && <SettingsModal onClose={() => setRenaming(false)} />}
       <div className="topbar">
         <button className="btn btn-sm" onClick={onClose} aria-label="關閉">
           ✕
@@ -157,7 +160,13 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
               <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{r.text}</div>
             </div>
           ))}
-          <div className="dim" style={{ fontSize: 11, marginBottom: 3 }}>{me}</div>
+          <button
+            className="dim"
+            style={{ fontSize: 11, marginBottom: 3, textDecoration: 'underline' }}
+            onClick={() => setRenaming(true)}
+          >
+            {me} · 改名
+          </button>
           <textarea
             id="d-review"
             className="field"

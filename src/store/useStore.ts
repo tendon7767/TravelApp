@@ -86,9 +86,22 @@ export const useStore = create<State>((setState, getState) => {
     },
 
     setMemberName: (memberName) => {
+      const previous = getState().settings.memberName
       const settings = { ...getState().settings, memberName }
       setState({ settings })
       void saveSettings(settings)
+
+      // 改名後舊心得若還掛在舊名字下，看起來就像另一個人寫的。
+      if (previous && previous !== memberName) {
+        mutate((d) => ({
+          ...d,
+          reviews: d.reviews.map((r) =>
+            r.author === previous && !r.deleted
+              ? { ...r, author: memberName, updatedAt: Date.now(), updatedBy: memberName }
+              : r,
+          ),
+        }))
+      }
     },
 
     setActive: (activeTripId, activePlanId) => {

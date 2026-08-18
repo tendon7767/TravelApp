@@ -5,6 +5,7 @@ import { dayCount, shortDate } from '../lib/date'
 import { importSetouchi } from '../seed/importSetouchi'
 import ConfirmButton from '../components/ConfirmButton'
 import NumberField from '../components/NumberField'
+import SettingsModal from '../components/SettingsModal'
 
 export default function TripsPage() {
   // selector 必須回傳穩定參照，過濾留給 useMemo，否則每次重繪都是新陣列。
@@ -28,6 +29,7 @@ export default function TripsPage() {
   const navigate = useNavigate()
   const [form, setForm] = useState(draftTrip())
   const [open, setOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const submit = () => {
     if (!form.name.trim()) return
@@ -41,6 +43,9 @@ export default function TripsPage() {
     <div className="app">
       <div className="topbar">
         <strong style={{ flex: 1, fontSize: 16, fontWeight: 500 }}>我的旅程</strong>
+        <button className="btn btn-sm" onClick={() => setSettingsOpen(true)} aria-label="設定">
+          ⚙
+        </button>
         <button className="btn btn-sm" onClick={() => setOpen((v) => !v)}>
           {open ? '取消' : '新增旅程'}
         </button>
@@ -127,6 +132,8 @@ export default function TripsPage() {
       {trips.length === 0 && !open && (
         <div className="empty">還沒有旅程。按右上角「新增旅程」開始。</div>
       )}
+
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
 
       {trips.map((t) => (
         <div key={t.id} className="row" style={{ alignItems: 'center' }}>
