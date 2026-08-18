@@ -171,6 +171,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   const addLink = (kind: LinkRef['kind']) => {
     const draft = kind === 'map' ? mapDraft : webDraft
     if (!draft.trim()) return
+    if (kind === 'map' && item.links.some((link) => link.kind === 'map')) return
     // 區塊本身代表使用者意圖；即使 Google 日後更換網址格式，也仍會留在地圖區。
     const link = { ...makeLink(draft), kind }
     patchItem({ links: [...item.links, link] })
@@ -185,7 +186,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     const links = item.links.filter((link) => link.kind === kind)
     const draft = isMap ? mapDraft : webDraft
     const setDraft = isMap ? setMapDraft : setWebDraft
-    const title = isMap ? 'Google Maps 地點' : '相關連結'
+    const title = isMap ? 'Google Map' : '相關連結'
 
     return (
       <div className="sec">
@@ -222,16 +223,18 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
             </button>
           </div>
         ))}
-        <div className="link-add-row">
-          <input
-            className="field"
-            value={draft}
-            placeholder={isMap ? '貼上 Google Maps 網址' : '貼上訂位、票券或網站網址'}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => isSubmitEnter(e) && addLink(kind)}
-          />
-          <button className="btn" onClick={() => addLink(kind)}>加入</button>
-        </div>
+        {(!isMap || links.length === 0) && (
+          <div className="link-add-row">
+            <input
+              className="field"
+              value={draft}
+              placeholder={isMap ? '貼上 Google Maps 網址' : '貼上訂位、票券或網站網址'}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => isSubmitEnter(e) && addLink(kind)}
+            />
+            <button className="btn" onClick={() => addLink(kind)}>加入</button>
+          </div>
+        )}
       </div>
     )
   }
@@ -378,6 +381,8 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         </div>
       )}
 
+      {renderLinkSection('map')}
+
       <div className="sec">
         <span className="label">備註</span>
         {item.notes.length > 0 && (
@@ -432,7 +437,6 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         </div>
       </div>
 
-      {renderLinkSection('map')}
       {renderLinkSection('web')}
 
       <div className="sec">
