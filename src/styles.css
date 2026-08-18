@@ -1,21 +1,22 @@
 :root {
-  --bg: #f3f7fd;
-  --surface: #ffffff;
-  --surface-2: #e8f0fb;
-  --text: #152238;
-  --text-2: #4b5f7a;
-  --text-3: #71829b;
-  --border: rgba(30, 64, 175, 0.12);
-  --border-2: rgba(30, 64, 175, 0.24);
-  --accent: #2563eb;
-  --accent-bg: #dbeafe;
-  --danger: #dc2626;
-  --danger-bg: #fee2e2;
-  --ok: #059669;
-  --ok-bg: #d1fae5;
-  --note-bg: #fff3c4;
-  --note-ink: #854d0e;
-  --note-border: #f59e0b;
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface-2: #21262d;
+  --text: #f0f6fc;
+  --text-2: #c9d1d9;
+  --text-3: #8b949e;
+  --border: rgba(240, 246, 252, 0.16);
+  --border-2: rgba(240, 246, 252, 0.32);
+  --accent: #f0f6fc;
+  --accent-bg: rgba(240, 246, 252, 0.12);
+  --accent-contrast: #0d1117;
+  --danger: #ff7b72;
+  --danger-bg: rgba(248, 81, 73, 0.16);
+  --ok: #56d364;
+  --ok-bg: rgba(46, 160, 67, 0.18);
+  --note-bg: #3d2f0a;
+  --note-ink: #f8d66d;
+  --note-border: #d29922;
   --radius: 10px;
   --topbar-h: 60px;
   --tabbar-h: calc(46px + env(safe-area-inset-bottom));
@@ -26,41 +27,50 @@
   --cat-娛樂: #16a34a;
   --cat-購物: #db2777;
   --cat-其他: #64748b;
-  --actual-bg: #ecfdf8;
+  --actual-bg: #f3f7fd;
   --actual-surface: #ffffff;
-  --actual-surface-2: #ccf5e7;
-  --actual-chip: #a7f3d0;
-  --actual-ink: #047857;
-  --actual-accent: #0f9f77;
-  --actual-accent-bg: #d1fae5;
+  --actual-surface-2: #e8f0fb;
+  --actual-text: #152238;
+  --actual-text-2: #4b5f7a;
+  --actual-text-3: #71829b;
+  --actual-border: rgba(30, 64, 175, 0.12);
+  --actual-border-2: rgba(30, 64, 175, 0.24);
+  --actual-accent: #2563eb;
+  --actual-accent-bg: #dbeafe;
+  --actual-accent-contrast: #ffffff;
+  --actual-danger: #dc2626;
+  --actual-danger-bg: #fee2e2;
+  --actual-ok: #059669;
+  --actual-ok-bg: #d1fae5;
+  --actual-note-bg: #fff3c4;
+  --actual-note-ink: #854d0e;
+  --actual-note-border: #f59e0b;
+  --actual-chip: #bfdbfe;
+  --actual-ink: #1d4ed8;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #101827;
-    --surface: #172238;
-    --surface-2: #22314d;
-    --text: #f1f5ff;
-    --text-2: #b4c2d8;
-    --text-3: #8495b0;
-    --border: rgba(147, 197, 253, 0.14);
-    --border-2: rgba(147, 197, 253, 0.28);
-    --accent: #60a5fa;
-    --accent-bg: #19365e;
-    --danger: #fb7185;
-    --danger-bg: #4b1f2a;
-    --ok: #6ee7b7;
-    --ok-bg: #123c31;
-    --note-bg: #493711;
-    --note-ink: #fde68a;
-    --note-border: #fbbf24;
-    --actual-bg: #09251e;
-    --actual-surface: #10332a;
-    --actual-surface-2: #185040;
-    --actual-chip: #1d6b53;
-    --actual-ink: #8ff2cf;
-    --actual-accent: #34d399;
-    --actual-accent-bg: #164e3f;
+    --actual-bg: #101827;
+    --actual-surface: #172238;
+    --actual-surface-2: #22314d;
+    --actual-text: #f1f5ff;
+    --actual-text-2: #b4c2d8;
+    --actual-text-3: #8495b0;
+    --actual-border: rgba(147, 197, 253, 0.14);
+    --actual-border-2: rgba(147, 197, 253, 0.28);
+    --actual-accent: #60a5fa;
+    --actual-accent-bg: #19365e;
+    --actual-accent-contrast: #ffffff;
+    --actual-danger: #fb7185;
+    --actual-danger-bg: #4b1f2a;
+    --actual-ok: #6ee7b7;
+    --actual-ok-bg: #123c31;
+    --actual-note-bg: #493711;
+    --actual-note-ink: #fde68a;
+    --actual-note-border: #fbbf24;
+    --actual-chip: #244c80;
+    --actual-ink: #bfdbfe;
   }
 }
 
@@ -116,7 +126,7 @@ a { color: var(--accent); }
 .btn:active { transform: scale(0.98); }
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   border-color: transparent;
   box-shadow: 0 2px 7px color-mix(in srgb, var(--accent) 28%, transparent);
 }
@@ -174,13 +184,26 @@ a { color: var(--accent); }
 .chip-accent { background: var(--accent-bg); color: var(--accent); border-color: transparent; }
 .chip-actual { background: var(--actual-chip); color: var(--actual-ink); border-color: transparent; }
 
-/* 實際版改用明亮綠色系，和規劃版的藍色一眼區分。 */
+/* 實際版沿用原本規劃版的藍色系；規劃版則固定為程式碼風格的深灰色。 */
 .app[data-actual='true'] {
   --bg: var(--actual-bg);
   --surface: var(--actual-surface);
   --surface-2: var(--actual-surface-2);
+  --text: var(--actual-text);
+  --text-2: var(--actual-text-2);
+  --text-3: var(--actual-text-3);
+  --border: var(--actual-border);
+  --border-2: var(--actual-border-2);
   --accent: var(--actual-accent);
   --accent-bg: var(--actual-accent-bg);
+  --accent-contrast: var(--actual-accent-contrast);
+  --danger: var(--actual-danger);
+  --danger-bg: var(--actual-danger-bg);
+  --ok: var(--actual-ok);
+  --ok-bg: var(--actual-ok-bg);
+  --note-bg: var(--actual-note-bg);
+  --note-ink: var(--actual-note-ink);
+  --note-border: var(--actual-note-border);
 }
 
 /* 日期橫條 */
