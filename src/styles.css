@@ -798,19 +798,41 @@ a { color: var(--accent); }
 
 .detail-restored span { flex: 1; }
 
-/* 費用明細：窄螢幕讓品項獨佔一行，不然單價、數量、幣別會把它壓成零寬 */
+/* 每筆費用是獨立卡片，避免連續的數字輸入欄看起來像同一筆資料。 */
 .costline {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid var(--border-2);
+  border-radius: 10px;
+  background: var(--surface-2);
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.08);
 }
-.costline .cl-label { flex: 1 1 100%; }
+
+.costline-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+}
+
+.costline-head .cl-label { flex: 1; min-width: 0; }
 .costline .cl-sub { flex: 1; text-align: right; font-size: 12px; }
 
+.delete-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--danger);
+}
+
 @media (min-width: 620px) {
-  .costline .cl-label { flex: 1 1 auto; min-width: 0; }
   .costline .cl-sub { flex: none; width: 78px; }
 }
 

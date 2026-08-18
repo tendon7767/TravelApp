@@ -4,6 +4,7 @@ import ConfirmButton from './ConfirmButton'
 import NumberField from './NumberField'
 import { spendCapOf } from '../lib/rewards'
 import { formatMoney } from '../lib/money'
+import TrashIcon from './TrashIcon'
 
 /**
  * 三個上限都能填，因為它們限制的東西不一樣：
@@ -90,11 +91,11 @@ export default function PaymentEditor({
             </div>
             {method.rules.length > 1 && (
               <button
-                className="btn btn-sm"
+                className="btn btn-sm delete-icon-btn"
                 onClick={() => onChange({ rules: method.rules.filter((v) => v.id !== r.id) })}
                 aria-label="刪除這條規則"
               >
-                ✕
+                <TrashIcon />
               </button>
             )}
           </div>

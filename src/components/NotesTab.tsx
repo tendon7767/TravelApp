@@ -7,6 +7,7 @@ import { isSubmitEnter } from '../lib/keys'
 import ConfirmButton from './ConfirmButton'
 import Modal from './Modal'
 import { DEFAULT_PACKING } from '../store/db'
+import TrashIcon from './TrashIcon'
 
 export default function NotesTab({ trip }: { trip: Trip }) {
   const allNotes = useStore((s) => s.data.notes)
@@ -238,7 +239,7 @@ function NoteCard({
                 aria-label="內容"
               />
               <button
-                className="btn btn-sm"
+                className="btn btn-sm delete-icon-btn"
                 onClick={() => patchBlock(b.id, { kind: b.kind === 'check' ? 'text' : 'check', done: false })}
                 title={b.kind === 'check' ? '改成文字段落' : '改成勾選項'}
               >
@@ -249,7 +250,7 @@ function NoteCard({
                 onClick={() => setBlocks(view.blocks.filter((v) => v.id !== b.id))}
                 aria-label="刪除這一行"
               >
-                ✕
+                <TrashIcon />
               </button>
             </>
           ) : (
@@ -311,11 +312,11 @@ function NoteCard({
               />
               <a className="btn btn-sm" href={l.url} target="_blank" rel="noreferrer">開啟</a>
               <button
-                className="btn btn-sm"
+                className="btn btn-sm delete-icon-btn"
                 onClick={() => patch({ links: view.links.filter((v) => v.id !== l.id) })}
                 aria-label="刪除這個連結"
               >
-                ✕
+                <TrashIcon />
               </button>
             </div>
           ))}

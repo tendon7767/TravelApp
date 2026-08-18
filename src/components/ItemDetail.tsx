@@ -26,6 +26,7 @@ import {
   type ItemDraftSection,
 } from '../store/drafts'
 import CategoryIcon from './CategoryIcon'
+import TrashIcon from './TrashIcon'
 
 interface Props {
   trip: Trip
@@ -568,13 +569,13 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                   />
                   <a className="btn btn-sm" href={link.url} target="_blank" rel="noreferrer">開啟</a>
                   <button
-                    className="btn btn-sm"
+                    className="btn btn-sm delete-icon-btn"
                     aria-label="刪除 Google Map"
                     onClick={() =>
                       patchItem({ links: item.links.filter((value) => value.id !== link.id) })
                     }
                   >
-                    ✕
+                    <TrashIcon />
                   </button>
                 </div>
               ))}
@@ -644,13 +645,13 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                     <span>顯示於總覽</span>
                   </label>
                   <button
-                    className="btn btn-sm"
+                    className="btn btn-sm delete-icon-btn"
                     aria-label="刪除這筆備註"
                     onClick={() =>
                       patchItem({ notes: item.notes.filter((value) => value.id !== note.id) })
                     }
                   >
-                    ✕
+                    <TrashIcon />
                   </button>
                 </div>
               ))}
@@ -700,12 +701,23 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
             <>
               {item.costs.map((cost) => (
                 <div key={cost.id} className="costline">
-                  <input
-                    className="field cl-label"
-                    placeholder="項目"
-                    value={cost.label}
-                    onChange={(event) => patchCost(cost.id, { label: event.target.value })}
-                  />
+                  <div className="costline-head">
+                    <input
+                      className="field cl-label"
+                      placeholder="項目"
+                      value={cost.label}
+                      onChange={(event) => patchCost(cost.id, { label: event.target.value })}
+                    />
+                    <button
+                      className="btn btn-sm delete-icon-btn"
+                      aria-label="刪除這筆費用"
+                      onClick={() =>
+                        patchItem({ costs: item.costs.filter((value) => value.id !== cost.id) })
+                      }
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
                   <NumberField
                     className="field mono"
                     style={{ width: 76 }}
@@ -734,15 +746,6 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                     <option value={trip.homeCurrency}>{trip.homeCurrency}</option>
                   </select>
                   <span className="mono dim cl-sub">{formatMoney(lineTotal(cost), cost.currency)}</span>
-                  <button
-                    className="btn btn-sm"
-                    aria-label="刪除這筆費用"
-                    onClick={() =>
-                      patchItem({ costs: item.costs.filter((value) => value.id !== cost.id) })
-                    }
-                  >
-                    ✕
-                  </button>
                 </div>
               ))}
               <button className="btn btn-sm" onClick={addCost}>＋ 新增一筆</button>
@@ -821,13 +824,13 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                   />
                   <a className="btn btn-sm" href={link.url} target="_blank" rel="noreferrer">開啟</a>
                   <button
-                    className="btn btn-sm"
+                    className="btn btn-sm delete-icon-btn"
                     aria-label="刪除這個連結"
                     onClick={() =>
                       patchItem({ links: item.links.filter((value) => value.id !== link.id) })
                     }
                   >
-                    ✕
+                    <TrashIcon />
                   </button>
                 </div>
               ))}
