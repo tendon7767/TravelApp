@@ -14,7 +14,7 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-19d'
+var BACKEND_VERSION = '2026-08-19e'
 
 /** 每次修復邏輯有變動就換一個 key，讓既有試算表重新執行修復。 */
 var TEXT_COLUMNS_REPAIR_KEY = 'textColumnsFixedV2'
@@ -457,6 +457,21 @@ function labelFromUrl(url) {
   return ''
 }
 
+/** 阻擋頁有時仍回 200；不能把錯誤頁的標題誤當成使用者想收藏的網站名稱。 */
+function usablePageTitle(value) {
+  var title = String(value || '').trim()
+  if (!title) return ''
+  var blocked = [
+    /系統異常|異常回報|存取遭拒|拒絕存取|機器人驗證/,
+    /^\s*(?:403|404|429|500|502|503)\b/,
+    /\b(?:access denied|forbidden|service unavailable|too many requests)\b/i,
+    /^(?:just a moment|attention required|page not found)\b/i,
+    /(?:verify you are human|checking your browser|captcha)/i,
+  ]
+  for (var i = 0; i < blocked.length; i++) if (blocked[i].test(title)) return ''
+  return title
+}
+
 /**
  * 手機版 Google Maps 只給短網址；一般網站的標題也因瀏覽器同源政策無法直接讀取。
  * 後端最多追蹤五次重新導向，再從 Maps 網址取地名或從 HTML <title> 取顯示名稱。
@@ -482,11 +497,12 @@ function expandUrl(body) {
   }
 
   var label = labelFromUrl(current)
-  if (!label && response) {
+  var responseCode = response ? response.getResponseCode() : 0
+  if (!label && response && responseCode >= 200 && responseCode < 300) {
     try {
       var html = response.getContentText().slice(0, 200000)
       var title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
-      if (title && title[1]) label = decodeHtmlText(title[1])
+      if (title && title[1]) label = usablePageTitle(decodeHtmlText(title[1]))
     } catch (err) {
       // 有些網址回傳的不是文字；仍回傳已展開的網址，前端會使用原本的備援標籤。
     }
