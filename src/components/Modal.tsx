@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import ElasticScroll from './ElasticScroll'
 
 interface Props {
   title: string
@@ -58,7 +59,7 @@ export default function Modal({
           <div className="sheethead">
             <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>{title}</strong>
           </div>
-          <div className="sheetbody">{children}</div>
+          <ElasticScroll className="sheetbody">{children}</ElasticScroll>
           <div className="sheetactions">
             <button className="btn" onClick={requestCancel}>{cancelLabel}</button>
             <button className={completeDanger ? 'btn btn-danger' : 'btn btn-primary'} onClick={onComplete}>
@@ -80,9 +81,9 @@ export default function Modal({
             <div className="sheethead">
               <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>尚未儲存變更</strong>
             </div>
-            <div className="sheetbody">
+            <ElasticScroll className="sheetbody">
               <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的修改嗎？</p>
-            </div>
+            </ElasticScroll>
             <div className="sheetactions">
               <button className="btn" onClick={() => setConfirmingCancel(false)}>繼續編輯</button>
               <button className="btn btn-danger" onClick={onCancel}>放棄變更</button>

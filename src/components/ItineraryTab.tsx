@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import type { Item, Plan, Trip } from '../types'
 import { eachDay, HALF_HOUR_SLOTS, shortDate, timeSortKey, todayISO } from '../lib/date'
 import { isSubmitEnter } from '../lib/keys'
 import { DAY_TEMPLATE } from '../lib/dayTemplate'
 import { formatMoney, formatTotals, isUncategorized, itemTotals, mergeTotals, toHome } from '../lib/money'
+import ElasticScroll from './ElasticScroll'
 
 interface Props {
   trip: Trip
@@ -26,6 +27,11 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
   const days = useMemo(() => eachDay(trip.startDate, trip.endDate), [trip.startDate, trip.endDate])
   const [addingOn, setAddingOn] = useState<string | null>(null)
   const [draft, setDraft] = useState({ startTime: '', title: '' })
+  const [activeDay, setActiveDay] = useState(() => (days.includes(today) ? today : (days[0] ?? '')))
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const daystripRef = useRef<HTMLDivElement>(null)
+  const scrollFrame = useRef<number | undefined>(undefined)
+  const programmaticDay = useRef<string | undefined>(undefined)
 
   const byDay = useMemo(() => {
     const map = new Map<string, Item[]>()
@@ -58,8 +64,65 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
     }
   }
 
+  useEffect(() => {
+    setActiveDay((current) => (days.includes(current) ? current : (days.includes(today) ? today : (days[0] ?? ''))))
+  }, [days, today])
+
+  const updateActiveDay = useCallback(() => {
+    const scroller = scrollRef.current
+    if (!scroller || !days.length) return
+
+    let next = days[0]
+    if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2) {
+      next = days[days.length - 1]
+    } else {
+      const focusLine = scroller.getBoundingClientRect().top + Math.min(scroller.clientHeight * 0.22, 96)
+      for (const day of days) {
+        const section = scroller.querySelector<HTMLElement>(`[data-day-section="${day}"]`)
+        if (!section || section.getBoundingClientRect().top > focusLine) break
+        next = day
+      }
+    }
+    setActiveDay((current) => (current === next ? current : next))
+  }, [days])
+
+  const trackScroll = useCallback(() => {
+    if (programmaticDay.current) return
+    if (scrollFrame.current !== undefined) return
+    scrollFrame.current = window.requestAnimationFrame(() => {
+      scrollFrame.current = undefined
+      updateActiveDay()
+    })
+  }, [updateActiveDay])
+
+  useEffect(() => {
+    updateActiveDay()
+    return () => {
+      if (scrollFrame.current !== undefined) window.cancelAnimationFrame(scrollFrame.current)
+    }
+  }, [updateActiveDay])
+
+  useEffect(() => {
+    const strip = daystripRef.current
+    const index = days.indexOf(activeDay)
+    const pill = index >= 0 ? (strip?.children[index] as HTMLElement | undefined) : undefined
+    if (!strip || !pill) return
+    strip.scrollTo({
+      left: pill.offsetLeft - (strip.clientWidth - pill.offsetWidth) / 2,
+      behavior: 'smooth',
+    })
+  }, [activeDay, days])
+
   const jumpTo = (day: string) => {
-    document.getElementById(`day-${day}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const scroller = scrollRef.current
+    const section = scroller?.querySelector<HTMLElement>(`[data-day-section="${day}"]`)
+    programmaticDay.current = day
+    setActiveDay(day)
+    if (scroller && section) scroller.scrollTo({ top: section.offsetTop, behavior: 'smooth' })
+  }
+
+  const beginManualScroll = () => {
+    programmaticDay.current = undefined
   }
 
   const submitDraft = (day: string) => {
@@ -75,25 +138,34 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
   }
 
   return (
-    <>
-      <div className="daystrip">
+    <div className="itinerary-view">
+      <div className="daystrip" ref={daystripRef}>
         {days.map((day, i) => (
           <button
             key={day}
             className="daypill"
+            data-on={day === activeDay}
             data-today={day === today}
             onClick={() => jumpTo(day)}
+            aria-current={day === activeDay ? 'date' : undefined}
           >
             D{i + 1}
           </button>
         ))}
       </div>
 
+      <ElasticScroll
+        ref={scrollRef}
+        className="itinerary-scroll"
+        onScroll={trackScroll}
+        onTouchStart={beginManualScroll}
+        onWheel={beginManualScroll}
+      >
       {days.map((day, i) => {
         const rows = byDay.get(day) ?? []
         const totals = dayTotals(day)
         return (
-          <section key={day} id={`day-${day}`}>
+          <section key={day} id={`day-${day}`} data-day-section={day}>
             <div className="dayhead">
               <span style={{ fontSize: 13, fontWeight: 500 }}>
                 Day {i + 1} · {shortDate(day)}
@@ -210,6 +282,7 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
           })()}
         </span>
       </button>
-    </>
+      </ElasticScroll>
+    </div>
   )
 }

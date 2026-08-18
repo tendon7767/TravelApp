@@ -11,6 +11,7 @@ import NumberField from './NumberField'
 import { methodLabel } from '../lib/owners'
 import SettingsModal from './SettingsModal'
 import Modal from './Modal'
+import ElasticScroll from './ElasticScroll'
 import { amountInMethodCurrency, computeMethod, suggestSplit } from '../lib/rewards'
 import { clearItemDraft, loadItemDraft, saveItemDraft } from '../store/drafts'
 
@@ -240,7 +241,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
           }}
         />
       </div>
-      <div className="scroll">
+      <ElasticScroll className="scroll">
 
       {restored && (
         <div className="sec" style={{ background: 'var(--accent-bg)', display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -529,7 +530,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
         </div>
       )}
 
-      </div>
+      </ElasticScroll>
 
       <div className="editor-actions">
         <button className="btn" onClick={cancel}>取消</button>

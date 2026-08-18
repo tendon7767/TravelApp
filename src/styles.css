@@ -220,8 +220,8 @@ a { color: var(--accent); }
 
 /* 日期橫條 */
 .daystrip {
-  position: sticky;
-  top: 0;
+  position: relative;
+  flex: none;
   z-index: 19;
   display: flex;
   gap: 5px;
@@ -241,8 +241,16 @@ a { color: var(--accent); }
   white-space: nowrap;
   border: 0.5px solid transparent;
 }
-.daypill[data-on="true"] { background: var(--text); color: var(--bg); }
-.daypill[data-today="true"] { border-color: var(--accent); }
+.daypill[data-on="true"] {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.daypill[data-today="true"]:not([data-on="true"]) {
+  color: var(--accent);
+  font-weight: 700;
+}
 
 .dayhead {
   display: flex;
@@ -253,7 +261,7 @@ a { color: var(--accent); }
   background: var(--surface-2);
   border-bottom: 0.5px solid var(--border);
   position: sticky;
-  top: 39px; /* 日期橫條的高度，兩條都黏在捲動容器內 */
+  top: 0;
   z-index: 18;
 }
 
@@ -349,7 +357,9 @@ a { color: var(--accent); }
 .tabicon { display: block; font-size: 18px; line-height: 1.2; }
 
 .scroll,
-.page-scroll {
+.page-scroll,
+.pane-scroll,
+.itinerary-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -357,15 +367,28 @@ a { color: var(--accent); }
   -webkit-overflow-scrolling: touch;
 }
 
+.elastic-scroll-content {
+  min-height: 100%;
+  width: 100%;
+}
+
+.itinerary-view {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
 /* 詳細頁：手機蓋滿，桌機變右欄 */
 .split { display: flex; flex: 1; min-height: 0; overflow: hidden; }
-/* 真正在捲的是這一層。overscroll-behavior 阻止捲動傳遞到外層，避免整頁回彈。 */
+/* 各分頁有自己的內容捲動層，這個外殼只負責尺寸，因此頂端與底部列不會參與回彈。 */
 .split > .pane-list {
+  display: flex;
+  flex-direction: column;
   flex: 1;
+  min-height: 0;
   min-width: 0;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
 }
 .pane-detail {
   position: fixed;
@@ -525,6 +548,8 @@ a { color: var(--accent); }
 }
 
 .sheetbody {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;

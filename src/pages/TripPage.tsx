@@ -9,6 +9,7 @@ import ExpensesTab from '../components/ExpensesTab'
 import RewardsTab from '../components/RewardsTab'
 import NotesTab from '../components/NotesTab'
 import Modal from '../components/Modal'
+import ElasticScroll from '../components/ElasticScroll'
 
 // 花費統計不常看，從導航列移走，改由行程頁的「全程合計」點進去。
 const TABS = [
@@ -241,11 +242,13 @@ export default function TripPage() {
       <div className="split">
         <div className="pane-list">
           {searching && plan && (
-            <SearchPanel
-              plan={plan}
-              onPick={(id) => navigateParam('sel', id)}
-              onClose={() => navigateParam('q')}
-            />
+            <ElasticScroll className="pane-scroll">
+              <SearchPanel
+                plan={plan}
+                onPick={(id) => navigateParam('sel', id)}
+                onClose={() => navigateParam('q')}
+              />
+            </ElasticScroll>
           )}
           {!searching && tab === 'itinerary' && plan && (
             <ItineraryTab
@@ -257,17 +260,25 @@ export default function TripPage() {
             />
           )}
           {!searching && tab === 'expenses' && plan && (
-            <ExpensesTab
-              trip={trip}
-              plan={plan}
-              onSelect={(id) => navigateParam('sel', id)}
-              onBack={() => navigateParam('tab', 'itinerary')}
-            />
+            <ElasticScroll className="pane-scroll">
+              <ExpensesTab
+                trip={trip}
+                plan={plan}
+                onSelect={(id) => navigateParam('sel', id)}
+                onBack={() => navigateParam('tab', 'itinerary')}
+              />
+            </ElasticScroll>
           )}
           {!searching && tab === 'rewards' && (
-            <RewardsTab trip={trip} plan={plan} onSelect={(id) => navigateParam('sel', id)} />
+            <ElasticScroll className="pane-scroll">
+              <RewardsTab trip={trip} plan={plan} onSelect={(id) => navigateParam('sel', id)} />
+            </ElasticScroll>
           )}
-          {!searching && tab === 'notes' && <NotesTab trip={trip} />}
+          {!searching && tab === 'notes' && (
+            <ElasticScroll className="pane-scroll">
+              <NotesTab trip={trip} />
+            </ElasticScroll>
+          )}
         </div>
 
         {selectedId && plan && (
