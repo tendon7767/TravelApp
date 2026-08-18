@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { EXPENSE_CATEGORIES, PAYMENT_STATUSES, type CostLine, type Trip } from '../types'
 import { newId } from '../lib/id'
@@ -7,6 +7,7 @@ import { formatMoney, lineTotal, sumByCurrency, toHome } from '../lib/money'
 import { normalizeTime, shortDate } from '../lib/date'
 import { isSubmitEnter } from '../lib/keys'
 import ConfirmButton from './ConfirmButton'
+import { amountInMethodCurrency, computeMethod, suggestSplit } from '../lib/rewards'
 
 interface Props {
   trip: Trip
@@ -21,6 +22,22 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
   const [linkDraft, setLinkDraft] = useState('')
   const [noteDraft, setNoteDraft] = useState('')
   const [timeDraft, setTimeDraft] = useState(item?.startTime ?? '')
+  const allPayments = useStore((s) => s.data.payments)
+  const allItems = useStore((s) => s.data.items)
+
+  const methods = useMemo(
+    () => allPayments.filter((p) => p.tripId === trip.id && !p.deleted && p.enabled),
+    [allPayments, trip.id],
+  )
+  const method = methods.find((m) => m.id === item?.paymentMethodId)
+
+  /** 拆單建議要扣掉這張卡已經刷過的金額，否則額度快滿時會給出灌水的建議。 */
+  const splitHint = useMemo(() => {
+    if (!item || !method) return null
+    const others = allItems.filter((i) => i.id !== item.id && i.planId === item.planId)
+    const spent = computeMethod(method, others, trip).txns.map((t) => t.amount)
+    return suggestSplit(method, amountInMethodCurrency(item, method, trip), spent)
+  }, [item, method, allItems, trip])
 
   useEffect(() => {
     setTimeDraft(item?.startTime ?? '')
@@ -244,6 +261,22 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
         )}
       </div>
 
+      {splitHint && (
+        <div className="sec" style={{ background: 'var(--ok-bg)' }}>
+          <div style={{ fontSize: 13, color: 'var(--ok)' }}>
+            分成 {splitHint.splits} 筆各 {formatMoney(splitHint.each, splitHint.currency)}
+            {/* 卡片上限是台幣、但你在當地是刷外幣，只給台幣數字在收銀台前用不上 */}
+            {splitHint.currency === trip.homeCurrency && totals[trip.foreignCurrency] !== undefined && (
+              <span>（約 {formatMoney(splitHint.each / trip.rate, trip.foreignCurrency)}）</span>
+            )}
+            ，可多拿 {formatMoney(splitHint.gain, splitHint.currency)} 回饋
+          </div>
+          <p className="dim" style={{ fontSize: 11, margin: '3px 0 0' }}>
+            這張卡有單筆回饋上限，一次刷完會有一部分拿不到。
+          </p>
+        </div>
+      )}
+
       <div className="sec" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 120 }}>
           <label className="label" htmlFor="d-cat">費用類型</label>
@@ -258,6 +291,20 @@ export default function ItemDetail({ trip, itemId, onClose }: Props) {
             <option value="">未分類</option>
             {EXPENSE_CATEGORIES.map((c) => (
               <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ flex: 1, minWidth: 140 }}>
+          <label className="label" htmlFor="d-method">支付方式</label>
+          <select
+            id="d-method"
+            className="field"
+            value={item.paymentMethodId ?? ''}
+            onChange={(e) => updateItem(item.id, { paymentMethodId: e.target.value || undefined })}
+          >
+            <option value="">—</option>
+            {methods.map((m) => (
+              <option key={m.id} value={m.id}>{m.name || '未命名'}</option>
             ))}
           </select>
         </div>

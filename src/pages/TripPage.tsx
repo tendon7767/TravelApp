@@ -5,6 +5,8 @@ import ItineraryTab from '../components/ItineraryTab'
 import ItemDetail from '../components/ItemDetail'
 import PlanSwitcher from '../components/PlanSwitcher'
 import SearchPanel from '../components/SearchPanel'
+import ExpensesTab from '../components/ExpensesTab'
+import RewardsTab from '../components/RewardsTab'
 
 const TABS = [
   { key: 'itinerary', label: '行程', icon: '☰' },
@@ -88,10 +90,14 @@ export default function TripPage() {
               onSelect={(id) => setParam('sel', id)}
             />
           )}
-          {!searching && tab !== 'itinerary' && (
-            <div className="empty">
-              「{TABS.find((t) => t.key === tab)?.label}」在後續里程碑製作。
-            </div>
+          {!searching && tab === 'expenses' && plan && (
+            <ExpensesTab trip={trip} plan={plan} onSelect={(id) => setParam('sel', id)} />
+          )}
+          {!searching && tab === 'rewards' && (
+            <RewardsTab trip={trip} onSelect={(id) => setParam('sel', id)} />
+          )}
+          {!searching && tab === 'notes' && (
+            <div className="empty">「筆記」在 M3 製作。</div>
           )}
         </div>
 
