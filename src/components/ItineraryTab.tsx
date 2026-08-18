@@ -195,13 +195,13 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
                   )}
                   {isUncategorized(item) && <span className="warn" style={{ marginLeft: 6 }}>缺類型</span>}
                   {item.notes.some((n) => n.showInOverview && n.text.trim()) && (
-                    <div className="overview-note">
-                      <span aria-hidden="true">✦</span>
+                    <span className="overview-note">
+                      提醒：
                       {item.notes
                         .filter((n) => n.showInOverview && n.text.trim())
                         .map((n) => n.text.trim())
                         .join(' · ')}
-                    </div>
+                    </span>
                   )}
                 </span>
                 <span className="rowmoney">{formatTotals(itemTotals(item))}</span>

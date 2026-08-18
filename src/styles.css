@@ -281,21 +281,15 @@ a { color: var(--accent); }
 .row:hover { background: var(--surface-2); }
 
 .overview-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 5px;
-  width: fit-content;
+  display: block;
   max-width: 100%;
-  margin-top: 5px;
-  padding: 3px 7px;
-  border-left: 3px solid var(--note-border);
-  border-radius: 5px;
-  background: var(--note-bg);
+  margin-top: 3px;
   color: var(--note-ink);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.45;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .dot {
