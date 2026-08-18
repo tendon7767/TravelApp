@@ -25,6 +25,7 @@ export default function TripPage() {
   const linked = useStore((s) => Boolean(tripId && s.settings.tripLinks?.[tripId]))
   const sync = useStore((s) => s.sync)
   const syncTrip = useStore((s) => s.syncTrip)
+  const localRev = useStore((s) => s.localRev)
   const dismissOverwritten = useStore((s) => s.dismissOverwritten)
   const allPlans = useStore((s) => s.data.plans)
   const plans = useMemo(
@@ -54,13 +55,28 @@ export default function TripPage() {
 
   // 進入旅程與切回視窗時各同步一次。旅途中常常是切出去查地圖再切回來，
   // 那正是同行者剛改完東西的時機。
+  // 另外在切走的當下推一次，否則「改完就鎖螢幕」的修改會卡在裝置裡。
   useEffect(() => {
     if (!tripId || !linked) return
     void syncTrip(tripId)
     const onFocus = () => void syncTrip(tripId)
+    const onHide = () => document.visibilityState === 'hidden' && void syncTrip(tripId)
     window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onHide)
+    }
   }, [tripId, linked, syncTrip])
+
+  // 本機改完東西後停手幾秒就自動推上去。用 localRev 當觸發來源，
+  // 同步拉回來的資料不會遞增它，所以不會自己觸發自己。
+  const firstRev = useRef(localRev)
+  useEffect(() => {
+    if (!tripId || !linked || localRev === firstRev.current) return
+    const timer = setTimeout(() => void syncTrip(tripId), 6000)
+    return () => clearTimeout(timer)
+  }, [localRev, tripId, linked, syncTrip])
 
   // 手機版詳細頁是覆蓋在上面的固定層，底下的行程仍會跟著手勢捲動。
   useEffect(() => {

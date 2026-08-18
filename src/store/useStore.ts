@@ -50,6 +50,11 @@ interface State {
   settings: Settings
   ready: boolean
   sync: SyncState
+  /**
+   * 只在本機編輯時遞增，同步拉回來的資料不算。
+   * 介面靠它判斷「有東西該推上去了」，而不會被自己拉回來的更新再觸發一次同步而無限循環。
+   */
+  localRev: number
 
   init: () => Promise<void>
   setMemberName: (name: string) => void
@@ -113,7 +118,7 @@ export const useStore = create<State>((setState, getState) => {
 
   const mutate = (fn: (draft: AppData) => AppData) => {
     const next = fn(getState().data)
-    setState({ data: next })
+    setState({ data: next, localRev: getState().localRev + 1 })
     persist(next)
   }
 
@@ -127,6 +132,7 @@ export const useStore = create<State>((setState, getState) => {
     settings: defaultSettings(),
     ready: false,
     sync: { busy: false, overwritten: [] },
+    localRev: 0,
 
     init: async () => {
       const [data, settings] = await Promise.all([loadData(), loadSettings()])
