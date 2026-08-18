@@ -196,15 +196,6 @@ a { color: var(--accent); }
 }
 .chip-accent { background: var(--accent-bg); color: var(--accent); border-color: transparent; }
 .chip-actual { background: var(--actual-chip); color: var(--actual-ink); border-color: transparent; }
-.plan-switch {
-  width: 48px;
-  min-height: 34px;
-  padding: 3px 7px;
-  font-size: 17px;
-  font-weight: 700;
-  text-align: center;
-}
-
 /* 實際版沿用原本規劃版的藍色系；規劃版則固定為程式碼風格的深灰色。 */
 .app[data-actual='true'] {
   --bg: var(--actual-bg);

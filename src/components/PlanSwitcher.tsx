@@ -8,7 +8,7 @@ interface Props {
   onPick: (id: string) => void
 }
 
-/** 行程頁只負責建立與切換；刪除實際版收在上一層旅程設定。 */
+/** 版本建立與切換集中在行程設定，不再占用行程頁頂端空間。 */
 export default function PlanSwitcher({ trip, plans, activeId, onPick }: Props) {
   const duplicatePlan = useStore((s) => s.duplicatePlan)
 
@@ -24,9 +24,10 @@ export default function PlanSwitcher({ trip, plans, activeId, onPick }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
       <select
-        className={`chip plan-switch ${active?.kind === 'actual' ? 'chip-actual' : 'chip-accent'}`}
+        className="field"
+        style={{ width: 150, fontWeight: 600 }}
         value={activeId ?? ''}
         onChange={(e) => onPick(e.target.value)}
         aria-label={`${trip.name} 的行程版本`}
@@ -34,13 +35,13 @@ export default function PlanSwitcher({ trip, plans, activeId, onPick }: Props) {
       >
         {plans.map((p) => (
           <option key={p.id} value={p.id}>
-            {p.kind === 'actual' ? '實' : '規'}
+            {p.name}
           </option>
         ))}
       </select>
 
       {!actual && (
-        <button className="btn btn-sm" onClick={createActual} title="從目前版本複製一份實際版">
+        <button className="btn btn-sm" onClick={createActual} title="從規劃版複製一份實際版">
           建立實際版
         </button>
       )}

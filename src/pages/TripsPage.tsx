@@ -4,7 +4,6 @@ import { draftTrip, useStore } from '../store/useStore'
 import { dayCount, shortDate } from '../lib/date'
 import NumberField from '../components/NumberField'
 import SettingsModal from '../components/SettingsModal'
-import TripEditModal from '../components/TripEditModal'
 import Modal from '../components/Modal'
 
 export default function TripsPage() {
@@ -18,7 +17,6 @@ export default function TripsPage() {
   const [open, setOpen] = useState(false)
   const [confirmingNewCancel, setConfirmingNewCancel] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [editingTripId, setEditingTripId] = useState<string | null>(null)
   const newTripDirty = JSON.stringify(form) !== JSON.stringify(blankForm)
 
   const submit = () => {
@@ -142,23 +140,8 @@ export default function TripsPage() {
       )}
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
-      {editingTripId && (
-        <TripEditModal
-          trip={trips.find((t) => t.id === editingTripId)!}
-          onClose={() => setEditingTripId(null)}
-        />
-      )}
-
       {trips.map((t) => (
-        <div key={t.id} className="row" style={{ alignItems: 'center', gap: 6 }}>
-          <button
-            className="btn btn-sm"
-            onClick={() => setEditingTripId(t.id)}
-            aria-label={`編輯 ${t.name}`}
-            title="旅程設定"
-          >
-            ⚙
-          </button>
+        <div key={t.id} className="row" style={{ alignItems: 'center' }}>
           <button
             style={{ flex: 1, textAlign: 'left', minWidth: 0 }}
             onClick={() => navigate(`/trip/${t.id}`)}

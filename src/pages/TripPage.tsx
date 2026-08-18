@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import ItineraryTab from '../components/ItineraryTab'
 import ItemDetail from '../components/ItemDetail'
-import PlanSwitcher from '../components/PlanSwitcher'
+import TripEditModal from '../components/TripEditModal'
 import SearchPanel from '../components/SearchPanel'
 import ExpensesTab from '../components/ExpensesTab'
 import RewardsTab from '../components/RewardsTab'
@@ -24,6 +24,7 @@ export default function TripPage() {
   const [online, setOnline] = useState(() => navigator.onLine)
   const [detailDirty, setDetailDirty] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
+  const [tripSettingsOpen, setTripSettingsOpen] = useState(false)
   const topbarRef = useRef<HTMLDivElement>(null)
 
   const trip = useStore((s) => s.data.trips.find((t) => t.id === tripId && !t.deleted))
@@ -160,6 +161,14 @@ export default function TripPage() {
           <p style={{ margin: '12px 0 0' }}>詳細行程有尚未儲存的修改，確定要離開嗎？</p>
         </Modal>
       )}
+      {tripSettingsOpen && (
+        <TripEditModal
+          trip={trip}
+          activePlanId={plan?.id}
+          onPickPlan={(id) => setParam('plan', id)}
+          onClose={() => setTripSettingsOpen(false)}
+        />
+      )}
 
       <div className="topbar" ref={topbarRef}>
         <button
@@ -205,7 +214,19 @@ export default function TripPage() {
         >
           {searching ? '✕' : '⌕'}
         </button>
-        <PlanSwitcher trip={trip} plans={plans} activeId={plan?.id} onPick={(id) => navigateParam('plan', id)} />
+        <button
+          className="btn btn-sm"
+          onClick={() =>
+            requestNavigation(() => {
+              setParam('sel')
+              setTripSettingsOpen(true)
+            })
+          }
+          aria-label="行程設定"
+          title="行程設定"
+        >
+          ⚙
+        </button>
       </div>
 
       {sync.overwritten.length > 0 && (

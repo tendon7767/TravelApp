@@ -6,9 +6,20 @@ import Modal from './Modal'
 import NumberField from './NumberField'
 import SyncSection from './SyncSection'
 import ConfirmButton from './ConfirmButton'
+import PlanSwitcher from './PlanSwitcher'
 
 /** 縮短日期範圍會讓範圍外的項目變成看不到的孤兒，所以先數給使用者看。 */
-export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: () => void }) {
+export default function TripEditModal({
+  trip,
+  activePlanId,
+  onPickPlan,
+  onClose,
+}: {
+  trip: Trip
+  activePlanId?: string
+  onPickPlan: (id: string) => void
+  onClose: () => void
+}) {
   const updateTrip = useStore((s) => s.updateTrip)
   const removeTrip = useStore((s) => s.removeTrip)
   const removePlan = useStore((s) => s.removePlan)
@@ -42,6 +53,10 @@ export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: 
   const actualPlan = allPlans.find(
     (plan) => plan.tripId === trip.id && plan.kind === 'actual' && !plan.deleted,
   )
+  const planningPlan = allPlans.find(
+    (plan) => plan.tripId === trip.id && plan.kind === 'planning' && !plan.deleted,
+  )
+  const plans = allPlans.filter((plan) => plan.tripId === trip.id && !plan.deleted)
   const actualItemCount = actualPlan
     ? allItems.filter((item) => item.planId === actualPlan.id && !item.deleted).length
     : 0
@@ -122,6 +137,19 @@ export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: 
         )}
 
         <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
+          <span className="label">目前檢視版本</span>
+          <PlanSwitcher
+            trip={trip}
+            plans={plans}
+            activeId={activePlanId}
+            onPick={onPickPlan}
+          />
+          <p className="dim" style={{ fontSize: 11, margin: '7px 0 0' }}>
+            切換後立即生效；旅程名稱與日期仍需按「完成」儲存。
+          </p>
+        </div>
+
+        <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
           <span className="label">雲端同步</span>
           <SyncSection trip={trip} />
         </div>
@@ -141,7 +169,10 @@ export default function TripEditModal({ trip, onClose }: { trip: Trip; onClose: 
             <ConfirmButton
               label="刪除實際版"
               question={`確定刪除實際版與 ${actualItemCount} 筆行程？`}
-              onConfirm={() => removePlan(actualPlan.id)}
+              onConfirm={() => {
+                removePlan(actualPlan.id)
+                if (activePlanId === actualPlan.id && planningPlan) onPickPlan(planningPlan.id)
+              }}
             />
           </div>
         )}
