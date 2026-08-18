@@ -52,6 +52,8 @@ function doPost(e) {
     switch (body.action) {
       case 'create':
         return json(createTrip(body))
+      case 'folderInfo':
+        return json(folderInfo(body))
       case 'pull':
         return json(pull(body))
       case 'push':
@@ -74,15 +76,34 @@ function json(obj) {
   )
 }
 
-function folder() {
+/**
+ * 指定了 folderId 就放那裡，沒指定就用雲端硬碟根目錄的 TravelApp 資料夾（找不到就建一個）。
+ */
+function folder(folderId) {
+  if (folderId) return DriveApp.getFolderById(folderId)
   var found = DriveApp.getFoldersByName(FOLDER_NAME)
   return found.hasNext() ? found.next() : DriveApp.createFolder(FOLDER_NAME)
+}
+
+/** 讓 App 能先確認資料夾存在、並把完整路徑顯示出來，避免建到不知道哪去。 */
+function folderInfo(body) {
+  var f = folder(body.folderId)
+  var parts = [f.getName()]
+  var parents = f.getParents()
+  var guard = 0
+  while (parents.hasNext() && guard < 20) {
+    var parent = parents.next()
+    parts.unshift(parent.getName())
+    parents = parent.getParents()
+    guard++
+  }
+  return { id: f.getId(), name: f.getName(), path: parts.join(' / ') }
 }
 
 function createTrip(body) {
   var ss = SpreadsheetApp.create(body.name || '未命名旅程')
   var file = DriveApp.getFileById(ss.getId())
-  folder().addFile(file)
+  folder(body.folderId).addFile(file)
   DriveApp.getRootFolder().removeFile(file)
 
   Object.keys(SCHEMA).forEach(function (name) {

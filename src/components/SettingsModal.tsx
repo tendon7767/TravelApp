@@ -14,11 +14,25 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const setGasUrl = useStore((s) => s.setGasUrl)
   const [urlDraft, setUrlDraft] = useState(gasUrl)
   const [status, setStatus] = useState('')
+  const driveFolderId = useStore((s) => s.settings.driveFolderId ?? '')
+  const setDriveFolder = useStore((s) => s.setDriveFolder)
+  const [folderDraft, setFolderDraft] = useState(driveFolderId)
+  const [folderStatus, setFolderStatus] = useState('')
 
   const save = () => {
     const next = draft.trim()
     if (next && next !== memberName) setMemberName(next)
     onClose()
+  }
+
+  const checkFolder = async () => {
+    setFolderStatus('確認中…')
+    try {
+      const path = await setDriveFolder(folderDraft)
+      setFolderStatus(`將建立於：${path}`)
+    } catch (err) {
+      setFolderStatus(err instanceof Error ? `找不到：${err.message}` : String(err))
+    }
   }
 
   const connect = async () => {
@@ -63,6 +77,24 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         </div>
         <p className="dim" style={{ fontSize: 12, marginTop: 8 }}>
           只需設定一次，所有旅程共用。設定步驟見專案裡的 SETUP.md。
+        </p>
+
+        <label className="label" style={{ marginTop: 14 }} htmlFor="s-folder">
+          試算表存放位置
+        </label>
+        <input
+          id="s-folder"
+          className="field"
+          value={folderDraft}
+          onChange={(e) => setFolderDraft(e.target.value)}
+          placeholder="貼上雲端硬碟資料夾網址，留空則用 TravelApp"
+        />
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
+          <button className="btn btn-sm" onClick={() => void checkFolder()}>確認並儲存</button>
+          {folderStatus && <span className="dim" style={{ fontSize: 12 }}>{folderStatus}</span>}
+        </div>
+        <p className="dim" style={{ fontSize: 12, marginTop: 8 }}>
+          在雲端硬碟打開想放的資料夾，複製網址貼上即可。留空的話會用根目錄的 TravelApp 資料夾。
         </p>
       </div>
     </Modal>

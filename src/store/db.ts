@@ -13,6 +13,8 @@ export interface Settings {
   packingTemplate?: string[]
   /** Apps Script 網頁應用程式網址，只部署一次，所有旅程共用 */
   gasUrl?: string
+  /** 試算表要建在雲端硬碟的哪個資料夾。留空則用根目錄的 TravelApp。 */
+  driveFolderId?: string
   /** 每趟旅程對應的試算表與密鑰。這是本機設定，不會同步。 */
   tripLinks?: Record<string, TripLinkState>
 }

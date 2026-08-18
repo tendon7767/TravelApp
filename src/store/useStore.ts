@@ -26,7 +26,9 @@ import {
 } from './db'
 import {
   createRemoteTrip,
+  fetchFolderInfo,
   mergeRemote,
+  parseFolderId,
   newSecret,
   ping,
   pullRemote,
@@ -69,6 +71,8 @@ interface State {
   setReview: (itemId: string, text: string) => void
 
   setGasUrl: (url: string) => Promise<void>
+  /** 指定試算表要建在哪個資料夾，回傳解析後的完整路徑供介面顯示 */
+  setDriveFolder: (input: string) => Promise<string>
   /** 幫這趟在雲端硬碟建立試算表並記下密鑰 */
   connectTrip: (tripId: string) => Promise<void>
   /** 用邀請連結加入別人建立的旅程 */
@@ -289,6 +293,17 @@ export const useStore = create<State>((setState, getState) => {
       await saveSettings(settings)
     },
 
+    setDriveFolder: async (input) => {
+      const { settings } = getState()
+      if (!settings.gasUrl) throw new Error('請先設定後端網址')
+      const driveFolderId = parseFolderId(input)
+      const info = await fetchFolderInfo(settings.gasUrl, driveFolderId || undefined)
+      const next = { ...settings, driveFolderId: driveFolderId || undefined }
+      setState({ settings: next })
+      await saveSettings(next)
+      return info.path
+    },
+
     connectTrip: async (tripId) => {
       const { settings, data } = getState()
       if (!settings.gasUrl) throw new Error('尚未設定後端網址')
@@ -296,7 +311,12 @@ export const useStore = create<State>((setState, getState) => {
       if (!trip) throw new Error('找不到旅程')
 
       const secret = newSecret()
-      const { sheetId } = await createRemoteTrip(settings.gasUrl, trip.name, secret)
+      const { sheetId } = await createRemoteTrip(
+        settings.gasUrl,
+        trip.name,
+        secret,
+        settings.driveFolderId,
+      )
       const link: TripLinkState = { sheetId, secret, lastSyncAt: 0, lastPushedAt: 0 }
       const next = { ...settings, tripLinks: { ...settings.tripLinks, [tripId]: link } }
       setState({ settings: next })

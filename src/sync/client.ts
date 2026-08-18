@@ -43,8 +43,25 @@ const call = async <T>(gasUrl: string, payload: Record<string, unknown>): Promis
 
 export const ping = (gasUrl: string) => call<{ ok: boolean }>(gasUrl, { action: 'ping' })
 
-export const createRemoteTrip = (gasUrl: string, name: string, secret: string) =>
-  call<{ sheetId: string }>(gasUrl, { action: 'create', name, secret })
+export const createRemoteTrip = (
+  gasUrl: string,
+  name: string,
+  secret: string,
+  folderId?: string,
+) => call<{ sheetId: string }>(gasUrl, { action: 'create', name, secret, folderId })
+
+export const fetchFolderInfo = (gasUrl: string, folderId?: string) =>
+  call<{ id: string; name: string; path: string }>(gasUrl, { action: 'folderInfo', folderId })
+
+/**
+ * 接受雲端硬碟資料夾網址或直接的 ID。
+ * 網址長得像 https://drive.google.com/drive/folders/<id>?usp=sharing
+ */
+export const parseFolderId = (input: string): string => {
+  const text = input.trim()
+  if (!text) return ''
+  return text.match(/\/folders\/([A-Za-z0-9_-]+)/)?.[1] ?? text.split(/[?#]/)[0]
+}
 
 export const pullRemote = (gasUrl: string, link: TripLink, since: number) =>
   call<{ now: number; records: Record<SyncedCollection, Record<string, unknown>[]> }>(gasUrl, {
