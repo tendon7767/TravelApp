@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import Modal from './Modal'
+import { checkForUpdate } from '../lib/update'
 
 /**
  * 暱稱是這台裝置的身分：心得掛在誰名下、之後同步時誰改了什麼，都看它。
@@ -18,6 +19,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const setDriveFolder = useStore((s) => s.setDriveFolder)
   const [folderDraft, setFolderDraft] = useState(driveFolderId)
   const [folderStatus, setFolderStatus] = useState('')
+  const [updateStatus, setUpdateStatus] = useState('')
   const dirty =
     draft.trim() !== memberName ||
     urlDraft.trim() !== gasUrl ||
@@ -36,6 +38,30 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
       setFolderStatus(`將建立於：${path}`)
     } catch (err) {
       setFolderStatus(err instanceof Error ? `找不到：${err.message}` : String(err))
+    }
+  }
+
+  // 建置時間存的是 UTC 的 ISO 字串，顯示時換成這台裝置的當地時間。
+  const buildLabel = new Date(__BUILD_TIME__).toLocaleString('zh-TW', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+
+  const update = async () => {
+    setUpdateStatus('檢查中…')
+    try {
+      if (await checkForUpdate()) {
+        setUpdateStatus('已取得新版，重新載入中…')
+        location.reload()
+      } else {
+        setUpdateStatus('已經是最新版')
+      }
+    } catch (err) {
+      setUpdateStatus(err instanceof Error ? `檢查失敗：${err.message}` : String(err))
     }
   }
 
@@ -107,6 +133,21 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         <p className="dim" style={{ fontSize: 12, marginTop: 8 }}>
           每趟旅程會在這個位置底下開一個以旅程名稱命名的資料夾，試算表放在裡面。
           留空的話用根目錄的「旅遊資料」。
+        </p>
+      </div>
+
+      <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 14 }}>
+        <span className="label">App 版本</span>
+        <p style={{ fontSize: 13, margin: '0 0 8px' }}>
+          {buildLabel}<span className="dim mono" style={{ fontSize: 12 }}> · {__BUILD_SHA__}</span>
+        </p>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+          <button className="btn btn-sm" onClick={() => void update()}>檢查更新</button>
+          {updateStatus && <span className="dim" style={{ fontSize: 12 }}>{updateStatus}</span>}
+        </div>
+        <p className="dim" style={{ fontSize: 12, marginTop: 8 }}>
+          有新版會直接下載並重新載入。加到主畫面的 App 平常要冷啟動兩次才會換版，
+          用這顆按鈕可以省掉等待。剛部署完的十分鐘內可能還是拿到舊版，過一下再按一次。
         </p>
       </div>
     </Modal>

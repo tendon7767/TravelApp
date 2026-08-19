@@ -6,8 +6,17 @@ import { VitePWA } from 'vite-plugin-pwa'
 // 本機開發維持 '/'。用環境變數指定 repo 名稱，換 repo 不用改程式碼。
 const base = process.env.GITHUB_PAGES_BASE ?? '/'
 
+// 建置當下的時間與 commit，顯示在設定頁，讓「到底更新到哪一版」看得見。
+// GITHUB_SHA 只有在 Actions 裡才有，本機建置就顯示 dev。
+const buildTime = new Date().toISOString()
+const buildSha = (process.env.GITHUB_SHA ?? 'dev').slice(0, 7)
+
 export default defineConfig({
   base,
+  define: {
+    __BUILD_TIME__: JSON.stringify(buildTime),
+    __BUILD_SHA__: JSON.stringify(buildSha),
+  },
   plugins: [
     react(),
     VitePWA({
