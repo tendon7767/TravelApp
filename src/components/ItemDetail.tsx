@@ -90,7 +90,6 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   const [noteDraft, setNoteDraft] = useState('')
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
   const [choosingCategory, setChoosingCategory] = useState(false)
-  const [costExpanded, setCostExpanded] = useState(false)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [restored, setRestored] = useState(false)
@@ -215,7 +214,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   }
 
   const beginEdit = (section: ItemDraftSection) => {
-    // 空白費用按「＋新增」後直接得到第一列，不必再多按一次「新增一筆」。
+    // 空白費用按鉛筆後直接得到第一列，不必再多按一次「新增一筆」。
     if (section === 'costs' && item.costs.length === 0) {
       patchItem({
         costs: [
@@ -225,6 +224,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     }
     setFocusLinkId(null)
     setRestored(false)
+    if (section === 'basic') setChoosingCategory(true)
     setEditingSections((current) => new Set(current).add(section))
   }
 
@@ -244,6 +244,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   const beginEditAll = () => {
     setFocusLinkId(null)
     setRestored(false)
+    setChoosingCategory(true)
     setEditingSections(new Set(editableSections))
   }
 
@@ -536,10 +537,12 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                   <>
                     <CategoryIcon category={item.category} size={20} />
                     <span>{item.category}</span>
-                    <EditIcon />
                   </>
                 ) : (
-                  <span className="detail-add-text">＋ 設定行程類型</span>
+                  <>
+                    <CategoryIcon size={20} />
+                    <span>未分類</span>
+                  </>
                 )}
               </button>
             )}
@@ -548,8 +551,8 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
 
         <section className="detail-section">
           <div className="detail-section-head">
-            <span className="detail-kicker">遊玩說明</span>
-            {(item.guide || editingSections.has('guide')) && editButton('guide')}
+            <span className="detail-kicker">行程說明</span>
+            {editButton('guide')}
           </div>
           {editingSections.has('guide') ? (
             <textarea
@@ -562,93 +565,14 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
           ) : item.guide?.trim() ? (
             <p className="detail-copy">{item.guide}</p>
           ) : (
-            <button className="detail-empty-action" onClick={() => beginEdit('guide')}>
-              ＋ 新增遊玩說明
-            </button>
-          )}
-        </section>
-
-        <section className="detail-section">
-          <div className="detail-section-head">
-            <span className="detail-kicker">Google Map</span>
-            {(mapLinks.length > 0 || editingSections.has('map')) && editButton('map')}
-          </div>
-          {editingSections.has('map') ? (
-            <>
-              {mapLinks.map((link) => (
-                <div key={link.id} className="link-edit-row">
-                  <input
-                    className="field"
-                    style={{ flex: 1, minWidth: 0 }}
-                    value={link.label}
-                    placeholder={link.url}
-                    autoFocus={link.id === focusLinkId}
-                    onChange={(event) =>
-                      patchItem({
-                        links: item.links.map((value) =>
-                          value.id === link.id ? { ...value, label: event.target.value } : value,
-                        ),
-                      })
-                    }
-                  />
-                  <a className="btn btn-sm" href={link.url} target="_blank" rel="noreferrer">開啟</a>
-                  <button
-                    className="btn btn-sm delete-icon-btn"
-                    aria-label="刪除 Google Map"
-                    onClick={() =>
-                      patchItem({ links: item.links.filter((value) => value.id !== link.id) })
-                    }
-                  >
-                    <TrashIcon />
-                  </button>
-                </div>
-              ))}
-              {mapLinks.length === 0 && (
-                <div className="link-add-row">
-                  <input
-                    className="field"
-                    value={mapDraft}
-                    placeholder="貼上 Google Maps 網址"
-                    autoFocus
-                    onChange={(event) => setMapDraft(event.target.value)}
-                    onKeyDown={(event) => isSubmitEnter(event) && void addLink('map')}
-                  />
-                  <button
-                    className="btn"
-                    disabled={resolvingLink !== null}
-                    onClick={() => void addLink('map')}
-                  >
-                    {resolvingLink === 'map' ? '解析中…' : '加入'}
-                  </button>
-                </div>
-              )}
-              {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
-            </>
-          ) : mapLinks.length > 0 ? (
-            mapLinks.map((link) => (
-              <a
-                key={link.id}
-                className="detail-link-card"
-                href={link.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <span className="detail-link-icon">⌖</span>
-                <span>{link.label || 'Google Map 地點'}</span>
-                <span className="dim">開啟</span>
-              </a>
-            ))
-          ) : (
-            <button className="detail-empty-action" onClick={() => beginEdit('map')}>
-              ＋ 加入地點
-            </button>
+            <p className="dim detail-empty-copy">尚未填寫</p>
           )}
         </section>
 
         <section className="detail-section">
           <div className="detail-section-head">
             <span className="detail-kicker">備註</span>
-            {(item.notes.length > 0 || editingSections.has('notes')) && editButton('notes')}
+            {editButton('notes')}
           </div>
           {editingSections.has('notes') ? (
             <>
@@ -717,16 +641,14 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
               ))}
             </div>
           ) : (
-            <button className="detail-empty-action" onClick={() => beginEdit('notes')}>
-              ＋ 新增備註
-            </button>
+            <p className="dim detail-empty-copy">尚未填寫</p>
           )}
         </section>
 
         <section className="detail-section">
           <div className="detail-section-head">
             <span className="detail-kicker">費用</span>
-            {(item.costs.length > 0 || editingSections.has('costs')) && editButton('costs')}
+            {editButton('costs')}
           </div>
           {editingSections.has('costs') ? (
             <>
@@ -779,7 +701,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                   <span className="mono dim cl-sub">{formatMoney(lineTotal(cost), cost.currency)}</span>
                 </div>
               ))}
-              <button className="btn btn-sm" onClick={addCost}>＋ 新增一筆</button>
+              <button className="btn btn-sm" onClick={addCost}>新增一筆</button>
               {item.costs.length > 0 && (
                 <div className="detail-total-row">
                   <strong>合計</strong>
@@ -793,28 +715,24 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
             </>
           ) : item.costs.length > 0 ? (
             <>
-              <button className="detail-cost-summary" onClick={() => setCostExpanded((open) => !open)}>
-                <span>{item.costs.length} 筆費用明細</span>
+              <div className="detail-cost-summary">
+                <span>{item.costs.length} 筆費用總價</span>
                 <strong className="mono">{formatTotals(totals) || formatMoney(0, trip.foreignCurrency)}</strong>
-                <span className="dim">{costExpanded ? '收合' : '展開'}</span>
-              </button>
-              {costExpanded && (
-                <div className="detail-cost-list">
-                  {item.costs.map((cost) => (
-                    <div key={cost.id} className="detail-cost-row">
-                      <span>{cost.label || '未命名費用'}</span>
-                      <span className="dim">{cost.qty !== 1 ? `× ${cost.qty}` : ''}</span>
-                      <span className="mono">{formatMoney(lineTotal(cost), cost.currency)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              </div>
+              <div className="detail-cost-list">
+                {item.costs.map((cost) => (
+                  <div key={cost.id} className="detail-cost-row">
+                    <span>{cost.label || '未命名費用'}</span>
+                    <span className="dim mono">{formatMoney(cost.unitPrice, cost.currency)}</span>
+                    <span className="dim">× {cost.qty}</span>
+                    <span className="mono">{formatMoney(lineTotal(cost), cost.currency)}</span>
+                  </div>
+                ))}
+              </div>
               {paymentPicker}
             </>
           ) : (
-            <button className="detail-empty-action" onClick={() => beginEdit('costs')}>
-              ＋ 新增費用
-            </button>
+            <p className="dim detail-empty-copy">尚無費用</p>
           )}
 
           {splitHint && (
@@ -833,8 +751,83 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
 
         <section className="detail-section">
           <div className="detail-section-head">
+            <span className="detail-kicker">Google Map</span>
+            {editButton('map')}
+          </div>
+          {editingSections.has('map') ? (
+            <>
+              {mapLinks.map((link) => (
+                <div key={link.id} className="link-edit-row">
+                  <input
+                    className="field"
+                    style={{ flex: 1, minWidth: 0 }}
+                    value={link.label}
+                    placeholder={link.url}
+                    autoFocus={link.id === focusLinkId}
+                    onChange={(event) =>
+                      patchItem({
+                        links: item.links.map((value) =>
+                          value.id === link.id ? { ...value, label: event.target.value } : value,
+                        ),
+                      })
+                    }
+                  />
+                  <a className="btn btn-sm" href={link.url} target="_blank" rel="noreferrer">開啟</a>
+                  <button
+                    className="btn btn-sm delete-icon-btn"
+                    aria-label="刪除 Google Map"
+                    onClick={() =>
+                      patchItem({ links: item.links.filter((value) => value.id !== link.id) })
+                    }
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              ))}
+              {mapLinks.length === 0 && (
+                <div className="link-add-row">
+                  <input
+                    className="field"
+                    value={mapDraft}
+                    placeholder="貼上 Google Maps 網址"
+                    autoFocus
+                    onChange={(event) => setMapDraft(event.target.value)}
+                    onKeyDown={(event) => isSubmitEnter(event) && void addLink('map')}
+                  />
+                  <button
+                    className="btn"
+                    disabled={resolvingLink !== null}
+                    onClick={() => void addLink('map')}
+                  >
+                    {resolvingLink === 'map' ? '解析中…' : '加入'}
+                  </button>
+                </div>
+              )}
+              {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
+            </>
+          ) : mapLinks.length > 0 ? (
+            mapLinks.map((link) => (
+              <a
+                key={link.id}
+                className="detail-link-card"
+                href={link.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span className="detail-link-icon">⌖</span>
+                <span>{link.label || 'Google Map 地點'}</span>
+                <span className="dim">開啟</span>
+              </a>
+            ))
+          ) : (
+            <p className="dim detail-empty-copy">尚未加入地點</p>
+          )}
+        </section>
+
+        <section className="detail-section">
+          <div className="detail-section-head">
             <span className="detail-kicker">相關連結</span>
-            {(webLinks.length > 0 || editingSections.has('links')) && editButton('links')}
+            {editButton('links')}
           </div>
           {editingSections.has('links') ? (
             <>
@@ -895,9 +888,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
               ))}
             </div>
           ) : (
-            <button className="detail-empty-action" onClick={() => beginEdit('links')}>
-              ＋ 新增相關連結
-            </button>
+            <p className="dim detail-empty-copy">尚未加入連結</p>
           )}
         </section>
 
@@ -905,7 +896,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
           <section className="detail-section">
             <div className="detail-section-head">
               <span className="detail-kicker">心得</span>
-              {(mine?.text || editingSections.has('review')) && editButton('review')}
+              {editButton('review')}
             </div>
             {others.map((review) => (
               <div key={review.id} className="detail-review">
@@ -934,9 +925,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                 <p>{mine.text}</p>
               </div>
             ) : (
-              <button className="detail-empty-action" onClick={() => beginEdit('review')}>
-                ＋ 新增心得
-              </button>
+              <p className="dim detail-empty-copy">尚未填寫</p>
             )}
           </section>
         )}

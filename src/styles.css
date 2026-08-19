@@ -590,23 +590,10 @@ a { color: var(--accent); }
   font-size: 14px;
 }
 
-.detail-value-action .detail-edit-icon {
-  margin-left: 2px;
-  width: 14px;
-  height: 14px;
-  color: var(--accent);
-}
-
-.detail-add-text,
-.detail-empty-action {
-  color: var(--accent);
+.detail-empty-copy {
+  margin: 0;
+  padding: 5px 0;
   font-size: 13px;
-}
-
-.detail-empty-action {
-  width: 100%;
-  padding: 7px 0;
-  text-align: left;
 }
 
 .detail-copy {
@@ -700,8 +687,8 @@ a { color: var(--accent); }
 .detail-note-edit-row .field { flex: 1; min-width: 0; }
 
 .detail-cost-summary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -712,8 +699,6 @@ a { color: var(--accent); }
 }
 
 .detail-cost-summary strong { color: var(--text); font-size: 14px; }
-.detail-cost-summary .dim { font-size: 11px; }
-
 .detail-cost-list {
   margin: 2px 0 8px;
   padding: 7px 9px;
@@ -723,7 +708,7 @@ a { color: var(--accent); }
 
 .detail-cost-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 8px;
   padding: 4px 0;
   color: var(--text-2);
