@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type KeyboardEvent, useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import {
   ITINERARY_CATEGORIES,
@@ -27,6 +27,7 @@ import {
 } from '../store/drafts'
 import CategoryIcon from './CategoryIcon'
 import TrashIcon from './TrashIcon'
+import MapPinIcon from './MapPinIcon'
 import { fetchLinkMetadata } from '../sync/client'
 
 interface Props {
@@ -34,6 +35,16 @@ interface Props {
   itemId: string
   onClose: () => void
   onDirtyChange: (dirty: boolean) => void
+}
+
+const SECTION_LABELS: Record<ItemDraftSection, string> = {
+  basic: '基本資訊',
+  guide: '行程說明',
+  map: 'Google Map',
+  notes: '備註',
+  links: '相關連結',
+  costs: '費用',
+  review: '心得',
 }
 
 const copyItem = (item?: Item): Item | undefined =>
@@ -248,6 +259,21 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     setEditingSections(new Set(editableSections))
   }
 
+  const sectionActionProps = (section: ItemDraftSection) => {
+    if (editingSections.has(section)) return {}
+    return {
+      role: 'button' as const,
+      'aria-label': `編輯${SECTION_LABELS[section]}`,
+      tabIndex: 0,
+      onClick: () => beginEdit(section),
+      onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
+        event.preventDefault()
+        beginEdit(section)
+      },
+    }
+  }
+
   const discardAndClose = () => {
     setConfirmingCancel(false)
     void clearItemDraft(itemId)
@@ -379,7 +405,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
     )
 
   const paymentPicker = item.costs.length > 0 && (
-    <div className="detail-payment-row">
+    <div className="detail-payment-row" onClick={(event) => event.stopPropagation()}>
       <label className="detail-key" htmlFor="d-method">支付方式</label>
       <select
         id="d-method"
@@ -445,10 +471,14 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
           </div>
         )}
 
-        <section className="detail-section detail-summary">
+        <section
+          className={`detail-section detail-summary${
+            editingSections.has('basic') ? '' : ' detail-section-clickable'
+          }`}
+          {...sectionActionProps('basic')}
+        >
           <div className="detail-section-head">
             <span className="detail-kicker">基本資訊</span>
-            {editButton('basic')}
           </div>
           {editingSections.has('basic') ? (
             <div className="detail-form-stack">
@@ -502,7 +532,12 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
           <div className="detail-category-block">
             <span className="detail-key">行程類型</span>
             {choosingCategory ? (
-              <div className="category-picker" role="group" aria-label="行程類型">
+              <div
+                className="category-picker"
+                role="group"
+                aria-label="行程類型"
+                onClick={(event) => event.stopPropagation()}
+              >
                 {ITINERARY_CATEGORIES.map((category) => (
                   <button
                     key={category}
@@ -530,7 +565,10 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
             ) : (
               <button
                 className="detail-value-action"
-                onClick={() => setChoosingCategory(true)}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setChoosingCategory(true)
+                }}
                 aria-label={item.category ? '編輯行程類型' : '設定行程類型'}
               >
                 {item.category ? (
@@ -549,10 +587,14 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
           </div>
         </section>
 
-        <section className="detail-section">
+        <section
+          className={`detail-section${
+            editingSections.has('guide') ? '' : ' detail-section-clickable'
+          }`}
+          {...sectionActionProps('guide')}
+        >
           <div className="detail-section-head">
             <span className="detail-kicker">行程說明</span>
-            {editButton('guide')}
           </div>
           {editingSections.has('guide') ? (
             <textarea
@@ -565,14 +607,18 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
           ) : item.guide?.trim() ? (
             <p className="detail-copy">{item.guide}</p>
           ) : (
-            <p className="dim detail-empty-copy">尚未填寫</p>
+            <p className="dim detail-empty-copy">-</p>
           )}
         </section>
 
-        <section className="detail-section">
+        <section
+          className={`detail-section${
+            editingSections.has('notes') ? '' : ' detail-section-clickable'
+          }`}
+          {...sectionActionProps('notes')}
+        >
           <div className="detail-section-head">
             <span className="detail-kicker">備註</span>
-            {editButton('notes')}
           </div>
           {editingSections.has('notes') ? (
             <>
@@ -590,7 +636,10 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                       })
                     }
                   />
-                  <label className="detail-overview-toggle">
+                  <label
+                    className="detail-overview-toggle"
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     <input
                       type="checkbox"
                       checked={Boolean(note.showInOverview)}
@@ -628,7 +677,10 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                 <div key={note.id} className="detail-note-row">
                   <span className="detail-note-bullet" aria-hidden="true">•</span>
                   <span className="detail-note-text">{note.text}</span>
-                  <label className="detail-overview-toggle">
+                  <label
+                    className="detail-overview-toggle"
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     <input
                       type="checkbox"
                       checked={Boolean(note.showInOverview)}
@@ -641,14 +693,18 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
               ))}
             </div>
           ) : (
-            <p className="dim detail-empty-copy">尚未填寫</p>
+            <p className="dim detail-empty-copy">-</p>
           )}
         </section>
 
-        <section className="detail-section">
+        <section
+          className={`detail-section${
+            editingSections.has('costs') ? '' : ' detail-section-clickable'
+          }`}
+          {...sectionActionProps('costs')}
+        >
           <div className="detail-section-head">
             <span className="detail-kicker">費用</span>
-            {editButton('costs')}
           </div>
           {editingSections.has('costs') ? (
             <>
@@ -732,7 +788,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
               {paymentPicker}
             </>
           ) : (
-            <p className="dim detail-empty-copy">尚無費用</p>
+            <p className="dim detail-empty-copy">-</p>
           )}
 
           {splitHint && (
@@ -814,13 +870,13 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                 target="_blank"
                 rel="noreferrer"
               >
-                <span className="detail-link-icon">⌖</span>
+                <span className="detail-link-icon"><MapPinIcon size={16} /></span>
                 <span>{link.label || 'Google Map 地點'}</span>
                 <span className="dim">開啟</span>
               </a>
             ))
           ) : (
-            <p className="dim detail-empty-copy">尚未加入地點</p>
+            <p className="dim detail-empty-copy">-</p>
           )}
         </section>
 
@@ -888,15 +944,19 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
               ))}
             </div>
           ) : (
-            <p className="dim detail-empty-copy">尚未加入連結</p>
+            <p className="dim detail-empty-copy">-</p>
           )}
         </section>
 
         {isActual && (
-          <section className="detail-section">
+          <section
+            className={`detail-section${
+              editingSections.has('review') ? '' : ' detail-section-clickable'
+            }`}
+            {...sectionActionProps('review')}
+          >
             <div className="detail-section-head">
               <span className="detail-kicker">心得</span>
-              {editButton('review')}
             </div>
             {others.map((review) => (
               <div key={review.id} className="detail-review">
@@ -925,7 +985,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
                 <p>{mine.text}</p>
               </div>
             ) : (
-              <p className="dim detail-empty-copy">尚未填寫</p>
+              <p className="dim detail-empty-copy">-</p>
             )}
           </section>
         )}

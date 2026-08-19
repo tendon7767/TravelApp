@@ -5,6 +5,7 @@ import { eachDay, HALF_HOUR_SLOTS, shortDate, timeSortKey, todayISO } from '../l
 import { isSubmitEnter } from '../lib/keys'
 import { formatMoney, formatTotals, isUncategorized, itemTotals, mergeTotals, toHome } from '../lib/money'
 import CategoryIcon from './CategoryIcon'
+import MapPinIcon from './MapPinIcon'
 
 interface Props {
   trip: Trip
@@ -172,7 +173,9 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
                 <span className="rowtitle">
                   {item.title}
                   {item.links.some((link) => link.kind === 'map') && (
-                    <span className="dim" style={{ fontSize: 12, marginLeft: 5 }} title="Google Maps 地點">⌖</span>
+                    <span title="Google Maps 地點">
+                      <MapPinIcon size={13} className="row-map-icon" />
+                    </span>
                   )}
                   {item.links.some((link) => link.kind === 'web') && (
                     <span className="dim" style={{ fontSize: 12, marginLeft: 4 }} title="相關連結">↗</span>

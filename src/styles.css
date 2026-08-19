@@ -509,6 +509,18 @@ a { color: var(--accent); }
   background: var(--surface);
 }
 
+.detail-section-clickable {
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.detail-section-clickable:hover { background: var(--surface-2); }
+
+.detail-section-clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .detail-summary { padding-top: 16px; }
 
 .detail-section-head {
@@ -638,6 +650,9 @@ a { color: var(--accent); }
   background: var(--accent-bg);
   font-size: 15px;
 }
+
+.map-pin-icon { display: inline-block; flex: none; vertical-align: -2px; }
+.row-map-icon { margin-left: 5px; color: var(--text-3); }
 
 .detail-note-row,
 .detail-note-edit-row {
