@@ -4,7 +4,6 @@ import {
   ITINERARY_CATEGORIES,
   type CostLine,
   type Item,
-  type ItemNote,
   type ItineraryCategory,
   type LinkRef,
   type Trip,
@@ -41,7 +40,6 @@ import BookIcon from './BookIcon'
 import StickyNoteIcon from './StickyNoteIcon'
 import { fetchLinkMetadata } from '../sync/client'
 import { copyItemSnapshot } from '../lib/items'
-import { applyCategoryTemplate } from '../lib/presets'
 import { flightStatusUrl, hasFlightStatus } from '../lib/flight'
 import PlaneIcon from './PlaneIcon'
 import PhotoSection from './PhotoSection'
@@ -97,10 +95,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const [noteDraft, setNoteDraft] = useState('')
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
   const [choosingCategory, setChoosingCategory] = useState(false)
-  /** 剛剛被模板帶入預設值的類型；顯示提示與「清除」用。 */
-  const [templateHint, setTemplateHint] = useState<ItineraryCategory | null>(null)
-  /** 套用模板前的費用與備註，「清除」就是還原這份快照。 */
-  const templateUndo = useRef<{ costs: CostLine[]; notes: ItemNote[] } | null>(null)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [restored, setRestored] = useState(false)
@@ -314,8 +308,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setEditingSections(new Set())
     setFocusSection(null)
     setChoosingCategory(false)
-    setTemplateHint(null)
-    templateUndo.current = null
     setConfirmingCancel(false)
     setRestored(false)
     setTouched(false)
@@ -351,33 +343,14 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setEditingSections(new Set())
     setFocusSection(null)
     setChoosingCategory(false)
-    setTemplateHint(null)
-    templateUndo.current = null
     setTouched(false)
     setRestored(false)
     void clearItemDraft(item.id)
   }
 
-  const clearTemplate = () => {
-    const snapshot = templateUndo.current
-    if (snapshot) patchItem({ costs: snapshot.costs, notes: snapshot.notes })
-    templateUndo.current = null
-    setTemplateHint(null)
-  }
-
   const selectCategory = (category?: ItineraryCategory) => {
-    // 只補空欄位，所以本來就有內容的項目換類型不會有任何損失。
-    const { patch, opened } = applyCategoryTemplate(item, category, trip)
-    patchItem({ category, ...patch })
+    patchItem({ category })
     setChoosingCategory(false)
-    if (!opened.length) {
-      templateUndo.current = null
-      setTemplateHint(null)
-      return
-    }
-    templateUndo.current = { costs: item.costs, notes: item.notes }
-    setTemplateHint(category ?? null)
-    setEditingSections((current) => new Set([...current, ...opened]))
   }
 
   const selectPayment = (paymentMethodId?: string) => {
@@ -626,13 +599,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
             <div className="detail-value-action">
               <CategoryIcon category={item.category} size={20} />
               <span>{item.category ?? '未分類'}</span>
-            </div>
-          )}
-
-          {templateHint && (
-            <div className="template-hint" onClick={(event) => event.stopPropagation()}>
-              <span>已依「{templateHint}」帶入預設欄位</span>
-              <button className="btn btn-sm" onClick={clearTemplate}>清除</button>
             </div>
           )}
         </section>
