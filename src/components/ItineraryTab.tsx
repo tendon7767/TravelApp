@@ -8,6 +8,7 @@ import { flightStatusUrl, hasFlightStatus } from '../lib/flight'
 import { applyCategoryTemplate, needsSecondLevel, quickItemsFor, soleQuickItem } from '../lib/presets'
 import { formatMoney, formatTotals, isUncategorized, itemTotals, mergeTotals, toHome } from '../lib/money'
 import CategoryIcon from './CategoryIcon'
+import ClockIcon from './ClockIcon'
 import MapPinIcon from './MapPinIcon'
 import LinkIcon from './LinkIcon'
 import PhotoIcon from './PhotoIcon'
@@ -200,11 +201,6 @@ export default function ItineraryTab({
   return (
     <div className="itinerary-view">
       <div className="daystrip" ref={daystripRef}>
-        {currentItemId && (
-          <button className="daypill daypill-now" onClick={scrollToCurrent} title="回到現在的行程">
-            now
-          </button>
-        )}
         {days.map((day, i) => (
           <button
             key={day}
@@ -407,6 +403,17 @@ export default function ItineraryTab({
         </span>
       </button>
       </div>
-      </div>
+
+      {currentItemId && (
+        <button
+          className="now-fab"
+          onClick={scrollToCurrent}
+          title="回到現在的行程"
+          aria-label="回到現在的行程"
+        >
+          <ClockIcon size={15} />now
+        </button>
+      )}
+    </div>
   )
 }

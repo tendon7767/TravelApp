@@ -277,13 +277,6 @@ a { color: var(--accent); }
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
-/* 只有今天在旅程範圍內時才出現，點了捲回當下正在進行的那一列。 */
-.daypill-now {
-  flex: none;
-  color: var(--accent);
-  font-weight: 700;
-  border-color: var(--accent);
-}
 .daypill[data-today="true"]:not([data-on="true"]) {
   color: var(--accent);
   font-weight: 700;
@@ -1096,19 +1089,31 @@ a { color: var(--accent); }
   }
 }
 
-.fab {
+/*
+ * 「回到現在」。半透明加毛玻璃，蓋住的那一列還看得見；
+ * 抬到分頁列上方一段距離，才不會壓到列表最後的「全程合計」。
+ */
+.now-fab {
   position: fixed;
-  right: 16px;
-  bottom: 68px;
+  right: 14px;
+  bottom: calc(var(--tabbar-h) + 30px);
   z-index: 25;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 11px 0 9px;
+  border-radius: 16px;
+  border: 0.5px solid var(--border);
   background: var(--text);
+  background: color-mix(in srgb, var(--text) 62%, transparent);
   color: var(--bg);
-  font-size: 26px;
+  font-size: 12px;
+  font-weight: 600;
   line-height: 1;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.24);
 }
 
 .empty {
