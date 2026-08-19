@@ -397,17 +397,22 @@ function NoteEditorModal({
           </div>
         )}
 
-        {/* 刪除放在內容最下方，比照 PaymentEditor；取消與完成統一由彈窗底部負責。 */}
-        <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 14 }}>
-          <ConfirmButton
-            label="刪除這則筆記"
-            question="刪除這則筆記？"
-            onConfirm={() => {
-              removeNote(note.id)
-              onClose()
-            }}
-          />
-        </div>
+        {/*
+          * 刪除放在內容最下方，比照 PaymentEditor；取消與完成統一由彈窗底部負責。
+          * 新增流程不顯示：這時取消本來就會把剛建立的空筆記收掉，兩個鍵是同一件事。
+          */}
+        {!isNew && (
+          <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 14 }}>
+            <ConfirmButton
+              label="刪除這則筆記"
+              question="刪除這則筆記？"
+              onConfirm={() => {
+                removeNote(note.id)
+                onClose()
+              }}
+            />
+          </div>
+        )}
       </div>
     </Modal>
   )

@@ -200,7 +200,7 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
           整個區塊會被重建，輸入框當場失去焦點，中文根本打不完一個字。 */}
       {editingDraft && (
         <Modal
-          title="編輯支付方式"
+          title={editingNew ? '新增支付方式' : '編輯支付方式'}
           onCancel={cancelEditor}
           onComplete={completeEditor}
           dirty={editorDirty}
@@ -208,6 +208,7 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
           <PaymentEditor
             method={editingDraft}
             trip={trip}
+            isNew={editingNew}
             onChange={(patch) =>
               setEditingDraft((current) => (current ? { ...current, ...patch } : current))
             }

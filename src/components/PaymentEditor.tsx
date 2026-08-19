@@ -15,11 +15,14 @@ export default function PaymentEditor({
   trip,
   onChange,
   onRemove,
+  isNew = false,
 }: {
   method: PaymentMethod
   trip: Trip
   onChange: (patch: Partial<PaymentMethod>) => void
   onRemove: () => void
+  /** 新增流程還沒有東西可刪，取消就等於捨棄，不需要刪除鍵。 */
+  isNew?: boolean
 }) {
   const patchRule = (ruleId: string, patch: Partial<RewardRule>) =>
     onChange({
@@ -141,11 +144,13 @@ export default function PaymentEditor({
         >
           ＋ 新增回饋規則
         </button>
-        <ConfirmButton
-          label="刪除這張"
-          question="刪除這個支付方式？"
-          onConfirm={onRemove}
-        />
+        {!isNew && (
+          <ConfirmButton
+            label="刪除這張"
+            question="刪除這個支付方式？"
+            onConfirm={onRemove}
+          />
+        )}
       </div>
     </div>
   )
