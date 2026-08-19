@@ -3,9 +3,10 @@ import { useStore } from '../store/useStore'
 import type { Plan, Trip } from '../types'
 import { computeMethod, type MethodResult } from '../lib/rewards'
 import { formatMoney } from '../lib/money'
-import { shortDate } from '../lib/date'
+import { dayCount, shortDate } from '../lib/date'
 import { methodLabel, OWNERLESS, ownerColor } from '../lib/owners'
 import PaymentEditor from './PaymentEditor'
+import PencilIcon from './PencilIcon'
 import Modal from './Modal'
 
 interface Props {
@@ -25,6 +26,9 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
   const [editingDraft, setEditingDraft] = useState<MethodResult['method'] | null>(null)
   const [editingNew, setEditingNew] = useState(false)
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null)
+  const [copyOpen, setCopyOpen] = useState(false)
+  const [copyFrom, setCopyFrom] = useState<string | null>(null)
+  const [copyResult, setCopyResult] = useState<string>('')
 
   const isActual = plan?.kind === 'actual'
   const methods = useMemo(
@@ -51,9 +55,14 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
 
   const otherTrips = useMemo(
     () =>
-      allTrips.filter(
-        (t) => !t.deleted && t.id !== trip.id && allPayments.some((p) => p.tripId === t.id && !p.deleted),
-      ),
+      allTrips
+        .filter((t) => !t.deleted && t.id !== trip.id)
+        .map((t) => ({
+          trip: t,
+          count: allPayments.filter((p) => p.tripId === t.id && !p.deleted).length,
+        }))
+        .filter((entry) => entry.count > 0)
+        .sort((a, b) => b.trip.startDate.localeCompare(a.trip.startDate)),
     [allTrips, allPayments, trip.id],
   )
 
@@ -97,12 +106,66 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
         >
           ＋ 新增支付方式
         </button>
-        {otherTrips.map((t) => (
-          <button key={t.id} className="btn btn-sm" onClick={() => copyPaymentsFrom(t.id, trip.id)}>
-            從「{t.name}」複製卡片
+        {otherTrips.length > 0 && (
+          <button
+            className="btn btn-sm"
+            onClick={() => {
+              setCopyFrom(otherTrips[0].trip.id)
+              setCopyResult('')
+              setCopyOpen(true)
+            }}
+          >
+            從其他旅程複製資料
           </button>
-        ))}
+        )}
+        {copyResult && <span className="dim" style={{ fontSize: 12, alignSelf: 'center' }}>{copyResult}</span>}
       </div>
+
+      {/* 旅程一多，一趟一顆按鈕就會塞爆功能列；收成一顆再進選擇彈窗。 */}
+      {copyOpen && (
+        <Modal
+          title="從其他旅程複製資料"
+          onCancel={() => setCopyOpen(false)}
+          onComplete={() => {
+            const source = otherTrips.find((entry) => entry.trip.id === copyFrom)
+            if (!source) return
+            const copied = copyPaymentsFrom(source.trip.id, trip.id)
+            const skipped = source.count - copied
+            setCopyResult(
+              copied === 0
+                ? `「${source.trip.name}」的 ${source.count} 張都已經有了`
+                : `已從「${source.trip.name}」複製 ${copied} 張${skipped ? `，略過 ${skipped} 張既有的` : ''}`,
+            )
+            setCopyOpen(false)
+          }}
+          completeLabel="複製"
+        >
+          <div style={{ paddingTop: 12 }}>
+            <p className="dim" style={{ fontSize: 12, margin: '0 0 10px' }}>
+              只複製卡片設定，額度與回饋紀錄不會跟著過來。同名同持有人的卡片會自動略過，
+              所以重複複製不會產生重複的卡片。
+            </p>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {otherTrips.map(({ trip: t, count }) => (
+                <button
+                  key={t.id}
+                  className="copy-source"
+                  data-on={copyFrom === t.id}
+                  onClick={() => setCopyFrom(t.id)}
+                >
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 14 }}>{t.name}</span>
+                    <span className="dim" style={{ display: 'block', fontSize: 12, marginTop: 2 }}>
+                      {shortDate(t.startDate)} – {shortDate(t.endDate)} · {dayCount(t.startDate, t.endDate)} 天
+                    </span>
+                  </span>
+                  <span className="dim mono" style={{ fontSize: 12 }}>{count} 張</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {!isActual && (
         <div className="sec" style={{ background: 'var(--accent-bg)' }}>
@@ -119,8 +182,14 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
           <span className="label">支付方式設定</span>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {methods.map((m) => (
-              <button key={m.id} className="chip" onClick={() => openEditor(m)}>
+              <button
+                key={m.id}
+                className="chip"
+                onClick={() => openEditor(m)}
+                aria-label={`編輯 ${methodLabel(m.name, m.owner)}`}
+              >
                 {methodLabel(m.name, m.owner)}{m.enabled ? '' : ' · 這趟沒帶'}
+                <PencilIcon size={12} />
               </button>
             ))}
           </div>
@@ -271,7 +340,13 @@ function MethodCard({
             {res.method.owner?.trim() ? ` · ${res.method.owner.trim()}` : ''}
           </span>
         </span>
-        <button className="btn btn-sm" onClick={onEdit}>設定</button>
+        <button
+          className="btn btn-sm"
+          onClick={onEdit}
+          aria-label={`編輯 ${methodLabel(res.method.name, res.method.owner)}`}
+        >
+          <PencilIcon />
+        </button>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 6 }}>

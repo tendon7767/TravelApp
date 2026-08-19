@@ -151,6 +151,30 @@ a { color: var(--accent); }
 .btn-danger { background: var(--danger); color: #fff; border-color: transparent; }
 .btn-sm { padding: 4px 9px; font-size: 13px; }
 
+/*
+ * 導覽列的圖示按鈕：圓角正方形，內容一律是 SVG 圖示。
+ * 早期用 ‹ ⌕ ⚙ 這類符號字元，但它們的墨跡位置隨 fallback 字體而異，
+ * 在 macOS 對好的垂直置中到了 iOS 又會偏掉，只能靠 SVG 由構圖決定中心。
+ */
+.btn-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+/* 同步按鈕會在圖示與「同步中…」之間切換，所以寬度要能長，高度仍與其他圖示鍵一致。 */
+.btn-glyph-grow {
+  width: auto;
+  min-width: 36px;
+  padding: 0 9px;
+  font-size: 13px;
+}
+
 .field {
   width: 100%;
   border: 1px solid var(--border-2);
@@ -283,6 +307,7 @@ a { color: var(--accent); }
 }
 .row[data-sel="true"] { background: var(--accent-bg); }
 
+/* 多筆提醒各自一行；只有第一行需要和標題拉開距離。 */
 .overview-note {
   display: block;
   max-width: 100%;
@@ -294,6 +319,8 @@ a { color: var(--accent); }
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.overview-note + .overview-note { margin-top: 1px; }
 
 .dot {
   width: 7px;
@@ -422,7 +449,7 @@ a { color: var(--accent); }
   text-align: center;
 }
 .tab[data-on="true"] { color: var(--text); }
-.tabicon { display: block; font-size: 18px; line-height: 1.2; }
+.tabicon { display: block; margin: 0 auto 1px; line-height: 0; }
 
 .scroll,
 .page-scroll,
@@ -497,16 +524,7 @@ a { color: var(--accent); }
 
 .detail-head { z-index: 3; }
 
-.detail-head-date {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  font-size: 14px;
-  font-weight: 500;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+.detail-head-gap { flex: 1; }
 
 .detail-edit-all {
   color: var(--accent);
@@ -567,6 +585,13 @@ a { color: var(--accent); }
   margin-bottom: 7px;
 }
 
+/* 區塊標題一律是「圖示＋文字」，沒有圖示的區塊套同一條規則也不受影響。 */
+.detail-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .detail-kicker,
 .detail-key {
   color: var(--text-3);
@@ -598,16 +623,22 @@ a { color: var(--accent); }
 
 .detail-form-stack .label:not(:first-child) { margin-top: 5px; }
 
-.detail-category-block {
-  margin-top: 13px;
-  padding-top: 11px;
-  border-top: 0.5px solid var(--border);
+/* 日期與時間並排，編輯表單不必為了兩個窄欄位各吃掉一整列。 */
+.detail-field-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 5px;
 }
 
-.detail-category-block > .detail-key {
-  display: block;
-  margin-bottom: 5px;
+.detail-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
 }
+
+.detail-field .label { margin-top: 0; }
+.detail-field-date { flex: 1 1 168px; }
+.detail-field-time { flex: 0 1 124px; }
 
 .detail-value-action {
   display: flex;
@@ -624,9 +655,13 @@ a { color: var(--accent); }
   font-size: 13px;
 }
 
-.detail-copy {
+.detail-copy,
+.detail-review p {
   max-width: 100%;
   margin: 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: var(--surface-2);
   color: var(--text-2);
   font-size: 14px;
   line-height: 1.65;
@@ -639,8 +674,7 @@ a { color: var(--accent); }
 .detail-note-list { display: grid; gap: 6px; }
 
 .detail-link-card {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
   gap: 7px;
   min-height: 38px;
@@ -650,10 +684,34 @@ a { color: var(--accent); }
   background: var(--surface-2);
   color: var(--text);
   font-size: 13px;
+}
+
+.detail-link-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: inherit;
   text-decoration: none;
 }
 
-.detail-link-card .dim { font-size: 11px; }
+.detail-link-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 鉛筆佔住原本「開啟」的位置，讓「這裡可以編輯」看得出來。 */
+.detail-link-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin: -4px -3px -4px 0;
+  color: var(--text-3);
+}
 
 .detail-link-icon {
   display: inline-flex;
@@ -667,9 +725,11 @@ a { color: var(--accent); }
   font-size: 15px;
 }
 
-.map-pin-icon { display: inline-block; flex: none; vertical-align: -2px; }
-.row-map-icon { margin-left: 5px; color: var(--text-3); }
-.row-photo-icon { margin-left: 5px; color: var(--text-3); font-size: 13px; }
+.map-pin-icon,
+.inline-icon { display: inline-block; flex: none; vertical-align: -2px; }
+.row-map-icon,
+.row-link-icon,
+.row-photo-icon { margin-left: 5px; color: var(--text-3); }
 
 .trip-album-link {
   flex: none;
@@ -763,6 +823,9 @@ a { color: var(--accent); }
   justify-content: space-between;
   gap: 12px;
   margin-top: 10px;
+}
+
+.detail-total-row {
   padding-top: 10px;
   border-top: 0.5px solid var(--border);
 }
@@ -776,6 +839,25 @@ a { color: var(--accent); }
 
 .detail-total-row { font-size: 13px; }
 
+/* 複製來源的可選列，選中時比照分類選單的 accent 外框。 */
+.copy-source {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+}
+
+.copy-source[data-on="true"] {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
 .detail-split-hint {
   margin-top: 10px;
   padding: 9px 10px;
@@ -788,15 +870,7 @@ a { color: var(--accent); }
 .detail-split-hint p { margin: 3px 0 0; color: var(--text-3); font-size: 11px; }
 
 .detail-review { margin-top: 8px; }
-.detail-review p {
-  max-width: 100%;
-  margin: 2px 0 0;
-  color: var(--text-2);
-  font-size: 14px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
+.detail-review .detail-key { display: block; margin-bottom: 4px; }
 
 .detail-author {
   margin-bottom: 5px;

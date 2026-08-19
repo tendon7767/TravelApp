@@ -114,6 +114,7 @@ interface State {
   createPayment: (tripId: string) => PaymentMethod
   updatePayment: (id: string, patch: Partial<PaymentMethod>) => void
   removePayment: (id: string) => void
+  /** 回傳實際複製的張數；同名同持有人的卡片會被略過。 */
   copyPaymentsFrom: (fromTripId: string, toTripId: string) => number
 
   createTransport: (tripId: string, name: string) => TransportOption
@@ -767,15 +768,25 @@ export const useStore = create<State>((setState, getState) => {
         payments: patchIn(d.payments, id, { deleted: true } as Partial<PaymentMethod>),
       })),
 
-    /** 卡片設定跨旅程沿用，只有額度要重填 —— 不必每趟從頭建一次。 */
+    /**
+     * 卡片設定跨旅程沿用，只有額度要重填 —— 不必每趟從頭建一次。
+     * 同名同持有人的卡片會略過，所以重複複製不會長出一堆分身，
+     * 介面也就不必記「這顆按過了沒」。
+     */
     copyPaymentsFrom: (fromTripId, toTripId) => {
-      const source = getState().data.payments.filter((p) => p.tripId === fromTripId && !p.deleted)
-      const copies = source.map<PaymentMethod>((p) => ({
-        ...p,
-        ...stamp(),
-        tripId: toTripId,
-        rules: p.rules.map((r) => ({ ...r, id: newId() })),
-      }))
+      const key = (method: PaymentMethod) => `${method.name.trim()}|${method.owner?.trim() ?? ''}`
+      const { payments } = getState().data
+      const existing = new Set(
+        payments.filter((p) => p.tripId === toTripId && !p.deleted).map(key),
+      )
+      const copies = payments
+        .filter((p) => p.tripId === fromTripId && !p.deleted && !existing.has(key(p)))
+        .map<PaymentMethod>((p) => ({
+          ...p,
+          ...stamp(),
+          tripId: toTripId,
+          rules: p.rules.map((r) => ({ ...r, id: newId() })),
+        }))
       if (copies.length) mutate((d) => ({ ...d, payments: [...d.payments, ...copies] }))
       return copies.length
     },
