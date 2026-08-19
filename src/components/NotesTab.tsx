@@ -277,7 +277,6 @@ function NoteEditorModal({
           style={{ fontSize: 15, fontWeight: 600 }}
           value={draft.title}
           placeholder="未命名筆記"
-          autoFocus
           onChange={(e) => patch({ title: e.target.value })}
         />
 
