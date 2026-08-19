@@ -29,11 +29,20 @@ export default function ItineraryTab({
   onOpenExpenses,
 }: Props) {
   const allItems = useStore((s) => s.data.items)
+  const allPhotos = useStore((s) => s.data.photos)
+  const pendingPhotos = useStore((s) => s.pendingPhotos)
   const items = useMemo(
     () => allItems.filter((i) => i.planId === plan.id && !i.deleted),
     [allItems, plan.id],
   )
   const createItem = useStore((s) => s.createItem)
+  const itemIdsWithPhotos = useMemo(() => {
+    if (plan.kind !== 'actual') return new Set<string>()
+    return new Set([
+      ...allPhotos.filter((photo) => !photo.deleted && photo.tripId === trip.id).map((photo) => photo.itemId),
+      ...pendingPhotos.filter((photo) => photo.tripId === trip.id).map((photo) => photo.itemId),
+    ])
+  }, [allPhotos, pendingPhotos, plan.kind, trip.id])
   const today = todayISO()
 
   const days = useMemo(() => eachDay(trip.startDate, trip.endDate), [trip.startDate, trip.endDate])
@@ -198,6 +207,9 @@ export default function ItineraryTab({
                   )}
                   {item.links.some((link) => link.kind === 'web') && (
                     <span className="dim" style={{ fontSize: 12, marginLeft: 4 }} title="相關連結">↗</span>
+                  )}
+                  {itemIdsWithPhotos.has(item.id) && (
+                    <span className="row-photo-icon" title="有照片" aria-label="有照片">▧</span>
                   )}
                   {isUncategorized(item) && <span className="warn" style={{ marginLeft: 6 }}>缺類型</span>}
                   {item.notes.some((n) => n.showInOverview && n.text.trim()) && (

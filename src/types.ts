@@ -111,6 +111,21 @@ export interface Review extends SyncFields {
   text: string
 }
 
+/** 照片本體放在 Drive；這裡只同步可查詢、刪除與顯示所需的 metadata。 */
+export interface Photo extends SyncFields {
+  tripId: string
+  itemId: string
+  kind: 'receipt' | 'trip'
+  fileId: string
+  fileUrl: string
+  thumbnailFileId: string
+  thumbnailUrl: string
+  mimeType: 'image/jpeg'
+  width: number
+  height: number
+  byteSize: number
+}
+
 /** 筆記內容是段落與勾選項的混排 —— 打包清單能成立的前提。 */
 export interface NoteBlock {
   id: string
@@ -138,6 +153,7 @@ export interface AppData {
   plans: Plan[]
   items: Item[]
   reviews: Review[]
+  photos: Photo[]
   notes: Note[]
   payments: PaymentMethod[]
   transports: TransportOption[]
@@ -148,6 +164,7 @@ export const emptyData = (): AppData => ({
   plans: [],
   items: [],
   reviews: [],
+  photos: [],
   notes: [],
   payments: [],
   transports: [],

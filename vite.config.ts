@@ -45,6 +45,19 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
         // Apps Script 是資料同步用的，永遠走網路，不進快取。
         navigateFallbackDenylist: [/^\/macros\//],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) =>
+              url.searchParams.get('travelapp') === 'thumb' &&
+              /(^|\.)google(usercontent)?\.com$/.test(url.hostname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'travelapp-photo-thumbnails-v1',
+              cacheableResponse: { statuses: [0, 200] },
+              expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 180 },
+            },
+          },
+        ],
       },
     }),
   ],

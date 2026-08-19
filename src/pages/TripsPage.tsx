@@ -11,6 +11,9 @@ export default function TripsPage() {
   const allTrips = useStore((s) => s.data.trips)
   const trips = useMemo(() => allTrips.filter((t) => !t.deleted), [allTrips])
   const createTrip = useStore((s) => s.createTrip)
+  const allPlans = useStore((s) => s.data.plans)
+  const allPhotos = useStore((s) => s.data.photos)
+  const pendingPhotos = useStore((s) => s.pendingPhotos)
   const navigate = useNavigate()
   const [blankForm] = useState(() => draftTrip())
   const [form, setForm] = useState(blankForm)
@@ -152,6 +155,21 @@ export default function TripsPage() {
               {t.foreignCurrency} {t.rate}
             </div>
           </button>
+          {(() => {
+            const actual = allPlans.find((plan) => plan.tripId === t.id && plan.kind === 'actual' && !plan.deleted)
+            const hasAlbum = Boolean(actual) && (
+              allPhotos.some((photo) => photo.tripId === t.id && photo.kind === 'trip' && !photo.deleted) ||
+              pendingPhotos.some((photo) => photo.tripId === t.id && photo.kind === 'trip')
+            )
+            return hasAlbum && actual ? (
+              <button
+                className="trip-album-link"
+                onClick={() => navigate(`/trip/${t.id}?tab=album&plan=${actual.id}`)}
+              >
+                相簿 ›
+              </button>
+            ) : null
+          })()}
         </div>
       ))}
       </div>

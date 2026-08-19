@@ -7,6 +7,7 @@ import {
   type NoteBlock,
   type PaymentMethod,
   type Plan,
+  type Photo,
   type Review,
   type SyncFields,
   type TransportOption,
@@ -34,9 +35,18 @@ import {
   ping,
   pullRemote,
   pushRemote,
+  uploadRemotePhoto,
 } from '../sync/client'
 import { collectTripRecords } from '../sync/collect'
 import { copyItemSnapshot } from '../lib/items'
+import type { ProcessedPhoto } from '../photos/process'
+import {
+  cacheThumbnail,
+  loadPendingPhotos,
+  removeCachedThumbnail,
+  savePendingPhotos,
+  type PendingPhotoUpload,
+} from '../photos/queue'
 
 
 export interface SyncState {
@@ -57,6 +67,7 @@ interface State {
    * 介面靠它判斷「有東西該推上去了」，而不會被自己拉回來的更新再觸發一次同步而無限循環。
    */
   localRev: number
+  pendingPhotos: PendingPhotoUpload[]
 
   init: () => Promise<void>
   setMemberName: (name: string) => void
@@ -74,6 +85,11 @@ interface State {
   duplicateItem: (source: Item, targetPlanId: string, targetDate: string) => Item | undefined
   updateItem: (id: string, patch: Partial<Item>) => void
   removeItem: (id: string) => void
+
+  queuePhoto: (tripId: string, itemId: string, photo: ProcessedPhoto) => Promise<void>
+  retryPhoto: (id: string) => void
+  removePhoto: (id: string) => void
+  flushPhotoUploads: (tripId: string) => Promise<void>
 
   /** 每個人只寫自己那則，用暱稱當識別，所以不會互相覆蓋。 */
   setReview: (itemId: string, text: string) => void
@@ -108,6 +124,7 @@ interface State {
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 const syncFlights = new Map<string, Promise<void>>()
 const syncVersions = new Map<string, number>()
+const photoUploadFlights = new Map<string, Promise<void>>()
 
 const invalidateTripSync = (tripId: string) => {
   syncVersions.set(tripId, (syncVersions.get(tripId) ?? 0) + 1)
@@ -145,10 +162,25 @@ export const useStore = create<State>((setState, getState) => {
     ready: false,
     sync: { busy: false, overwritten: [] },
     localRev: 0,
+    pendingPhotos: [],
 
     init: async () => {
-      const [data, settings] = await Promise.all([loadData(), loadSettings()])
-      setState({ data, settings, ready: true })
+      const [data, storedSettings, pendingPhotos] = await Promise.all([
+        loadData(),
+        loadSettings(),
+        loadPendingPhotos(),
+      ])
+      let settings = storedSettings
+      if (settings.gasUrl && (typeof navigator === 'undefined' || navigator.onLine)) {
+        try {
+          const pong = await ping(settings.gasUrl)
+          settings = { ...settings, photoApiVersion: pong.capabilities?.photos }
+          await saveSettings(settings)
+        } catch {
+          // 啟動不應被後端暫時無法連線卡住；保留上次確認過的 capability。
+        }
+      }
+      setState({ data, settings, pendingPhotos, ready: true })
     },
 
     setMemberName: (memberName) => {
@@ -226,11 +258,14 @@ export const useStore = create<State>((setState, getState) => {
       const { data, settings } = getState()
       const planIds = new Set(data.plans.filter((p) => p.tripId === id).map((p) => p.id))
       const itemIds = new Set(data.items.filter((i) => planIds.has(i.planId)).map((i) => i.id))
+      const removedPhotos = data.photos.filter((photo) => photo.tripId === id)
+      const pendingPhotos = getState().pendingPhotos.filter((photo) => photo.tripId !== id)
       const nextData: AppData = {
         trips: data.trips.filter((t) => t.id !== id),
         plans: data.plans.filter((p) => p.tripId !== id),
         items: data.items.filter((i) => !planIds.has(i.planId)),
         reviews: data.reviews.filter((r) => !itemIds.has(r.itemId)),
+        photos: data.photos.filter((photo) => photo.tripId !== id),
         notes: data.notes.filter((n) => n.tripId !== id),
         payments: data.payments.filter((p) => p.tripId !== id),
         transports: data.transports.filter((t) => t.tripId !== id),
@@ -248,10 +283,13 @@ export const useStore = create<State>((setState, getState) => {
       setState({
         data: nextData,
         settings: nextSettings,
+        pendingPhotos,
         localRev: getState().localRev + 1,
         sync: { busy: false, overwritten: [] },
       })
       persist(nextData)
+      void savePendingPhotos(pendingPhotos)
+      removedPhotos.forEach((photo) => void removeCachedThumbnail(photo.thumbnailUrl))
       void saveSettings(nextSettings)
     },
 
@@ -288,6 +326,12 @@ export const useStore = create<State>((setState, getState) => {
         const now = Date.now()
         const by = getState().settings.memberName
         const killedItems = new Set(d.items.filter((i) => i.planId === id).map((i) => i.id))
+        const pendingPhotos = getState().pendingPhotos.filter((photo) => !killedItems.has(photo.itemId))
+        setState({ pendingPhotos })
+        void savePendingPhotos(pendingPhotos)
+        d.photos
+          .filter((photo) => killedItems.has(photo.itemId) && !photo.deleted)
+          .forEach((photo) => void removeCachedThumbnail(photo.thumbnailUrl))
         return {
           ...d,
           plans: patchIn(d.plans, id, { deleted: true } as Partial<Plan>),
@@ -298,6 +342,11 @@ export const useStore = create<State>((setState, getState) => {
             killedItems.has(r.itemId) && !r.deleted
               ? { ...r, deleted: true, updatedAt: now, updatedBy: by }
               : r,
+          ),
+          photos: d.photos.map((photo) =>
+            killedItems.has(photo.itemId) && !photo.deleted
+              ? { ...photo, deleted: true, updatedAt: now, updatedBy: by }
+              : photo,
           ),
         }
       }),
@@ -337,15 +386,171 @@ export const useStore = create<State>((setState, getState) => {
 
     /** 軟刪除：墓碑是 M4 同步用的，刪除前由介面負責跟使用者確認。 */
     removeItem: (id) =>
-      mutate((d) => ({
-        ...d,
-        items: patchIn(d.items, id, { deleted: true } as Partial<Item>),
-        reviews: d.reviews.map((r) =>
-          r.itemId === id && !r.deleted
-            ? { ...r, deleted: true, updatedAt: Date.now(), updatedBy: getState().settings.memberName }
-            : r,
-        ),
-      })),
+      mutate((d) => {
+        const now = Date.now()
+        const by = getState().settings.memberName
+        const pendingPhotos = getState().pendingPhotos.filter((photo) => photo.itemId !== id)
+        setState({ pendingPhotos })
+        void savePendingPhotos(pendingPhotos)
+        d.photos
+          .filter((photo) => photo.itemId === id && !photo.deleted)
+          .forEach((photo) => void removeCachedThumbnail(photo.thumbnailUrl))
+        return {
+          ...d,
+          items: patchIn(d.items, id, { deleted: true } as Partial<Item>),
+          reviews: d.reviews.map((r) =>
+            r.itemId === id && !r.deleted
+              ? { ...r, deleted: true, updatedAt: now, updatedBy: by }
+              : r,
+          ),
+          photos: d.photos.map((photo) =>
+            photo.itemId === id && !photo.deleted
+              ? { ...photo, deleted: true, updatedAt: now, updatedBy: by }
+              : photo,
+          ),
+        }
+      }),
+
+    queuePhoto: async (tripId, itemId, processed) => {
+      const { data, settings } = getState()
+      const item = data.items.find((value) => value.id === itemId && !value.deleted)
+      const plan = item && data.plans.find((value) => value.id === item.planId && !value.deleted)
+      if (!item || !plan || plan.tripId !== tripId || plan.kind !== 'actual') {
+        throw new Error('照片只能加入實際版行程')
+      }
+      if (!settings.gasUrl || !settings.tripLinks?.[tripId]) throw new Error('請先連接雲端硬碟')
+      if ((settings.photoApiVersion ?? 0) < 1) throw new Error('請先重新部署支援照片的 Apps Script')
+
+      const upload: PendingPhotoUpload = {
+        id: newId(),
+        tripId,
+        itemId,
+        kind: processed.kind,
+        mimeType: processed.mimeType,
+        width: processed.width,
+        height: processed.height,
+        byteSize: processed.byteSize,
+        fullBlob: processed.fullBlob,
+        thumbnailBlob: processed.thumbnailBlob,
+        updatedAt: Date.now(),
+        updatedBy: settings.memberName,
+        status: 'queued',
+      }
+      const pendingPhotos = [...getState().pendingPhotos, upload]
+      setState({ pendingPhotos })
+      await savePendingPhotos(pendingPhotos)
+      if (typeof navigator === 'undefined' || navigator.onLine) void getState().syncTrip(tripId)
+    },
+
+    retryPhoto: (id) => {
+      const pendingPhotos = getState().pendingPhotos.map((photo) =>
+        photo.id === id ? { ...photo, status: 'queued' as const, error: undefined } : photo,
+      )
+      setState({ pendingPhotos })
+      void savePendingPhotos(pendingPhotos)
+      const upload = pendingPhotos.find((photo) => photo.id === id)
+      if (upload && navigator.onLine) void getState().syncTrip(upload.tripId)
+    },
+
+    removePhoto: (id) => {
+      const pending = getState().pendingPhotos.find((photo) => photo.id === id)
+      if (pending) {
+        const pendingPhotos = getState().pendingPhotos.filter((photo) => photo.id !== id)
+        setState({ pendingPhotos })
+        void savePendingPhotos(pendingPhotos)
+        return
+      }
+      const existing = getState().data.photos.find((photo) => photo.id === id && !photo.deleted)
+      if (!existing) return
+      void removeCachedThumbnail(existing.thumbnailUrl)
+      mutate((data) => ({
+        ...data,
+        photos: patchIn(data.photos, id, { deleted: true } as Partial<Photo>),
+      }))
+    },
+
+    flushPhotoUploads: (tripId) => {
+      const existing = photoUploadFlights.get(tripId)
+      if (existing) return existing
+      const flight = (async () => {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return
+        const { settings } = getState()
+        const link = settings.tripLinks?.[tripId]
+        if (!settings.gasUrl || !link || (settings.photoApiVersion ?? 0) < 1) return
+
+        const ids = getState().pendingPhotos
+          .filter((photo) => photo.tripId === tripId && photo.status === 'queued')
+          .map((photo) => photo.id)
+        for (const id of ids) {
+          const upload = getState().pendingPhotos.find((photo) => photo.id === id)
+          if (!upload || upload.status !== 'queued') continue
+          let pendingPhotos = getState().pendingPhotos.map((photo) =>
+            photo.id === id ? { ...photo, status: 'uploading' as const, error: undefined } : photo,
+          )
+          setState({ pendingPhotos })
+          await savePendingPhotos(pendingPhotos)
+          try {
+            const photo = await uploadRemotePhoto(settings.gasUrl, link, upload)
+            // 使用者可能在請求途中刪除照片、Item 或整個實際版。請求無法可靠取消，
+            // 所以回應後若佇列已不在，就立刻建立墓碑，不能讓剛完成的檔案死灰復燃。
+            if (!getState().pendingPhotos.some((value) => value.id === id)) {
+              const tombstone: Photo = {
+                ...photo,
+                deleted: true,
+                updatedAt: Date.now(),
+                updatedBy: getState().settings.memberName,
+              }
+              const data = getState().data
+              const nextData = { ...data, photos: [...data.photos, tombstone] }
+              setState({ data: nextData, localRev: getState().localRev + 1 })
+              persist(nextData)
+              try {
+                await pushRemote(settings.gasUrl, link, { photos: [tombstone] })
+              } catch {
+                // 墓碑已留在本機；下一次一般同步會再次送出。
+              }
+              continue
+            }
+            const data = getState().data
+            const photos = data.photos.some((value) => value.id === photo.id)
+              ? data.photos.map((value) => (value.id === photo.id ? photo : value))
+              : [...data.photos, photo]
+            const nextData = { ...data, photos }
+            pendingPhotos = getState().pendingPhotos.filter((value) => value.id !== id)
+            setState({ data: nextData, pendingPhotos })
+            persist(nextData)
+            await savePendingPhotos(pendingPhotos)
+            void cacheThumbnail(photo.thumbnailUrl)
+          } catch (error) {
+            const retryWhenOnline = typeof navigator !== 'undefined' && !navigator.onLine
+            pendingPhotos = getState().pendingPhotos.map((photo) =>
+              photo.id === id
+                ? {
+                    ...photo,
+                    status: retryWhenOnline ? 'queued' as const : 'failed' as const,
+                    error: error instanceof Error ? error.message : String(error),
+                  }
+                : photo,
+            )
+            setState({ pendingPhotos })
+            await savePendingPhotos(pendingPhotos)
+          }
+        }
+      })()
+      photoUploadFlights.set(tripId, flight)
+      void flight.finally(() => {
+        if (photoUploadFlights.get(tripId) === flight) {
+          photoUploadFlights.delete(tripId)
+          if (
+            (typeof navigator === 'undefined' || navigator.onLine) &&
+            getState().pendingPhotos.some((photo) => photo.tripId === tripId && photo.status === 'queued')
+          ) {
+            setTimeout(() => void getState().flushPhotoUploads(tripId), 0)
+          }
+        }
+      })
+      return flight
+    },
 
     setReview: (itemId, text) => {
       const author = getState().settings.memberName
@@ -363,7 +568,11 @@ export const useStore = create<State>((setState, getState) => {
     setGasUrl: async (url) => {
       const gasUrl = url.trim()
       const pong = gasUrl ? await ping(gasUrl) : undefined
-      const settings = { ...getState().settings, gasUrl }
+      const settings = {
+        ...getState().settings,
+        gasUrl,
+        photoApiVersion: pong?.capabilities?.photos,
+      }
       setState({ settings })
       await saveSettings(settings)
       return pong?.version
@@ -401,7 +610,10 @@ export const useStore = create<State>((setState, getState) => {
     },
 
     joinTrip: async (gasUrl, sheetId, secret) => {
-      const pulled = await pullRemote(gasUrl, { sheetId, secret }, 0)
+      const [pulled, pong] = await Promise.all([
+        pullRemote(gasUrl, { sheetId, secret }, 0),
+        ping(gasUrl),
+      ])
       const remoteTrip = pulled.records.trips.find((row) => row.id && !row.deleted)
       if (!remoteTrip) throw new Error('邀請的試算表裡找不到旅程資料')
       const tripId = String(remoteTrip.id)
@@ -411,6 +623,7 @@ export const useStore = create<State>((setState, getState) => {
       const settings = {
         ...getState().settings,
         gasUrl,
+        photoApiVersion: pong.capabilities?.photos,
         tripLinks: { ...getState().settings.tripLinks, [tripId]: link },
       }
       setState({ data: merged.data, settings })
@@ -450,6 +663,9 @@ export const useStore = create<State>((setState, getState) => {
 
           const pushedAt = Date.now()
           const outgoing = collectTripRecords(merged.data, tripId, link.lastPushedAt)
+          const hasUnsupportedPhotoChanges =
+            (settings.photoApiVersion ?? 0) < 1 && Boolean(outgoing.photos?.length)
+          if (hasUnsupportedPhotoChanges) delete outgoing.photos
           const hasOutgoing = Object.values(outgoing).some((rows) => rows && rows.length)
           const pushResult = hasOutgoing
             ? await pushRemote(settings.gasUrl, link, outgoing)
@@ -473,7 +689,8 @@ export const useStore = create<State>((setState, getState) => {
           const nextLink: TripLinkState = {
             ...link,
             lastSyncAt,
-            lastPushedAt: pushedAt,
+            // 舊後端會靜默忽略未知的 photos 集合；保留游標才能在重新部署後補送墓碑。
+            lastPushedAt: hasUnsupportedPhotoChanges ? link.lastPushedAt : pushedAt,
           }
           const nextSettings = {
             ...getState().settings,
@@ -488,6 +705,7 @@ export const useStore = create<State>((setState, getState) => {
             },
           })
           await saveSettings(nextSettings)
+          void getState().flushPhotoUploads(tripId)
         } catch (err) {
           setState({
             sync: { ...getState().sync, busy: false, error: err instanceof Error ? err.message : String(err) },

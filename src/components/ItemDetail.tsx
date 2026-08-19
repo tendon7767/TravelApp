@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useMemo, useState } from 'react'
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import {
   ITINERARY_CATEGORIES,
@@ -30,6 +30,7 @@ import TrashIcon from './TrashIcon'
 import MapPinIcon from './MapPinIcon'
 import { fetchLinkMetadata } from '../sync/client'
 import { copyItemSnapshot } from '../lib/items'
+import PhotoSection from './PhotoSection'
 
 interface Props {
   trip: Trip
@@ -89,6 +90,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   )
   const mine = reviews.find((review) => review.author === me)
   const others = reviews.filter((review) => review.author !== me && review.text.trim())
+  const initialReviewText = useRef(mine?.text ?? '')
   const item = draftItem?.id === storedItem?.id ? draftItem : storedItem
 
   const methods = useMemo(
@@ -147,7 +149,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         setRestored(true)
         setTouched(true)
       } else {
-        setReviewDraft(mine?.text ?? '')
+        setReviewDraft(initialReviewText.current)
       }
       setHydrated(true)
     })
@@ -775,6 +777,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           )}
         </section>
 
+        {isActual && <PhotoSection trip={trip} itemId={item.id} kind="receipt" />}
+
         <section
           className={`detail-section${
             editingSections.has('map') ? '' : ' detail-section-clickable'
@@ -942,7 +946,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
             {...sectionActionProps('review')}
           >
             <div className="detail-section-head">
-              <span className="detail-kicker">心得</span>
+              <span className="detail-kicker">旅程紀錄／心得</span>
             </div>
             {others.map((review) => (
               <div key={review.id} className="detail-review">
@@ -975,6 +979,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
             )}
           </section>
         )}
+
+        {isActual && <PhotoSection trip={trip} itemId={item.id} kind="trip" />}
       </div>
 
       <div className="editor-actions">

@@ -11,6 +11,7 @@ import NotesTab from '../components/NotesTab'
 import Modal from '../components/Modal'
 import type { Item } from '../types'
 import { copyItemSnapshot } from '../lib/items'
+import AlbumView from '../components/AlbumView'
 
 // 花費統計不常看，從導航列移走，改由行程頁的「全程合計」點進去。
 const TABS = [
@@ -57,6 +58,7 @@ export default function TripPage() {
     () => plans.find((p) => p.id === planId) ?? preferredPlan,
     [plans, planId, preferredPlan],
   )
+  const actualPlan = useMemo(() => plans.find((value) => value.kind === 'actual'), [plans])
   const copiedItem = copied && copied.tripId === tripId && copied.item.planId === plan?.id
     ? copied.item
     : undefined
@@ -296,6 +298,9 @@ export default function TripPage() {
             <div className="pane-scroll">
               <NotesTab trip={trip} />
             </div>
+          )}
+          {!searching && tab === 'album' && actualPlan && (
+            <AlbumView trip={trip} plan={actualPlan} />
           )}
         </div>
 

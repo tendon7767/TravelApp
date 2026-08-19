@@ -18,6 +18,7 @@ export const SYNCED_COLLECTIONS = [
   'plans',
   'items',
   'reviews',
+  'photos',
   'notes',
   'payments',
   'transports',
@@ -44,7 +45,53 @@ const call = async <T>(gasUrl: string, payload: Record<string, unknown>): Promis
 }
 
 export const ping = (gasUrl: string) =>
-  call<{ ok: boolean; version?: string }>(gasUrl, { action: 'ping' })
+  call<{ ok: boolean; version?: string; capabilities?: { photos?: number } }>(gasUrl, { action: 'ping' })
+
+const blobToBase64 = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(reader.error ?? new Error('無法讀取圖片'))
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+    reader.readAsDataURL(blob)
+  })
+
+export interface RemotePhotoUpload {
+  id: string
+  itemId: string
+  kind: 'receipt' | 'trip'
+  mimeType: 'image/jpeg'
+  width: number
+  height: number
+  byteSize: number
+  updatedAt: number
+  updatedBy: string
+  fullBlob: Blob
+  thumbnailBlob: Blob
+}
+
+export const uploadRemotePhoto = async (
+  gasUrl: string,
+  link: TripLink,
+  upload: RemotePhotoUpload,
+) =>
+  call<import('../types').Photo>(gasUrl, {
+    action: 'uploadPhoto',
+    sheetId: link.sheetId,
+    secret: link.secret,
+    photo: {
+      id: upload.id,
+      itemId: upload.itemId,
+      kind: upload.kind,
+      mimeType: upload.mimeType,
+      width: upload.width,
+      height: upload.height,
+      byteSize: upload.byteSize,
+      updatedAt: upload.updatedAt,
+      updatedBy: upload.updatedBy,
+      fullBase64: await blobToBase64(upload.fullBlob),
+      thumbnailBase64: await blobToBase64(upload.thumbnailBlob),
+    },
+  })
 
 export const createRemoteTrip = (
   gasUrl: string,

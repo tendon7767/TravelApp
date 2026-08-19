@@ -669,6 +669,14 @@ a { color: var(--accent); }
 
 .map-pin-icon { display: inline-block; flex: none; vertical-align: -2px; }
 .row-map-icon { margin-left: 5px; color: var(--text-3); }
+.row-photo-icon { margin-left: 5px; color: var(--text-3); font-size: 13px; }
+
+.trip-album-link {
+  flex: none;
+  padding: 6px 0 6px 10px;
+  color: var(--accent);
+  font-size: 13px;
+}
 
 .detail-note-row,
 .detail-note-edit-row {
@@ -808,6 +816,101 @@ a { color: var(--accent); }
 }
 
 .detail-restored span { flex: 1; }
+
+.photo-section { cursor: default; }
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+.photo-tile {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.photo-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.photo-status {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.68);
+  font-size: 10px;
+}
+.photo-status-failed { background: color-mix(in srgb, var(--danger) 85%, #000); }
+.photo-add-actions { display: flex; gap: 7px; margin-top: 9px; }
+.photo-file-input { display: none; }
+.photo-help, .photo-error { margin: 8px 0 0; font-size: 11px; }
+.photo-error { color: var(--danger); }
+
+.photo-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.96);
+}
+.photo-lightbox-head,
+.photo-lightbox-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
+}
+.photo-lightbox-head > span { flex: 1; color: #ddd; font-size: 12px; }
+.photo-lightbox .btn { color: #fff; background: #222; border-color: #555; }
+.photo-lightbox .btn-danger { background: #c62828; border-color: transparent; }
+.photo-lightbox-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.photo-lightbox-stage img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.photo-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  width: 42px;
+  height: 58px;
+  margin-top: -29px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 38px;
+}
+.photo-nav-prev { left: 0; }
+.photo-nav-next { right: 0; }
+.photo-offline { padding: 20px; color: #bbb; text-align: center; font-size: 13px; }
+.photo-lightbox-actions { justify-content: center; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+.photo-lightbox-error { padding: 0 12px 8px; color: #ffb4ab; text-align: center; font-size: 11px; }
+
+.album-title { padding: 16px 14px; background: var(--surface); font-size: 18px; font-weight: 650; }
+.album-day { border-bottom: 0.5px solid var(--border); }
+.album-item { padding: 12px 14px; background: var(--surface); }
+.album-item + .album-item { border-top: 0.5px solid var(--border); }
+.album-item h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+.album-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+@media (min-width: 620px) {
+  .photo-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .album-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
 
 /* 每筆費用是獨立卡片，避免連續的數字輸入欄看起來像同一筆資料。 */
 .costline {

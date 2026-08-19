@@ -25,6 +25,7 @@ export default function TripEditModal({
   const removePlan = useStore((s) => s.removePlan)
   const allPlans = useStore((s) => s.data.plans)
   const allItems = useStore((s) => s.data.items)
+  const pendingPhotos = useStore((s) => s.pendingPhotos)
   const [form, setForm] = useState({
     name: trip.name,
     startDate: trip.startDate,
@@ -60,6 +61,7 @@ export default function TripEditModal({
   const actualItemCount = actualPlan
     ? allItems.filter((item) => item.planId === actualPlan.id && !item.deleted).length
     : 0
+  const pendingPhotoCount = pendingPhotos.filter((photo) => photo.tripId === trip.id).length
 
   const save = () => {
     const name = form.name.trim()
@@ -181,10 +183,11 @@ export default function TripEditModal({
           <span className="label">本機資料</span>
           <p className="dim" style={{ fontSize: 12, margin: '0 0 8px' }}>
             只會從這台裝置移除，雲端資料會保留；之後重新開啟邀請連結即可加入相同旅程。
+            {pendingPhotoCount > 0 && ` 另有 ${pendingPhotoCount} 張尚未上傳的照片會從此裝置刪除。`}
           </p>
           <ConfirmButton
             label="從本機移除"
-            question={`從此裝置移除 ${itemCount} 筆行程？`}
+            question={`從此裝置移除 ${itemCount} 筆行程${pendingPhotoCount ? `及 ${pendingPhotoCount} 張待上傳照片` : ''}？`}
             confirmLabel="移除"
             onConfirm={() => {
               removeTrip(trip.id)

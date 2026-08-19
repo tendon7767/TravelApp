@@ -29,6 +29,7 @@ export const collectTripRecords = (
     plans: fresh(data.plans.filter((p) => p.tripId === tripId)),
     items,
     reviews: fresh(data.reviews.filter((r) => itemIds.has(r.itemId))),
+    photos: fresh(data.photos.filter((p) => p.tripId === tripId)),
     notes: fresh(data.notes.filter((n) => n.tripId === tripId)),
     payments: fresh(data.payments.filter((p) => p.tripId === tripId)),
     transports: fresh(data.transports.filter((t) => t.tripId === tripId)),

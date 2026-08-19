@@ -21,6 +21,8 @@ export interface Settings {
   tripLinks?: Record<string, TripLinkState>
   /** 資料格式修復版本；升版時可讓既有裝置安全地完整重拉一次。 */
   syncRepairVersion?: number
+  /** 後端宣告的照片 API 版本；未支援時介面會提示重新部署 Apps Script。 */
+  photoApiVersion?: number
 }
 
 export interface TripLinkState {
@@ -96,6 +98,7 @@ export const loadData = async (): Promise<AppData> => {
     plans: raw.plans ?? [],
     items: (raw.items ?? []).map(migrateItem),
     reviews: [...(raw.reviews ?? []), ...migratedReviews],
+    photos: raw.photos ?? [],
     notes: raw.notes ?? [],
     payments: raw.payments ?? [],
     transports: raw.transports ?? [],
