@@ -218,6 +218,12 @@ a { color: var(--accent); }
   display: flex;
   align-items: center;
   gap: 10px;
+  /*
+   * 行程頁的標題是兩行（旅程名 + 匯率與同步狀態），旅程列表頁只有一行，
+   * 放著不管兩頁的頂列會差 9px。用固定的最小高度讓兩邊對齊，
+   * 而不是靠內容自己撐 —— 之後任一頁的內容再變也不會又跑掉。
+   */
+  min-height: calc(66px + env(safe-area-inset-top));
 }
 
 .chip {
