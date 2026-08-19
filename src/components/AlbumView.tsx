@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { eachDay, shortDate, timeSortKey } from '../lib/date'
+import { photoFullUrl, photoThumbnailUrl } from '../photos/urls'
 import { useStore } from '../store/useStore'
 import type { Plan, Trip } from '../types'
 import PhotoLightbox, { PhotoThumbnail, type PhotoView } from './PhotoLightbox'
@@ -22,7 +23,11 @@ export default function AlbumView({ trip, plan }: { trip: Trip; plan: Plan }) {
       .filter((photo) => photo.tripId === trip.id && photo.kind === 'trip' && !photo.deleted && itemById.has(photo.itemId))
       .map((photo) => ({
         itemId: photo.itemId,
-        view: { id: photo.id, thumbnailUrl: photo.thumbnailUrl, fullUrl: photo.fileUrl } satisfies PhotoView,
+        view: {
+          id: photo.id,
+          thumbnailUrl: photoThumbnailUrl(photo.thumbnailFileId),
+          fullUrl: photoFullUrl(photo.fileId),
+        } satisfies PhotoView,
         order: photo.updatedAt,
       }))
     const queued = pending

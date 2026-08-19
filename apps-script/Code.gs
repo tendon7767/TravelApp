@@ -14,7 +14,7 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-19-photos1'
+var BACKEND_VERSION = '2026-08-19-photos2'
 
 /** 每次修復邏輯有變動就換一個 key，讓既有試算表重新執行修復。 */
 var TEXT_COLUMNS_REPAIR_KEY = 'textColumnsFixedV2'
@@ -479,10 +479,15 @@ function existingFile(folder, name) {
   return files.hasNext() ? files.next() : null
 }
 
+/**
+ * 不能用 file.getDownloadUrl()：那個網址帶臨時存取權杖，換一個瀏覽器或過一陣子就失效，
+ * 放進 <img> 只會變破圖。公開網址一律由 fileId 組（前端顯示時也是自己重算，見 src/photos/urls.ts）。
+ */
 function publicDownloadUrl(file, thumbnail) {
-  var url = file.getDownloadUrl()
-  if (thumbnail) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'travelapp=thumb'
-  return url
+  var id = encodeURIComponent(file.getId())
+  return thumbnail
+    ? 'https://drive.google.com/thumbnail?id=' + id + '&sz=w480&travelapp=thumb'
+    : 'https://lh3.googleusercontent.com/d/' + id + '=w2560'
 }
 
 function trashFile(id) {

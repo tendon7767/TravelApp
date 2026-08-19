@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { processPhoto } from '../photos/process'
+import { photoFullUrl, photoThumbnailUrl } from '../photos/urls'
 import { useStore } from '../store/useStore'
 import type { Photo, Trip } from '../types'
 import PhotoLightbox, { PhotoThumbnail, type PhotoView } from './PhotoLightbox'
@@ -33,8 +34,8 @@ export default function PhotoSection({
       .filter((photo) => photo.itemId === itemId && photo.kind === kind && !photo.deleted)
       .map((photo) => ({
         id: photo.id,
-        thumbnailUrl: photo.thumbnailUrl,
-        fullUrl: photo.fileUrl,
+        thumbnailUrl: photoThumbnailUrl(photo.thumbnailFileId),
+        fullUrl: photoFullUrl(photo.fileId),
         order: photo.updatedAt,
       }))
     const queued = pending

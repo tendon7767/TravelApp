@@ -47,6 +47,7 @@ import {
   savePendingPhotos,
   type PendingPhotoUpload,
 } from '../photos/queue'
+import { photoThumbnailUrl } from '../photos/urls'
 
 
 export interface SyncState {
@@ -290,7 +291,7 @@ export const useStore = create<State>((setState, getState) => {
       })
       persist(nextData)
       void savePendingPhotos(pendingPhotos)
-      removedPhotos.forEach((photo) => void removeCachedThumbnail(photo.thumbnailUrl))
+      removedPhotos.forEach((photo) => void removeCachedThumbnail(photoThumbnailUrl(photo.thumbnailFileId)))
       void saveSettings(nextSettings)
     },
 
@@ -332,7 +333,7 @@ export const useStore = create<State>((setState, getState) => {
         void savePendingPhotos(pendingPhotos)
         d.photos
           .filter((photo) => killedItems.has(photo.itemId) && !photo.deleted)
-          .forEach((photo) => void removeCachedThumbnail(photo.thumbnailUrl))
+          .forEach((photo) => void removeCachedThumbnail(photoThumbnailUrl(photo.thumbnailFileId)))
         return {
           ...d,
           plans: patchIn(d.plans, id, { deleted: true } as Partial<Plan>),
@@ -395,7 +396,7 @@ export const useStore = create<State>((setState, getState) => {
         void savePendingPhotos(pendingPhotos)
         d.photos
           .filter((photo) => photo.itemId === id && !photo.deleted)
-          .forEach((photo) => void removeCachedThumbnail(photo.thumbnailUrl))
+          .forEach((photo) => void removeCachedThumbnail(photoThumbnailUrl(photo.thumbnailFileId)))
         return {
           ...d,
           items: patchIn(d.items, id, { deleted: true } as Partial<Item>),
@@ -463,7 +464,7 @@ export const useStore = create<State>((setState, getState) => {
       }
       const existing = getState().data.photos.find((photo) => photo.id === id && !photo.deleted)
       if (!existing) return
-      void removeCachedThumbnail(existing.thumbnailUrl)
+      void removeCachedThumbnail(photoThumbnailUrl(existing.thumbnailFileId))
       mutate((data) => ({
         ...data,
         photos: patchIn(data.photos, id, { deleted: true } as Partial<Photo>),
@@ -521,7 +522,7 @@ export const useStore = create<State>((setState, getState) => {
             setState({ data: nextData, pendingPhotos })
             persist(nextData)
             await savePendingPhotos(pendingPhotos)
-            void cacheThumbnail(photo.thumbnailUrl)
+            void cacheThumbnail(photoThumbnailUrl(photo.thumbnailFileId))
           } catch (error) {
             const retryWhenOnline = typeof navigator !== 'undefined' && !navigator.onLine
             pendingPhotos = getState().pendingPhotos.map((photo) =>
