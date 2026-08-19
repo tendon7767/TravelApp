@@ -1116,6 +1116,11 @@ a { color: var(--accent); }
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.24);
 }
 
+/* 電腦版整份行程一眼看得完，不需要捲回去，按鈕只是擋路。 */
+@media (min-width: 860px) {
+  .now-fab { display: none; }
+}
+
 .empty {
   padding: 40px 20px;
   text-align: center;
