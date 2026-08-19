@@ -87,8 +87,13 @@ export default function TripPage() {
     return () => ro.disconnect()
   }, [])
 
-  // 可見時每 15 秒同步同行者的更新；背景停止輪詢。進入、切回、恢復網路時立即同步，
-  // 切走前再推一次，避免「改完就鎖螢幕」的修改卡在裝置裡。
+  /*
+   * 進入、切回、恢復網路時立即同步；切走前再推一次，避免「改完就鎖螢幕」的修改卡在裝置裡。
+   * 輪詢只是這些觸發點都沒發生時的保底，所以間隔可以很長：syncTrip 本身是 pull→push，
+   * 每次本機編輯都已經帶著一次 pull，編輯期不缺遠端資料。真正靠輪詢的只有
+   * 「開著頁面完全沒動、而同行者剛好在改」這一種情況 —— 兩分鐘是人開始懷疑壞掉、
+   * 伸手去點匯率旁那個手動同步的時間。
+   */
   useEffect(() => {
     if (!tripId || !linked) return
     const syncIfVisible = () => {
@@ -107,7 +112,7 @@ export default function TripPage() {
     const onOffline = () => setOnline(false)
 
     syncIfVisible()
-    const poll = window.setInterval(syncIfVisible, 15_000)
+    const poll = window.setInterval(syncIfVisible, 120_000)
     window.addEventListener('focus', onFocus)
     window.addEventListener('online', onOnline)
     window.addEventListener('offline', onOffline)
