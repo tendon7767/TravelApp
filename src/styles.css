@@ -515,7 +515,8 @@ a { color: var(--accent); }
 }
 .pane-detail {
   position: fixed;
-  inset: 0 0 var(--tabbar-h) 0;
+  /* 鍵盤升起時底部按鈕列要跟著上來，跟彈窗用同一個 --kb。 */
+  inset: 0 0 max(var(--tabbar-h), var(--kb, 0px)) 0;
   z-index: 30;
   background: var(--bg);
   display: flex;
@@ -1029,9 +1030,9 @@ a { color: var(--accent); }
    不然手勢會捲到背後的行程，捲動軸自己在跑但內容不動。 */
 @media (max-width: 859px) {
   body.detail-open { overflow: hidden; }
-  .pane-detail { inset: 0; z-index: 40; }
+  .pane-detail { inset: 0 0 var(--kb, 0px) 0; z-index: 40; }
   .pane-detail .editor-actions {
-    padding: 12px 18px max(18px, calc(12px + env(safe-area-inset-bottom) - var(--vv-kb, 0px)));
+    padding: 12px 18px max(18px, calc(12px + env(safe-area-inset-bottom) - var(--kb, 0px)));
     box-shadow: 0 -8px 24px rgba(21, 34, 56, 0.13);
   }
   .editor-actions .btn {
@@ -1105,13 +1106,13 @@ a { color: var(--accent); }
 /* 蓋板：手機從底部升起，桌機置中 */
 .backdrop {
   position: fixed;
-  left: 0;
-  right: 0;
-  /* iOS 的鍵盤不會縮小 fixed 定位用的版面視窗，蓋板底部的按鈕會整排藏到鍵盤底下。
-     Modal 會把可見視窗的高度與位移寫進這兩個變數，讓蓋板貼齊真正看得到的那一塊。 */
-  top: var(--vv-top, 0px);
-  height: var(--vv-h, 100%);
+  /* 永遠等於版面視窗。想讓開鍵盤是 .sheet 的事，蓋板自己不動，
+     算錯也不會整塊被推出畫面。 */
+  inset: 0;
   z-index: 50;
+  /* 蓋板上的拖曳不該傳給任何人；彈窗內容自己另外開放垂直捲動。 */
+  touch-action: none;
+  overscroll-behavior: contain;
   background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: flex-end;
@@ -1120,8 +1121,10 @@ a { color: var(--accent); }
 
 .sheet {
   width: 100%;
-  /* 留一條看得到蓋板的邊，點它可以關掉；其餘高度都給內容，鍵盤升起時才夠用。 */
-  max-height: calc(100% - 24px);
+  /* 鍵盤升起時整張往上讓，底部的取消／完成就浮在鍵盤上方。 */
+  margin-bottom: var(--kb, 0px);
+  /* 留一條看得到蓋板的邊，點它可以關掉；其餘高度都給內容。 */
+  max-height: calc(100% - 24px - var(--kb, 0px));
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -1145,6 +1148,7 @@ a { color: var(--accent); }
      內容只要寬一點點就能左右拖動並回彈，看起來像版面壞掉。 */
   overflow-x: hidden;
   overscroll-behavior: contain;
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   padding: 0 14px 14px;
 }
@@ -1162,9 +1166,9 @@ a { color: var(--accent); }
 }
 
 /* iOS 主畫面 App 的視窗四角是圓的，按鈕貼著左右下角會被切掉一塊。
-   底部的安全區在鍵盤升起時是多餘的，用 --vv-kb 扣掉。 */
+   底部的安全區在鍵盤升起時是多餘的，用 --kb 扣掉。 */
 .sheetactions {
-  padding: 10px 18px max(16px, calc(10px + env(safe-area-inset-bottom) - var(--vv-kb, 0px)));
+  padding: 10px 18px max(16px, calc(10px + env(safe-area-inset-bottom) - var(--kb, 0px)));
 }
 .editor-actions { padding: 10px 18px; }
 

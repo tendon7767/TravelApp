@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 interface Props {
   title: string
@@ -31,33 +32,6 @@ export default function Modal({
     else onCancel()
   }, [dirty, onCancel])
 
-  /**
-   * iOS 的鍵盤不會縮小 position: fixed 依據的版面視窗，蓋板照樣是整個螢幕高，
-   * 底部的「取消／完成」就被鍵盤蓋住 —— 有 autoFocus 的表單一打開就看不到按鈕。
-   * 把可見視窗的高度、位移與鍵盤佔掉的高度寫成 CSS 變數，交給 styles.css 用。
-   */
-  useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
-    const root = document.documentElement
-    const apply = () => {
-      root.style.setProperty('--vv-h', `${vv.height}px`)
-      root.style.setProperty('--vv-top', `${vv.offsetTop}px`)
-      const keyboard = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-      root.style.setProperty('--vv-kb', `${keyboard}px`)
-    }
-    apply()
-    vv.addEventListener('resize', apply)
-    vv.addEventListener('scroll', apply)
-    return () => {
-      vv.removeEventListener('resize', apply)
-      vv.removeEventListener('scroll', apply)
-      root.style.removeProperty('--vv-h')
-      root.style.removeProperty('--vv-top')
-      root.style.removeProperty('--vv-kb')
-    }
-  }, [])
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
@@ -72,7 +46,7 @@ export default function Modal({
     }
   }, [confirmingCancel, requestCancel])
 
-  return (
+  return createPortal(
     <>
       <div className="backdrop" onClick={requestCancel}>
         <div
@@ -117,6 +91,7 @@ export default function Modal({
           </div>
         </div>
       )}
-    </>
+    </>,
+    document.body,
   )
 }
