@@ -29,8 +29,10 @@ export default function TripFields({
         />
       </div>
 
+      {/* iOS 的日期輸入固有寬度很大，flex 項目預設縮不到 min-content 以下，
+          兩欄並排會把整個彈窗撐寬跑版，所以每一欄都要 minWidth: 0。 */}
       <div style={{ display: 'flex', gap: 10 }}>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <label className="label" htmlFor={`${idPrefix}-start`}>出發日</label>
           <input
             id={`${idPrefix}-start`}
@@ -40,7 +42,7 @@ export default function TripFields({
             onChange={(e) => onChange({ startDate: e.target.value })}
           />
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <label className="label" htmlFor={`${idPrefix}-end`}>回程日</label>
           <input
             id={`${idPrefix}-end`}
@@ -53,7 +55,7 @@ export default function TripFields({
       </div>
 
       <div style={{ display: 'flex', gap: 10 }}>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <label className="label" htmlFor={`${idPrefix}-cur`}>外幣</label>
           <input
             id={`${idPrefix}-cur`}
@@ -62,7 +64,7 @@ export default function TripFields({
             onChange={(e) => onChange({ foreignCurrency: e.target.value.toUpperCase() })}
           />
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <label className="label" htmlFor={`${idPrefix}-rate`}>匯率（換台幣）</label>
           <NumberField
             id={`${idPrefix}-rate`}

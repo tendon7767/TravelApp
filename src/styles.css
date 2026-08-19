@@ -206,7 +206,8 @@ a { color: var(--accent); }
   z-index: 20;
   background: var(--surface);
   border-bottom: 0.5px solid var(--border);
-  padding: 10px 14px;
+  /* index.html 開了 viewport-fit=cover，畫面會延伸到瀏海底下，頂列自己讓開。 */
+  padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1128,12 +1129,30 @@ a { color: var(--accent); }
   border: 0.5px solid var(--border);
 }
 
+/*
+ * 取消與完成放在標題列，不放底部。
+ * iOS 的鍵盤是蓋在畫面上的，standalone 下 visualViewport 也量不準，
+ * 底部那排無論怎麼算高度都會被蓋住；標題列在上面，鍵盤永遠碰不到。
+ */
 .sheethead {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
   border-bottom: 0.5px solid var(--border);
+}
+
+.sheethead .btn { min-width: 60px; flex: none; }
+
+.sheethead-title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sheetbody {
@@ -1145,7 +1164,8 @@ a { color: var(--accent); }
   overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding: 0 14px 14px;
+  /* 底部沒有按鈕列擋著了，內容自己避開 home indicator。 */
+  padding: 0 14px max(14px, env(safe-area-inset-bottom));
 }
 
 .sheetactions,
