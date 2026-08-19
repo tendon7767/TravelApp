@@ -75,7 +75,11 @@
   }
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+  /* 從根本關閉 iOS／PWA 對任何可點擊元素加上的短暫高亮。 */
+  -webkit-tap-highlight-color: transparent;
+}
 
 /*
  * 整個 App 是固定高度的版面，文件本身不捲動。
@@ -278,7 +282,6 @@ a { color: var(--accent); }
   background: var(--surface);
 }
 .row[data-sel="true"] { background: var(--accent-bg); }
-.row:hover { background: var(--surface-2); }
 
 .overview-note {
   display: block;
@@ -337,7 +340,11 @@ a { color: var(--accent); }
   background: var(--surface-2);
 }
 
-.category-choice:hover { border-color: var(--border-2); }
+/* 只有真正支援 hover 的滑鼠裝置才顯示指向回饋，觸控裝置不模擬 hover。 */
+@media (hover: hover) and (pointer: fine) {
+  .row:hover { background: var(--surface-2); }
+  .category-choice:hover { border-color: var(--border-2); }
+}
 
 .category-choice[data-on="true"] {
   border-color: var(--accent);
@@ -543,7 +550,6 @@ a { color: var(--accent); }
 
 .detail-section-clickable {
   cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
 }
 
 .detail-section-clickable:focus-visible {
