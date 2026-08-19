@@ -11,11 +11,23 @@ interface Props {
   trip: Trip
   plan: Plan
   selectedId: string | null
+  copiedItem?: Item
   onSelect: (id: string) => void
+  onPaste: (date: string) => void
+  onClearCopied: () => void
   onOpenExpenses: () => void
 }
 
-export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenExpenses }: Props) {
+export default function ItineraryTab({
+  trip,
+  plan,
+  selectedId,
+  copiedItem,
+  onSelect,
+  onPaste,
+  onClearCopied,
+  onOpenExpenses,
+}: Props) {
   const allItems = useStore((s) => s.data.items)
   const items = useMemo(
     () => allItems.filter((i) => i.planId === plan.id && !i.deleted),
@@ -139,6 +151,13 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
         ))}
       </div>
 
+      {copiedItem && (
+        <div className="itinerary-copybar" role="status">
+          <span>已複製「{copiedItem.title}」</span>
+          <button className="btn btn-sm" onClick={onClearCopied}>清除</button>
+        </div>
+      )}
+
       <div
         ref={scrollRef}
         className="itinerary-scroll"
@@ -228,10 +247,9 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
                 </button>
               </div>
             ) : (
-              <div className="row" style={{ gap: 0 }}>
+              <div className="row itinerary-add-row">
                 <button
-                  className="dim"
-                  style={{ flex: 1, textAlign: 'left', fontSize: 13, display: 'flex', gap: 9 }}
+                  className="dim itinerary-add-action"
                   onClick={() => {
                     setAddingOn(day)
                     setDraft({ startTime: '', title: '' })
@@ -241,6 +259,15 @@ export default function ItineraryTab({ trip, plan, selectedId, onSelect, onOpenE
                   <span className="rowtime">＋</span>
                   <span>新增項目</span>
                 </button>
+                {copiedItem && (
+                  <button
+                    className="btn btn-sm itinerary-paste-action"
+                    onClick={() => onPaste(day)}
+                    title={`貼上「${copiedItem.title}」到 ${shortDate(day)}`}
+                  >
+                    貼上
+                  </button>
+                )}
               </div>
             )}
           </section>

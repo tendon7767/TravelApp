@@ -9,6 +9,8 @@ import ExpensesTab from '../components/ExpensesTab'
 import RewardsTab from '../components/RewardsTab'
 import NotesTab from '../components/NotesTab'
 import Modal from '../components/Modal'
+import type { Item } from '../types'
+import { copyItemSnapshot } from '../lib/items'
 
 // 花費統計不常看，從導航列移走，改由行程頁的「全程合計」點進去。
 const TABS = [
@@ -25,6 +27,7 @@ export default function TripPage() {
   const [detailDirty, setDetailDirty] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
   const [tripSettingsOpen, setTripSettingsOpen] = useState(false)
+  const [copied, setCopied] = useState<{ tripId: string; item: Item } | null>(null)
   const topbarRef = useRef<HTMLDivElement>(null)
 
   const trip = useStore((s) => s.data.trips.find((t) => t.id === tripId && !t.deleted))
@@ -34,6 +37,7 @@ export default function TripPage() {
   const syncTrip = useStore((s) => s.syncTrip)
   const localRev = useStore((s) => s.localRev)
   const dismissOverwritten = useStore((s) => s.dismissOverwritten)
+  const duplicateItem = useStore((s) => s.duplicateItem)
   const allPlans = useStore((s) => s.data.plans)
   const plans = useMemo(
     () => allPlans.filter((p) => p.tripId === tripId && !p.deleted),
@@ -53,6 +57,9 @@ export default function TripPage() {
     () => plans.find((p) => p.id === planId) ?? preferredPlan,
     [plans, planId, preferredPlan],
   )
+  const copiedItem = copied && copied.tripId === tripId && copied.item.planId === plan?.id
+    ? copied.item
+    : undefined
 
   // 導航列高度會隨字型與安全區變動，硬寫數字必然對不準，量到多少就是多少。
   const tabbarRef = useRef<HTMLDivElement>(null)
@@ -261,7 +268,12 @@ export default function TripPage() {
               trip={trip}
               plan={plan}
               selectedId={selectedId}
+              copiedItem={copiedItem}
               onSelect={(id) => navigateParam('sel', id)}
+              onPaste={(date) => {
+                if (copiedItem) duplicateItem(copiedItem, plan.id, date)
+              }}
+              onClearCopied={() => setCopied(null)}
               onOpenExpenses={() => navigateParam('tab', 'expenses')}
             />
           )}
@@ -294,6 +306,12 @@ export default function TripPage() {
               trip={trip}
               itemId={selectedId}
               onClose={() => setParam('sel')}
+              onCopy={(item) => {
+                const snapshot = copyItemSnapshot(item)
+                if (!snapshot) return
+                setCopied({ tripId: trip.id, item: snapshot })
+                setParam('sel')
+              }}
               onDirtyChange={setDetailDirty}
             />
           </div>

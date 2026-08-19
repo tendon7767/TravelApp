@@ -435,6 +435,38 @@ a { color: var(--accent); }
   flex-direction: column;
 }
 
+.itinerary-copybar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--accent-bg);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.itinerary-copybar > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itinerary-add-row { align-items: center; gap: 8px; }
+
+.itinerary-add-action {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 9px;
+  text-align: left;
+  font-size: 13px;
+}
+
+.itinerary-paste-action { color: var(--accent); }
+
 /* 詳細頁：手機蓋滿，桌機變右欄 */
 .split { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 /* 各分頁有自己的內容捲動層，這個外殼只負責尺寸，因此頂端與底部列不會參與回彈。 */

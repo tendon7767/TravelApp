@@ -29,11 +29,13 @@ import CategoryIcon from './CategoryIcon'
 import TrashIcon from './TrashIcon'
 import MapPinIcon from './MapPinIcon'
 import { fetchLinkMetadata } from '../sync/client'
+import { copyItemSnapshot } from '../lib/items'
 
 interface Props {
   trip: Trip
   itemId: string
   onClose: () => void
+  onCopy: (item: Item) => void
   onDirtyChange: (dirty: boolean) => void
 }
 
@@ -46,16 +48,6 @@ const SECTION_LABELS: Record<ItemDraftSection, string> = {
   costs: '費用',
   review: '心得',
 }
-
-const copyItem = (item?: Item): Item | undefined =>
-  item
-    ? {
-        ...item,
-        notes: item.notes.map((note) => ({ ...note })),
-        links: item.links.map((link) => ({ ...link })),
-        costs: item.costs.map((cost) => ({ ...cost })),
-      }
-    : undefined
 
 const EditIcon = () => (
   <svg
@@ -73,7 +65,7 @@ const EditIcon = () => (
   </svg>
 )
 
-export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Props) {
+export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChange }: Props) {
   const storedItem = useStore((state) => state.data.items.find((item) => item.id === itemId))
   const updateItem = useStore((state) => state.updateItem)
   const removeItem = useStore((state) => state.removeItem)
@@ -91,7 +83,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   )
 
   const [editingSections, setEditingSections] = useState<Set<ItemDraftSection>>(() => new Set())
-  const [draftItem, setDraftItem] = useState(() => copyItem(storedItem))
+  const [draftItem, setDraftItem] = useState(() => copyItemSnapshot(storedItem))
   const [timeDraft, setTimeDraft] = useState(storedItem?.startTime ?? '')
   const [reviewDraft, setReviewDraft] = useState('')
   const [mapDraft, setMapDraft] = useState('')
@@ -183,7 +175,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   // 同行者同步進來時，尚未動手的詳細頁要跟著刷新，不能拿開啟當下的舊草稿覆蓋它。
   useEffect(() => {
     if (!hydrated || touched || !storedItem) return
-    setDraftItem(copyItem(storedItem))
+    setDraftItem(copyItemSnapshot(storedItem))
     setTimeDraft(storedItem.startTime ?? '')
     setReviewDraft(mine?.text ?? '')
   }, [hydrated, touched, storedItem, mine?.text])
@@ -281,7 +273,7 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
   }
 
   const cancelEditing = () => {
-    setDraftItem(copyItem(storedItem))
+    setDraftItem(copyItemSnapshot(storedItem))
     setTimeDraft(storedItem.startTime ?? '')
     setReviewDraft(mine?.text ?? '')
     setMapDraft('')
@@ -454,6 +446,14 @@ export default function ItemDetail({ trip, itemId, onClose, onDirtyChange }: Pro
           }}
         />
         <strong className="detail-head-date">{shortDate(item.date)}</strong>
+        <button
+          className="btn btn-sm"
+          onClick={() => onCopy(storedItem)}
+          disabled={hasEditing}
+          title={hasEditing ? '請先完成或取消編輯' : '複製這筆行程'}
+        >
+          複製
+        </button>
         <button
           className="btn btn-sm detail-edit-all"
           onClick={beginEditAll}

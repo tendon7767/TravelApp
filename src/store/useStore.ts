@@ -36,6 +36,7 @@ import {
   pushRemote,
 } from '../sync/client'
 import { collectTripRecords } from '../sync/collect'
+import { copyItemSnapshot } from '../lib/items'
 
 
 export interface SyncState {
@@ -70,6 +71,7 @@ interface State {
   removePlan: (id: string) => void
 
   createItem: (input: Partial<Item> & { planId: string; date: string; title: string }) => Item
+  duplicateItem: (source: Item, targetPlanId: string, targetDate: string) => Item | undefined
   updateItem: (id: string, patch: Partial<Item>) => void
   removeItem: (id: string) => void
 
@@ -302,6 +304,31 @@ export const useStore = create<State>((setState, getState) => {
 
     createItem: (input) => {
       const item: Item = { notes: [], links: [], costs: [], ...input, ...stamp() }
+      mutate((d) => ({ ...d, items: [...d.items, item] }))
+      return item
+    },
+
+    duplicateItem: (source, targetPlanId, targetDate) => {
+      const { data } = getState()
+      const sourcePlan = data.plans.find((plan) => plan.id === source.planId && !plan.deleted)
+      const targetPlan = data.plans.find((plan) => plan.id === targetPlanId && !plan.deleted)
+      if (!sourcePlan || !targetPlan || sourcePlan.id !== targetPlan.id) return undefined
+
+      const trip = data.trips.find((value) => value.id === targetPlan.tripId && !value.deleted)
+      if (!trip || targetDate < trip.startDate || targetDate > trip.endDate) return undefined
+
+      const snapshot = copyItemSnapshot(source)
+      if (!snapshot) return undefined
+      const item: Item = {
+        ...snapshot,
+        ...stamp(),
+        planId: targetPlanId,
+        date: targetDate,
+        deleted: undefined,
+        notes: snapshot.notes.map((note) => ({ ...note, id: newId() })),
+        links: snapshot.links.map((link) => ({ ...link, id: newId() })),
+        costs: snapshot.costs.map((cost) => ({ ...cost, id: newId() })),
+      }
       mutate((d) => ({ ...d, items: [...d.items, item] }))
       return item
     },
