@@ -167,13 +167,20 @@ a { color: var(--accent); }
   border-radius: 10px;
 }
 
-/* 同步按鈕會在圖示與「同步中…」之間切換，所以寬度要能長，高度仍與其他圖示鍵一致。 */
-.btn-glyph-grow {
-  width: auto;
-  min-width: 36px;
-  padding: 0 9px;
-  font-size: 13px;
+/*
+ * 同步狀態直接接在匯率後面，長得跟旁邊的說明文字一樣，點下去就是手動同步。
+ * 加底線是因為那一整行都是灰字，不標一下看不出來它可以按。
+ */
+.topbar-sync {
+  font-size: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--border-2);
+  text-underline-offset: 2px;
+  padding: 3px 0;
 }
+.topbar-sync:disabled { text-decoration: none; cursor: default; }
+.topbar-sync[data-bad="true"] { color: var(--danger); }
 
 .field {
   width: 100%;

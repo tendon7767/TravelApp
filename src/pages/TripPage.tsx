@@ -16,9 +16,6 @@ import BackIcon from '../components/BackIcon'
 import SearchIcon from '../components/SearchIcon'
 import CloseIcon from '../components/CloseIcon'
 import GearIcon from '../components/GearIcon'
-import SyncIcon from '../components/SyncIcon'
-import SyncErrorIcon from '../components/SyncErrorIcon'
-import OfflineIcon from '../components/OfflineIcon'
 import ItineraryIcon from '../components/ItineraryIcon'
 import RewardsIcon from '../components/RewardsIcon'
 import NotesIcon from '../components/NotesIcon'
@@ -168,6 +165,20 @@ export default function TripPage() {
     )
   }
 
+  /*
+   * 同步狀態接在匯率後面顯示，本身就是手動同步的按鈕。
+   * 自動同步很頻繁，獨立的圖示鍵大半時間是 disabled，看起來像壞掉。
+   */
+  const syncLabel = !online
+    ? '離線'
+    : sync.busy
+      ? '同步中…'
+      : sync.error
+        ? '同步失敗'
+        : sync.lastAt
+          ? `同步於 ${new Date(sync.lastAt).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}`
+          : '尚未同步'
+
   return (
     <div className="app" data-actual={plan?.kind === 'actual'}>
       {pendingNavigation && (
@@ -210,29 +221,26 @@ export default function TripPage() {
           </div>
           <div className="dim" style={{ fontSize: 11 }}>
             {trip.foreignCurrency} 匯率 {trip.rate}
-            {linked && !online && ' · 離線'}
-            {linked && online && !sync.busy && sync.error && ' · 同步失敗'}
+            {linked && (
+              <>
+                {' · '}
+                <button
+                  className="topbar-sync"
+                  onClick={() => tripId && void syncTrip(tripId)}
+                  disabled={sync.busy || !online}
+                  data-bad={Boolean(online && sync.error)}
+                  title={
+                    !online
+                      ? '目前離線，恢復網路後會自動同步'
+                      : (sync.error ?? '點一下立刻同步')
+                  }
+                >
+                  {syncLabel}
+                </button>
+              </>
+            )}
           </div>
         </div>
-        {linked && (
-          <button
-            className="btn btn-sm btn-glyph btn-glyph-grow"
-            onClick={() => tripId && void syncTrip(tripId)}
-            disabled={sync.busy || !online}
-            aria-label={sync.busy ? '同步中' : '同步'}
-            title={
-              !online
-                ? '目前離線，恢復網路後會自動同步'
-                : sync.error ??
-                  (sync.lastAt
-                    ? `上次同步 ${new Date(sync.lastAt).toLocaleTimeString('zh-TW')}`
-                    : '尚未同步')
-            }
-            style={sync.error && online ? { color: 'var(--danger)' } : undefined}
-          >
-            {sync.busy ? '同步中…' : !online ? <OfflineIcon /> : sync.error ? <SyncErrorIcon /> : <SyncIcon />}
-          </button>
-        )}
         <button
           className="btn btn-sm btn-glyph"
           onClick={() => navigateParam('q', searching ? undefined : '1')}
