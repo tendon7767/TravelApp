@@ -14,7 +14,7 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-19e'
+var BACKEND_VERSION = '2026-08-19-photos1'
 
 /** 每次修復邏輯有變動就換一個 key，讓既有試算表重新執行修復。 */
 var TEXT_COLUMNS_REPAIR_KEY = 'textColumnsFixedV2'
@@ -42,6 +42,16 @@ var SCHEMA = {
     times: ['startTime'],
   },
   reviews: { fields: ['id', 'itemId', 'author', 'text'], json: [], dates: [], times: [] },
+  photos: {
+    fields: [
+      'id', 'tripId', 'itemId', 'kind',
+      'fileId', 'fileUrl', 'thumbnailFileId', 'thumbnailUrl',
+      'mimeType', 'width', 'height', 'byteSize',
+    ],
+    json: [],
+    dates: [],
+    times: [],
+  },
   notes: {
     fields: ['id', 'tripId', 'title', 'blocks', 'links'],
     json: ['blocks', 'links'],
@@ -132,6 +142,25 @@ function writeRecordRow(sheet, header, spec, row, line) {
   sheet.getRange(row, 1, 1, line.length).setValues([line])
 }
 
+/** 舊旅程沒有後來新增的分頁／欄位；每次進入後端時以增量方式補齊。 */
+function ensureSchema(ss) {
+  Object.keys(SCHEMA).forEach(function (name) {
+    var spec = SCHEMA[name]
+    var sheet = ss.getSheetByName(name)
+    var wanted = spec.fields.concat(SYNC_FIELDS)
+    if (!sheet) {
+      sheet = ss.insertSheet(name)
+      sheet.appendRow(wanted)
+      sheet.setFrozenRows(1)
+      return
+    }
+    var lastColumn = Math.max(1, sheet.getLastColumn())
+    var header = sheet.getRange(1, 1, 1, lastColumn).getValues()[0]
+    var missing = wanted.filter(function (field) { return header.indexOf(field) < 0 })
+    if (missing.length) sheet.getRange(1, header.length + 1, 1, missing.length).setValues([missing])
+  })
+}
+
 /**
  * 用瀏覽器直接打開部署網址就會看到版本與時間，
  * 不必透過 App 就能確認「這個網址現在跑的是哪一版」。
@@ -166,8 +195,10 @@ function doPost(e) {
         return json(push(body))
       case 'expandUrl':
         return json(expandUrl(body))
+      case 'uploadPhoto':
+        return json(uploadPhoto(body))
       case 'ping':
-        return json({ ok: true, version: BACKEND_VERSION })
+        return json({ ok: true, version: BACKEND_VERSION, capabilities: { photos: 1 } })
       default:
         return json({ error: 'unknown action' })
     }
@@ -305,6 +336,7 @@ function pull(body) {
   lock.waitLock(30000)
   try {
     var ss = openChecked(body)
+    ensureSchema(ss)
     // 修復也掛在 pull：push 只有本機有變更時才會呼叫，只掛 push 等於大多數情況都不會執行。
     repairTextColumnsOnce(ss)
     var records = {}
@@ -326,6 +358,7 @@ function push(body) {
   lock.waitLock(30000)
   try {
     var ss = openChecked(body)
+    ensureSchema(ss)
     repairTextColumnsOnce(ss)
     var now = Date.now()
     var applied = 0
@@ -346,6 +379,20 @@ function push(body) {
 
       incoming.forEach(function (rec) {
         var row = rowById[rec.id]
+        // 照片檔案只能由 uploadPhoto 建立。一般同步只接受既有照片的刪除墓碑，
+        // 否則拿到旅程密鑰的人可以偽造 fileId，讓後端誤刪帳號中的其他 Drive 檔案。
+        if (name === 'photos') {
+          if (!row || !rec.deleted) {
+            rejected++
+            return
+          }
+          var currentPhoto = recordFromValues(header, values[row - 1], spec, ss)
+          rec = Object.assign({}, currentPhoto, {
+            deleted: true,
+            updatedAt: rec.updatedAt,
+            updatedBy: rec.updatedBy,
+          })
+        }
         if (row) {
           var currentUpdatedAt = Number(values[row - 1][updatedAtColumn]) || 0
           var incomingUpdatedAt = Number(rec.updatedAt) || 0
@@ -373,11 +420,195 @@ function push(body) {
           values.push(line)
         }
         if (name === 'trips' && !rec.deleted) renameToMatch(ss, rec.name)
+        if (name === 'photos' && rec.deleted) trashPhotoFiles(rec)
         applied++
       })
     })
 
+    cascadeDeletedPhotos(ss, now)
+
     return { now: now, applied: applied, rejected: rejected }
+  } finally {
+    lock.releaseLock()
+  }
+}
+
+function recordFromValues(header, row, spec, ss) {
+  var rec = {}
+  for (var c = 0; c < header.length; c++) {
+    var key = header[c]
+    var value = row[c]
+    if (spec.json.indexOf(key) >= 0) {
+      try { value = value ? JSON.parse(value) : [] } catch (err) { value = [] }
+    }
+    rec[key] = value
+  }
+  rec.deleted = rec.deleted === true || rec.deleted === 'TRUE' || rec.deleted === 'true'
+  return rec
+}
+
+function findRecord(ss, name, id) {
+  var sheet = ss.getSheetByName(name)
+  if (!sheet) return null
+  var values = sheet.getDataRange().getValues()
+  if (values.length < 2) return null
+  var header = values[0]
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === String(id)) {
+      var rec = recordFromValues(header, values[i], SCHEMA[name], ss)
+      rec._row = i + 1
+      return rec
+    }
+  }
+  return null
+}
+
+function childFolder(parent, name) {
+  var found = parent.getFoldersByName(name)
+  return found.hasNext() ? found.next() : parent.createFolder(name)
+}
+
+function photoFolder(ss, kind) {
+  var parents = DriveApp.getFileById(ss.getId()).getParents()
+  if (!parents.hasNext()) throw new Error('找不到旅程的雲端資料夾')
+  return childFolder(childFolder(parents.next(), '照片'), kind === 'receipt' ? '收據' : '行程')
+}
+
+function existingFile(folder, name) {
+  var files = folder.getFilesByName(name)
+  return files.hasNext() ? files.next() : null
+}
+
+function publicDownloadUrl(file, thumbnail) {
+  var url = file.getDownloadUrl()
+  if (thumbnail) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'travelapp=thumb'
+  return url
+}
+
+function trashFile(id) {
+  if (!id) return
+  try { DriveApp.getFileById(String(id)).setTrashed(true) } catch (err) {
+    // 檔案已刪除或帳號政策改變時，metadata 墓碑仍應成功同步。
+  }
+}
+
+function trashPhotoFiles(photo) {
+  trashFile(photo.fileId)
+  trashFile(photo.thumbnailFileId)
+}
+
+/**
+ * 舊版 App 刪除 Item／Plan 時不知道要一併送照片墓碑；後端每次 push 都補做級聯。
+ */
+function cascadeDeletedPhotos(ss, now) {
+  var plans = readSheet(ss, 'plans', 0)
+  var items = readSheet(ss, 'items', 0)
+  var activePlans = {}
+  var activeItems = {}
+  plans.forEach(function (plan) { if (!plan.deleted) activePlans[String(plan.id)] = true })
+  items.forEach(function (item) {
+    if (!item.deleted && activePlans[String(item.planId)]) activeItems[String(item.id)] = true
+  })
+
+  var sheet = ss.getSheetByName('photos')
+  var values = sheet.getDataRange().getValues()
+  if (values.length < 2) return
+  var header = values[0]
+  for (var i = 1; i < values.length; i++) {
+    if (!values[i][0]) continue
+    var photo = recordFromValues(header, values[i], SCHEMA.photos, ss)
+    if (photo.deleted || activeItems[String(photo.itemId)]) continue
+    photo.deleted = true
+    photo.updatedAt = now
+    photo.updatedBy = '系統'
+    photo.syncedAt = now
+    var line = header.map(function (key) {
+      var value = photo[key]
+      return value === undefined || value === null ? '' : value
+    })
+    writeRecordRow(sheet, header, SCHEMA.photos, i + 1, line)
+    trashPhotoFiles(photo)
+  }
+}
+
+function uploadPhoto(body) {
+  var lock = LockService.getScriptLock()
+  lock.waitLock(30000)
+  try {
+    var ss = openChecked(body)
+    ensureSchema(ss)
+    var input = body.photo || {}
+    if (!input.id || !input.itemId) throw new Error('照片資料不完整')
+    if (input.kind !== 'receipt' && input.kind !== 'trip') throw new Error('照片類型不正確')
+    if (input.mimeType !== 'image/jpeg') throw new Error('只接受 JPEG 顯示版本')
+
+    var existing = findRecord(ss, 'photos', input.id)
+    if (existing) {
+      if (existing.deleted) throw new Error('這張照片已刪除')
+      delete existing._row
+      delete existing.syncedAt
+      return existing
+    }
+
+    var item = findRecord(ss, 'items', input.itemId)
+    var plan = item && findRecord(ss, 'plans', item.planId)
+    var trip = plan && findRecord(ss, 'trips', plan.tripId)
+    if (!item || item.deleted || !plan || plan.deleted || plan.kind !== 'actual' || !trip || trip.deleted) {
+      throw new Error('照片只能上傳到仍存在的實際版行程')
+    }
+
+    var fullBytes = Utilities.base64Decode(String(input.fullBase64 || ''))
+    var thumbBytes = Utilities.base64Decode(String(input.thumbnailBase64 || ''))
+    var fullLimit = input.kind === 'receipt' ? 750 * 1024 : 2 * 1024 * 1024
+    if (!fullBytes.length || fullBytes.length > fullLimit) throw new Error('照片檔案超過大小限制')
+    if (!thumbBytes.length || thumbBytes.length > 120 * 1024) throw new Error('照片縮圖超過大小限制')
+    if (Number(input.byteSize) !== fullBytes.length) throw new Error('照片大小驗證失敗')
+    if (!(Number(input.width) > 0) || !(Number(input.height) > 0)) throw new Error('照片尺寸無效')
+
+    var folder = photoFolder(ss, input.kind)
+    var fullName = String(input.id) + '.jpg'
+    var thumbName = String(input.id) + '-thumb.jpg'
+    var fullFile = existingFile(folder, fullName)
+    var thumbFile = existingFile(folder, thumbName)
+    try {
+      if (!fullFile) fullFile = folder.createFile(Utilities.newBlob(fullBytes, 'image/jpeg', fullName))
+      if (!thumbFile) thumbFile = folder.createFile(Utilities.newBlob(thumbBytes, 'image/jpeg', thumbName))
+      fullFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW)
+      thumbFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW)
+
+      var now = Date.now()
+      var photo = {
+        id: String(input.id),
+        tripId: String(trip.id),
+        itemId: String(item.id),
+        kind: input.kind,
+        fileId: fullFile.getId(),
+        fileUrl: publicDownloadUrl(fullFile, false),
+        thumbnailFileId: thumbFile.getId(),
+        thumbnailUrl: publicDownloadUrl(thumbFile, true),
+        mimeType: 'image/jpeg',
+        width: Number(input.width),
+        height: Number(input.height),
+        byteSize: fullBytes.length,
+        updatedAt: Number(input.updatedAt) || now,
+        updatedBy: String(input.updatedBy || '同行者'),
+        deleted: false,
+        syncedAt: now,
+      }
+      var sheet = ss.getSheetByName('photos')
+      var header = sheet.getDataRange().getValues()[0]
+      var line = header.map(function (key) {
+        var value = photo[key]
+        return value === undefined || value === null ? '' : value
+      })
+      writeRecordRow(sheet, header, SCHEMA.photos, sheet.getLastRow() + 1, line)
+      delete photo.syncedAt
+      return photo
+    } catch (err) {
+      if (fullFile) trashFile(fullFile.getId())
+      if (thumbFile) trashFile(thumbFile.getId())
+      throw new Error('無法建立可分享的照片：' + String(err))
+    }
   } finally {
     lock.releaseLock()
   }
