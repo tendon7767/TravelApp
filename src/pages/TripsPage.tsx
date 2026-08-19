@@ -6,6 +6,7 @@ import SettingsModal from '../components/SettingsModal'
 import Modal from '../components/Modal'
 import GearIcon from '../components/GearIcon'
 import TripFields from '../components/TripFields'
+import JoinTripModal from '../components/JoinTripModal'
 import { tripFormValid } from '../lib/tripForm'
 
 export default function TripsPage() {
@@ -21,6 +22,7 @@ export default function TripsPage() {
   const [form, setForm] = useState(blankForm)
   const [open, setOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [joinOpen, setJoinOpen] = useState(false)
   const newTripDirty = JSON.stringify(form) !== JSON.stringify(blankForm)
 
   const closeNew = () => {
@@ -53,7 +55,12 @@ export default function TripsPage() {
         <button className="btn btn-sm" onClick={() => setOpen(true)}>
           ＋ 新增旅程
         </button>
+        <button className="btn btn-sm" onClick={() => setJoinOpen(true)}>
+          ＋ 加入旅程
+        </button>
       </div>
+
+      {joinOpen && <JoinTripModal onClose={() => setJoinOpen(false)} />}
 
       {open && (
         <Modal

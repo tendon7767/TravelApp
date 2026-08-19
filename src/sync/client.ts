@@ -158,6 +158,23 @@ export const buildInviteLink = (gasUrl: string, link: TripLink): string => {
   return `${location.origin}${location.pathname}#/join?${params.toString()}`
 }
 
+/**
+ * 邀請連結的反向操作。iOS 把網頁加到主畫面後是獨立的儲存空間，點連結又只會開
+ * Safari，所以主畫面 App 裡沒有任何辦法「點連結加入」—— 只能讓使用者貼進來。
+ * 整條網址或只有 `?` 之後那段都接受。
+ */
+export const parseInviteLink = (text: string): (SyncConfig & TripLink) | undefined => {
+  const trimmed = text.trim()
+  const mark = trimmed.indexOf('?')
+  if (mark < 0) return undefined
+  const params = new URLSearchParams(trimmed.slice(mark + 1))
+  const gasUrl = params.get('u')?.trim() ?? ''
+  const sheetId = params.get('s')?.trim() ?? ''
+  const secret = params.get('k')?.trim() ?? ''
+  if (!gasUrl || !sheetId || !secret) return undefined
+  return { gasUrl, sheetId, secret }
+}
+
 export interface MergeResult {
   data: AppData
   applied: number
