@@ -1,24 +1,30 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import type { Trip } from '../types'
-import Modal from './Modal'
 import TripFields from './TripFields'
 import { tripFormValid, type TripForm } from '../lib/tripForm'
 import SyncSection from './SyncSection'
 import ConfirmButton from './ConfirmButton'
 import PlanSwitcher from './PlanSwitcher'
 
-/** 縮短日期範圍會讓範圍外的項目變成看不到的孤兒，所以先數給使用者看。 */
-export default function TripEditModal({
+/**
+ * 旅程本身的設定。縮短日期範圍會讓範圍外的項目變成看不到的孤兒，所以先數給使用者看。
+ * 名稱與日期是「改完按儲存」，未存就切走由 TripPage 的 requestNavigation 攔下來 ——
+ * 跟行程詳細頁走同一套判斷，不另外做一份。
+ */
+export default function TripSettingsTab({
   trip,
   activePlanId,
   onPickPlan,
-  onClose,
+  onLeave,
+  onDirtyChange,
 }: {
   trip: Trip
   activePlanId?: string
   onPickPlan: (id: string) => void
-  onClose: () => void
+  /** 旅程被移除後要離開這一頁。 */
+  onLeave: () => void
+  onDirtyChange: (dirty: boolean) => void
 }) {
   const updateTrip = useStore((s) => s.updateTrip)
   const removeTrip = useStore((s) => s.removeTrip)
@@ -63,20 +69,33 @@ export default function TripEditModal({
     : 0
   const pendingPhotoCount = pendingPhotos.filter((photo) => photo.tripId === trip.id).length
 
+  useEffect(() => {
+    onDirtyChange(dirty)
+    return () => onDirtyChange(false)
+  }, [dirty, onDirtyChange])
+
   const save = () => {
     if (!tripFormValid(form)) return
     updateTrip(trip.id, { ...form, name: form.name.trim() })
-    onClose()
   }
 
   return (
-    <Modal title="編輯旅程" onCancel={onClose} onComplete={save} dirty={dirty}>
-      <div style={{ display: 'grid', gap: 10, paddingTop: 12 }}>
+    <div className="sec" style={{ display: 'grid', gap: 10 }}>
         <TripFields
           form={form}
           onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
           idPrefix="e"
         />
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            className="btn btn-primary"
+            onClick={save}
+            disabled={!dirty || !tripFormValid(form)}
+          >
+            儲存
+          </button>
+        </div>
 
         <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
           <span className="label">目前檢視版本</span>
@@ -87,7 +106,7 @@ export default function TripEditModal({
             onPick={onPickPlan}
           />
           <p className="dim" style={{ fontSize: 11, margin: '7px 0 0' }}>
-            切換後立即生效；旅程名稱與日期仍需按「完成」儲存。
+            切換後立即生效；旅程名稱與日期仍需按「儲存」。
           </p>
         </div>
 
@@ -131,11 +150,10 @@ export default function TripEditModal({
             confirmLabel="移除"
             onConfirm={() => {
               removeTrip(trip.id)
-              onClose()
+              onLeave()
             }}
           />
         </div>
-      </div>
-    </Modal>
+    </div>
   )
 }

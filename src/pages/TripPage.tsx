@@ -3,7 +3,8 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import ItineraryTab from '../components/ItineraryTab'
 import ItemDetail from '../components/ItemDetail'
-import TripEditModal from '../components/TripEditModal'
+import TripSettingsTab from '../components/TripSettingsTab'
+import TripIcon from '../components/TripIcon'
 import SearchPanel from '../components/SearchPanel'
 import ExpensesTab from '../components/ExpensesTab'
 import RewardsTab from '../components/RewardsTab'
@@ -15,7 +16,6 @@ import AlbumView from '../components/AlbumView'
 import BackIcon from '../components/BackIcon'
 import SearchIcon from '../components/SearchIcon'
 import CloseIcon from '../components/CloseIcon'
-import GearIcon from '../components/GearIcon'
 import ItineraryIcon from '../components/ItineraryIcon'
 import RewardsIcon from '../components/RewardsIcon'
 import NotesIcon from '../components/NotesIcon'
@@ -25,6 +25,7 @@ const TABS = [
   { key: 'itinerary', label: '行程', Icon: ItineraryIcon },
   { key: 'rewards', label: '回饋', Icon: RewardsIcon },
   { key: 'notes', label: '筆記', Icon: NotesIcon },
+  { key: 'trip', label: '旅程', Icon: TripIcon },
 ] as const
 
 export default function TripPage() {
@@ -33,8 +34,8 @@ export default function TripPage() {
   const navigate = useNavigate()
   const [online, setOnline] = useState(() => navigator.onLine)
   const [detailDirty, setDetailDirty] = useState(false)
+  const [tripDirty, setTripDirty] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
-  const [tripSettingsOpen, setTripSettingsOpen] = useState(false)
   const [copied, setCopied] = useState<{ tripId: string; item: Item } | null>(null)
   const topbarRef = useRef<HTMLDivElement>(null)
 
@@ -154,8 +155,11 @@ export default function TripPage() {
     setParams(next, { replace: true })
   }
 
+  /** 詳細行程與旅程設定都是「改完按儲存」，未存就離開一律走這裡攔。 */
+  const unsaved = (selectedId && detailDirty) || tripDirty
+
   const requestNavigation = (action: () => void) => {
-    if (selectedId && detailDirty) setPendingNavigation(() => action)
+    if (unsaved) setPendingNavigation(() => action)
     else action()
   }
 
@@ -194,24 +198,18 @@ export default function TripPage() {
             const action = pendingNavigation
             setPendingNavigation(null)
             setDetailDirty(false)
+            setTripDirty(false)
             action()
           }}
           cancelLabel="繼續編輯"
           completeLabel="放棄變更"
           completeDanger
         >
-          <p style={{ margin: '12px 0 0' }}>詳細行程有尚未儲存的修改，確定要離開嗎？</p>
+          <p style={{ margin: '12px 0 0' }}>
+            {selectedId && detailDirty ? '詳細行程' : '旅程設定'}有尚未儲存的修改，確定要離開嗎？
+          </p>
         </Modal>
       )}
-      {tripSettingsOpen && (
-        <TripEditModal
-          trip={trip}
-          activePlanId={plan?.id}
-          onPickPlan={(id) => setParam('plan', id)}
-          onClose={() => setTripSettingsOpen(false)}
-        />
-      )}
-
       <div className="topbar" ref={topbarRef}>
         <button
           className="btn btn-sm btn-glyph"
@@ -252,19 +250,6 @@ export default function TripPage() {
           aria-label={searching ? '關閉搜尋' : '搜尋'}
         >
           {searching ? <CloseIcon /> : <SearchIcon />}
-        </button>
-        <button
-          className="btn btn-sm btn-glyph"
-          onClick={() =>
-            requestNavigation(() => {
-              setParam('sel')
-              setTripSettingsOpen(true)
-            })
-          }
-          aria-label="行程設定"
-          title="行程設定"
-        >
-          <GearIcon />
         </button>
       </div>
 
@@ -320,6 +305,17 @@ export default function TripPage() {
           {!searching && tab === 'notes' && (
             <div className="pane-scroll">
               <NotesTab trip={trip} />
+            </div>
+          )}
+          {!searching && tab === 'trip' && (
+            <div className="pane-scroll">
+              <TripSettingsTab
+                trip={trip}
+                activePlanId={plan?.id}
+                onPickPlan={(id) => setParam('plan', id)}
+                onLeave={() => navigate('/')}
+                onDirtyChange={setTripDirty}
+              />
             </div>
           )}
           {!searching && tab === 'album' && actualPlan && (
