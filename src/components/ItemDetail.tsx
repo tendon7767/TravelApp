@@ -49,22 +49,6 @@ const SECTION_LABELS: Record<ItemDraftSection, string> = {
   review: '心得',
 }
 
-const EditIcon = () => (
-  <svg
-    className="detail-edit-icon"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4Z" />
-    <path d="m13.5 6.5 4 4" />
-  </svg>
-)
-
 export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChange }: Props) {
   const storedItem = useStore((state) => state.data.items.find((item) => item.id === itemId))
   const updateItem = useStore((state) => state.updateItem)
@@ -227,7 +211,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     }
     setFocusLinkId(null)
     setRestored(false)
-    if (section === 'basic') setChoosingCategory(true)
     setEditingSections((current) => new Set(current).add(section))
   }
 
@@ -384,18 +367,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setNoteDraft('')
   }
 
-  const editButton = (section: ItemDraftSection) =>
-    !editingSections.has(section) && (
-      <button
-        className="detail-edit-btn"
-        onClick={() => beginEdit(section)}
-        aria-label="編輯"
-        title="編輯"
-      >
-        <EditIcon />
-      </button>
-    )
-
   const paymentPicker = item.costs.length > 0 && (
     <div className="detail-payment-row" onClick={(event) => event.stopPropagation()}>
       <label className="detail-key" htmlFor="d-method">支付方式</label>
@@ -456,10 +427,9 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         </button>
         <button
           className="btn btn-sm detail-edit-all"
-          onClick={beginEditAll}
-          disabled={allSectionsOpen}
+          onClick={allSectionsOpen ? requestCancel : beginEditAll}
         >
-          編輯全部
+          {allSectionsOpen ? '取消編輯' : '編輯全部'}
         </button>
       </div>
 
@@ -805,10 +775,14 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           )}
         </section>
 
-        <section className="detail-section">
+        <section
+          className={`detail-section${
+            editingSections.has('map') ? '' : ' detail-section-clickable'
+          }`}
+          {...sectionActionProps('map')}
+        >
           <div className="detail-section-head">
             <span className="detail-kicker">Google Map</span>
-            {editButton('map')}
           </div>
           {editingSections.has('map') ? (
             <>
@@ -869,6 +843,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                 href={link.url}
                 target="_blank"
                 rel="noreferrer"
+                onClick={(event) => event.stopPropagation()}
               >
                 <span className="detail-link-icon"><MapPinIcon size={16} /></span>
                 <span>{link.label || 'Google Map 地點'}</span>
@@ -880,10 +855,14 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           )}
         </section>
 
-        <section className="detail-section">
+        <section
+          className={`detail-section${
+            editingSections.has('links') ? '' : ' detail-section-clickable'
+          }`}
+          {...sectionActionProps('links')}
+        >
           <div className="detail-section-head">
             <span className="detail-kicker">相關連結</span>
-            {editButton('links')}
           </div>
           {editingSections.has('links') ? (
             <>
@@ -936,7 +915,14 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           ) : webLinks.length > 0 ? (
             <div className="detail-link-list">
               {webLinks.map((link) => (
-                <a key={link.id} className="detail-link-card" href={link.url} target="_blank" rel="noreferrer">
+                <a
+                  key={link.id}
+                  className="detail-link-card"
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                >
                   <span className="detail-link-icon">↗</span>
                   <span>{link.label || link.url}</span>
                   <span className="dim">開啟</span>
