@@ -1030,7 +1030,7 @@ a { color: var(--accent); }
   body.detail-open { overflow: hidden; }
   .pane-detail { inset: 0; z-index: 40; }
   .pane-detail .editor-actions {
-    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+    padding: 12px 18px max(18px, calc(12px + env(safe-area-inset-bottom) - var(--vv-kb, 0px)));
     box-shadow: 0 -8px 24px rgba(21, 34, 56, 0.13);
   }
   .editor-actions .btn {
@@ -1104,7 +1104,12 @@ a { color: var(--accent); }
 /* 蓋板：手機從底部升起，桌機置中 */
 .backdrop {
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  /* iOS 的鍵盤不會縮小 fixed 定位用的版面視窗，蓋板底部的按鈕會整排藏到鍵盤底下。
+     Modal 會把可見視窗的高度與位移寫進這兩個變數，讓蓋板貼齊真正看得到的那一塊。 */
+  top: var(--vv-top, 0px);
+  height: var(--vv-h, 100%);
   z-index: 50;
   background: rgba(0, 0, 0, 0.45);
   display: flex;
@@ -1114,7 +1119,8 @@ a { color: var(--accent); }
 
 .sheet {
   width: 100%;
-  max-height: 88vh;
+  /* 留一條看得到蓋板的邊，點它可以關掉；其餘高度都給內容，鍵盤升起時才夠用。 */
+  max-height: calc(100% - 24px);
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -1134,7 +1140,10 @@ a { color: var(--accent); }
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  overscroll-behavior-y: contain;
+  /* 只想要垂直捲動。放著不管的話 overflow-x 會跟著變成 auto，
+     內容只要寬一點點就能左右拖動並回彈，看起來像版面壞掉。 */
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding: 0 14px 14px;
 }
@@ -1151,8 +1160,12 @@ a { color: var(--accent); }
   z-index: 2;
 }
 
-.sheetactions { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
-.editor-actions { padding: 10px 14px; }
+/* iOS 主畫面 App 的視窗四角是圓的，按鈕貼著左右下角會被切掉一塊。
+   底部的安全區在鍵盤升起時是多餘的，用 --vv-kb 扣掉。 */
+.sheetactions {
+  padding: 10px 18px max(16px, calc(10px + env(safe-area-inset-bottom) - var(--vv-kb, 0px)));
+}
+.editor-actions { padding: 10px 18px; }
 
 .sheetactions .btn,
 .editor-actions .btn { min-width: 92px; }

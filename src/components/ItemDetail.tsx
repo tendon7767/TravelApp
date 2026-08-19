@@ -78,6 +78,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   )
 
   const [editingSections, setEditingSections] = useState<Set<ItemDraftSection>>(() => new Set())
+  /**
+   * 哪個區塊該拿到游標。每個區塊各自寫死 autoFocus 的話，「編輯全部」一次展開全部，
+   * 最後掛上的心得欄位會搶走焦點，整個畫面被拖到最下面。
+   */
+  const [focusSection, setFocusSection] = useState<ItemDraftSection | null>(null)
   const [draftItem, setDraftItem] = useState(() => copyItemSnapshot(storedItem))
   const [timeDraft, setTimeDraft] = useState(storedItem?.startTime ?? '')
   const [reviewDraft, setReviewDraft] = useState('')
@@ -223,6 +228,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     }
     setFocusLinkId(null)
     setRestored(false)
+    setFocusSection(section)
     setEditingSections((current) => new Set(current).add(section))
   }
 
@@ -243,6 +249,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setFocusLinkId(null)
     setRestored(false)
     setChoosingCategory(true)
+    // 展開全部時焦點固定回標題，它在最上面，畫面不會被拉走。
+    setFocusSection('basic')
     setEditingSections(new Set(editableSections))
   }
 
@@ -296,6 +304,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setWebDraft('')
     setNoteDraft('')
     setEditingSections(new Set())
+    setFocusSection(null)
     setChoosingCategory(false)
     setConfirmingCancel(false)
     setRestored(false)
@@ -330,6 +339,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setWebDraft('')
     setNoteDraft('')
     setEditingSections(new Set())
+    setFocusSection(null)
     setChoosingCategory(false)
     setTouched(false)
     setRestored(false)
@@ -492,7 +502,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                 style={{ fontSize: 16 }}
                 value={item.title}
                 onChange={(event) => patchItem({ title: event.target.value })}
-                autoFocus
+                autoFocus={focusSection === 'basic'}
               />
               <div className="detail-field-row">
                 <div className="detail-field detail-field-date">
@@ -594,7 +604,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               rows={5}
               value={item.guide ?? ''}
               onChange={(event) => patchItem({ guide: event.target.value })}
-              autoFocus
+              autoFocus={focusSection === 'guide'}
             />
           ) : item.guide?.trim() ? (
             <p className="detail-copy">{item.guide}</p>
@@ -656,7 +666,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   className="field"
                   value={noteDraft}
                   placeholder="新增提醒或補充"
-                  autoFocus={item.notes.length === 0}
+                  autoFocus={focusSection === 'notes' && item.notes.length === 0}
                   onChange={(event) => setNoteDraft(event.target.value)}
                   onKeyDown={(event) => isSubmitEnter(event) && addNote()}
                 />
@@ -844,7 +854,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     className="field"
                     value={mapDraft}
                     placeholder="貼上 Google Maps 網址"
-                    autoFocus
+                    autoFocus={focusSection === 'map'}
                     onChange={(event) => setMapDraft(event.target.value)}
                     onKeyDown={(event) => isSubmitEnter(event) && void addLink('map')}
                   />
@@ -932,7 +942,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   className="field"
                   value={webDraft}
                   placeholder="貼上訂位、票券或網站網址"
-                  autoFocus={webLinks.length === 0}
+                  autoFocus={focusSection === 'links' && webLinks.length === 0}
                   onChange={(event) => setWebDraft(event.target.value)}
                   onKeyDown={(event) => isSubmitEnter(event) && void addLink('web')}
                 />
@@ -1006,7 +1016,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     setTouched(true)
                     setReviewDraft(event.target.value)
                   }}
-                  autoFocus
+                  autoFocus={focusSection === 'review'}
                 />
               </>
             ) : mine?.text.trim() ? (
