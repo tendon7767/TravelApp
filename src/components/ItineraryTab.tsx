@@ -142,8 +142,8 @@ export default function ItineraryTab({
 
   useEffect(() => {
     const strip = daystripRef.current
-    const index = days.indexOf(activeDay)
-    const pill = index >= 0 ? (strip?.children[index] as HTMLElement | undefined) : undefined
+    // 用屬性找而不是 children[index]：前面多一顆 now 鈕時位置就全錯了。
+    const pill = strip?.querySelector<HTMLElement>(`[data-day-pill="${activeDay}"]`)
     if (!strip || !pill) return
     strip.scrollTo({
       left: pill.offsetLeft - (strip.clientWidth - pill.offsetWidth) / 2,
@@ -200,10 +200,16 @@ export default function ItineraryTab({
   return (
     <div className="itinerary-view">
       <div className="daystrip" ref={daystripRef}>
+        {currentItemId && (
+          <button className="daypill daypill-now" onClick={scrollToCurrent} title="回到現在的行程">
+            now
+          </button>
+        )}
         {days.map((day, i) => (
           <button
             key={day}
             className="daypill"
+            data-day-pill={day}
             data-on={day === activeDay}
             data-today={day === today}
             onClick={() => jumpTo(day)}
@@ -401,17 +407,6 @@ export default function ItineraryTab({
         </span>
       </button>
       </div>
-
-      {currentItemId && (
-        <button
-          className="fab"
-          onClick={scrollToCurrent}
-          title="回到現在的行程"
-          aria-label="回到現在的行程"
-        >
-          ⌖
-        </button>
-      )}
       </div>
   )
 }

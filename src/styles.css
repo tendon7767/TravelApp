@@ -277,6 +277,13 @@ a { color: var(--accent); }
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
+/* 只有今天在旅程範圍內時才出現，點了捲回當下正在進行的那一列。 */
+.daypill-now {
+  flex: none;
+  color: var(--accent);
+  font-weight: 700;
+  border-color: var(--accent);
+}
 .daypill[data-today="true"]:not([data-on="true"]) {
   color: var(--accent);
   font-weight: 700;
@@ -1092,7 +1099,7 @@ a { color: var(--accent); }
 .fab {
   position: fixed;
   right: 16px;
-  bottom: calc(var(--tabbar-h) + 22px);
+  bottom: 68px;
   z-index: 25;
   width: 48px;
   height: 48px;
