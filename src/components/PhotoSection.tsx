@@ -3,6 +3,8 @@ import { processPhoto } from '../photos/process'
 import { useStore } from '../store/useStore'
 import type { Photo, Trip } from '../types'
 import PhotoLightbox, { PhotoThumbnail, type PhotoView } from './PhotoLightbox'
+import PhotoIcon from './PhotoIcon'
+import ReceiptIcon from './ReceiptIcon'
 
 export default function PhotoSection({
   trip,
@@ -71,7 +73,10 @@ export default function PhotoSection({
   return (
     <section className="detail-section photo-section">
       <div className="detail-section-head">
-        <span className="detail-kicker">{kind === 'receipt' ? '收據照片' : '行程照片'}</span>
+        <span className="detail-kicker">
+          {kind === 'receipt' ? <ReceiptIcon size={14} /> : <PhotoIcon size={14} />}
+          {kind === 'receipt' ? '收據照片' : '行程照片'}
+        </span>
       </div>
 
       {views.length > 0 && (
@@ -109,9 +114,6 @@ export default function PhotoSection({
             onChange={(event) => void addFiles(event.target.files)}
           />
         </div>
-      )}
-      {views.length === 0 && linked && (photoApiVersion ?? 0) >= 1 && (
-        <p className="dim photo-help">尚未加入照片。</p>
       )}
       {error && <p className="photo-error">{error}</p>}
 

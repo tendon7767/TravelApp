@@ -28,6 +28,16 @@ import {
 import CategoryIcon from './CategoryIcon'
 import TrashIcon from './TrashIcon'
 import MapPinIcon from './MapPinIcon'
+import PencilIcon from './PencilIcon'
+import LinkIcon from './LinkIcon'
+import MoneyIcon from './MoneyIcon'
+import MapIcon from './MapIcon'
+import GlobeIcon from './GlobeIcon'
+import ReviewIcon from './ReviewIcon'
+import FlagIcon from './FlagIcon'
+import TagIcon from './TagIcon'
+import BookIcon from './BookIcon'
+import StickyNoteIcon from './StickyNoteIcon'
 import { fetchLinkMetadata } from '../sync/client'
 import { copyItemSnapshot } from '../lib/items'
 import PhotoSection from './PhotoSection'
@@ -251,6 +261,27 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     }
   }
 
+  const beginEditCategory = () => {
+    setFocusLinkId(null)
+    setRestored(false)
+    setChoosingCategory(true)
+  }
+
+  // 行程類型自成一個區塊，點整塊任何位置都是改類型，不會誤觸基本資訊。
+  const categoryActionProps = choosingCategory
+    ? {}
+    : {
+        role: 'button' as const,
+        'aria-label': '編輯行程類型',
+        tabIndex: 0,
+        onClick: () => beginEditCategory(),
+        onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+          if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
+          event.preventDefault()
+          beginEditCategory()
+        },
+      }
+
   const discardAndClose = () => {
     setConfirmingCancel(false)
     void clearItemDraft(itemId)
@@ -418,7 +449,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
             onClose()
           }}
         />
-        <strong className="detail-head-date">{shortDate(item.date)}</strong>
+        <span className="detail-head-gap" />
         <button
           className="btn btn-sm"
           onClick={() => onCopy(storedItem)}
@@ -450,7 +481,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           {...sectionActionProps('basic')}
         >
           <div className="detail-section-head">
-            <span className="detail-kicker">基本資訊</span>
+            <span className="detail-kicker"><FlagIcon />基本資訊</span>
           </div>
           {editingSections.has('basic') ? (
             <div className="detail-form-stack">
@@ -463,33 +494,37 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                 onChange={(event) => patchItem({ title: event.target.value })}
                 autoFocus
               />
-              <label className="label" htmlFor="d-date">日期</label>
-              <input
-                id="d-date"
-                className="field mono"
-                style={{ width: 168 }}
-                type="date"
-                min={trip.startDate}
-                max={trip.endDate}
-                value={item.date}
-                onChange={(event) => {
-                  if (event.target.value) patchItem({ date: event.target.value })
-                }}
-              />
-              <label className="label" htmlFor="d-start">時間</label>
-              <input
-                id="d-start"
-                className="field mono"
-                style={{ width: 132 }}
-                inputMode="numeric"
-                placeholder="09:10"
-                value={timeDraft}
-                onChange={(event) => {
-                  setTouched(true)
-                  setTimeDraft(event.target.value)
-                }}
-                onBlur={() => setTimeDraft(normalizeTime(timeDraft) ?? '')}
-              />
+              <div className="detail-field-row">
+                <div className="detail-field detail-field-date">
+                  <label className="label" htmlFor="d-date">日期</label>
+                  <input
+                    id="d-date"
+                    className="field mono"
+                    type="date"
+                    min={trip.startDate}
+                    max={trip.endDate}
+                    value={item.date}
+                    onChange={(event) => {
+                      if (event.target.value) patchItem({ date: event.target.value })
+                    }}
+                  />
+                </div>
+                <div className="detail-field detail-field-time">
+                  <label className="label" htmlFor="d-start">時間</label>
+                  <input
+                    id="d-start"
+                    className="field mono"
+                    inputMode="numeric"
+                    placeholder="09:10"
+                    value={timeDraft}
+                    onChange={(event) => {
+                      setTouched(true)
+                      setTimeDraft(event.target.value)
+                    }}
+                    onBlur={() => setTimeDraft(normalizeTime(timeDraft) ?? '')}
+                  />
+                </div>
+              </div>
             </div>
           ) : (
             <>
@@ -501,62 +536,47 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
             </>
           )}
 
-          <div className="detail-category-block">
-            <span className="detail-key">行程類型</span>
-            {choosingCategory ? (
-              <div
-                className="category-picker"
-                role="group"
-                aria-label="行程類型"
-                onClick={(event) => event.stopPropagation()}
-              >
-                {ITINERARY_CATEGORIES.map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    className="category-choice"
-                    data-on={item.category === category}
-                    aria-pressed={item.category === category}
-                    onClick={() => selectCategory(category)}
-                  >
-                    <CategoryIcon category={category} />
-                    <span>{category}</span>
-                  </button>
-                ))}
+        </section>
+
+        <section
+          className={`detail-section${choosingCategory ? '' : ' detail-section-clickable'}`}
+          {...categoryActionProps}
+        >
+          <div className="detail-section-head">
+            <span className="detail-kicker"><TagIcon />行程類型</span>
+          </div>
+          {choosingCategory ? (
+            <div className="category-picker" role="group" aria-label="行程類型">
+              {ITINERARY_CATEGORIES.map((category) => (
                 <button
+                  key={category}
                   type="button"
                   className="category-choice"
-                  data-on={!item.category}
-                  aria-pressed={!item.category}
-                  onClick={() => selectCategory(undefined)}
+                  data-on={item.category === category}
+                  aria-pressed={item.category === category}
+                  onClick={() => selectCategory(category)}
                 >
-                  <CategoryIcon />
-                  <span>未分類</span>
+                  <CategoryIcon category={category} />
+                  <span>{category}</span>
                 </button>
-              </div>
-            ) : (
+              ))}
               <button
-                className="detail-value-action"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setChoosingCategory(true)
-                }}
-                aria-label={item.category ? '編輯行程類型' : '設定行程類型'}
+                type="button"
+                className="category-choice"
+                data-on={!item.category}
+                aria-pressed={!item.category}
+                onClick={() => selectCategory(undefined)}
               >
-                {item.category ? (
-                  <>
-                    <CategoryIcon category={item.category} size={20} />
-                    <span>{item.category}</span>
-                  </>
-                ) : (
-                  <>
-                    <CategoryIcon size={20} />
-                    <span>未分類</span>
-                  </>
-                )}
+                <CategoryIcon />
+                <span>未分類</span>
               </button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="detail-value-action">
+              <CategoryIcon category={item.category} size={20} />
+              <span>{item.category ?? '未分類'}</span>
+            </div>
+          )}
         </section>
 
         <section
@@ -566,7 +586,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           {...sectionActionProps('guide')}
         >
           <div className="detail-section-head">
-            <span className="detail-kicker">行程說明</span>
+            <span className="detail-kicker"><BookIcon />行程說明</span>
           </div>
           {editingSections.has('guide') ? (
             <textarea
@@ -590,7 +610,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           {...sectionActionProps('notes')}
         >
           <div className="detail-section-head">
-            <span className="detail-kicker">備註</span>
+            <span className="detail-kicker"><StickyNoteIcon />備註</span>
           </div>
           {editingSections.has('notes') ? (
             <>
@@ -676,7 +696,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           {...sectionActionProps('costs')}
         >
           <div className="detail-section-head">
-            <span className="detail-kicker">費用</span>
+            <span className="detail-kicker"><MoneyIcon />費用</span>
           </div>
           {editingSections.has('costs') ? (
             <>
@@ -751,7 +771,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                 {item.costs.map((cost) => (
                   <div key={cost.id} className="detail-cost-row">
                     <span>{cost.label || '未命名費用'}</span>
-                    <span className="dim mono">{formatMoney(cost.unitPrice, cost.currency)}</span>
+                    <span className="dim">{formatMoney(cost.unitPrice, cost.currency)}</span>
                     <span className="dim">× {cost.qty}</span>
                     <span className="mono">{formatMoney(lineTotal(cost), cost.currency)}</span>
                   </div>
@@ -786,7 +806,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           {...sectionActionProps('map')}
         >
           <div className="detail-section-head">
-            <span className="detail-kicker">Google Map</span>
+            <span className="detail-kicker"><MapIcon />Google Map</span>
           </div>
           {editingSections.has('map') ? (
             <>
@@ -841,18 +861,28 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
             </>
           ) : mapLinks.length > 0 ? (
             mapLinks.map((link) => (
-              <a
-                key={link.id}
-                className="detail-link-card"
-                href={link.url}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <span className="detail-link-icon"><MapPinIcon size={16} /></span>
-                <span>{link.label || 'Google Map 地點'}</span>
-                <span className="dim">開啟</span>
-              </a>
+              <div key={link.id} className="detail-link-card">
+                <a
+                  className="detail-link-open"
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <span className="detail-link-icon"><MapPinIcon size={16} /></span>
+                  <span className="detail-link-label">{link.label || 'Google Map 地點'}</span>
+                </a>
+                <button
+                  className="detail-link-edit"
+                  aria-label="編輯 Google Map"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    beginEdit('map')
+                  }}
+                >
+                  <PencilIcon />
+                </button>
+              </div>
             ))
           ) : (
             <p className="dim detail-empty-copy">-</p>
@@ -866,7 +896,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           {...sectionActionProps('links')}
         >
           <div className="detail-section-head">
-            <span className="detail-kicker">相關連結</span>
+            <span className="detail-kicker"><GlobeIcon />相關連結</span>
           </div>
           {editingSections.has('links') ? (
             <>
@@ -919,18 +949,28 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           ) : webLinks.length > 0 ? (
             <div className="detail-link-list">
               {webLinks.map((link) => (
-                <a
-                  key={link.id}
-                  className="detail-link-card"
-                  href={link.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <span className="detail-link-icon">↗</span>
-                  <span>{link.label || link.url}</span>
-                  <span className="dim">開啟</span>
-                </a>
+                <div key={link.id} className="detail-link-card">
+                  <a
+                    className="detail-link-open"
+                    href={link.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <span className="detail-link-icon"><LinkIcon size={15} /></span>
+                    <span className="detail-link-label">{link.label || link.url}</span>
+                  </a>
+                  <button
+                    className="detail-link-edit"
+                    aria-label="編輯這個連結"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      beginEdit('links')
+                    }}
+                  >
+                    <PencilIcon />
+                  </button>
+                </div>
               ))}
             </div>
           ) : (
@@ -946,7 +986,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
             {...sectionActionProps('review')}
           >
             <div className="detail-section-head">
-              <span className="detail-kicker">旅程紀錄／心得</span>
+              <span className="detail-kicker"><ReviewIcon />旅程紀錄／心得</span>
             </div>
             {others.map((review) => (
               <div key={review.id} className="detail-review">
