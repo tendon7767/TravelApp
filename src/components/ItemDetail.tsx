@@ -241,6 +241,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     'links',
     ...(isActual ? (['review'] as const) : []),
   ]
+  const allSectionsOpen = editableSections.every((section) => editingSections.has(section))
   // 行程類型、總覽勾選與支付方式不一定會展開區塊；只要已有草稿，也算編輯狀態。
   const hasEditing = editingSections.size > 0 || choosingCategory || dirty
 
@@ -459,28 +460,20 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           }}
         />
         <span className="detail-head-gap" />
-        {hasEditing ? (
-          <>
-            {/* 編輯中把兩顆鍵放到頂列：iOS 的鍵盤會蓋住底部那排，頂列碰不到。 */}
-            <button className="btn btn-sm" onClick={requestCancel}>取消編輯</button>
-            <button className="btn btn-sm btn-primary" onClick={completeEditing} disabled={!dirty}>
-              完成編輯
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              className="btn btn-sm"
-              onClick={() => onCopy(storedItem)}
-              title="複製這筆行程"
-            >
-              複製
-            </button>
-            <button className="btn btn-sm detail-edit-all" onClick={beginEditAll}>
-              編輯全部
-            </button>
-          </>
-        )}
+        <button
+          className="btn btn-sm"
+          onClick={() => onCopy(storedItem)}
+          disabled={hasEditing}
+          title={hasEditing ? '請先完成或取消編輯' : '複製這筆行程'}
+        >
+          複製
+        </button>
+        <button
+          className="btn btn-sm detail-edit-all"
+          onClick={allSectionsOpen ? requestCancel : beginEditAll}
+        >
+          {allSectionsOpen ? '取消編輯' : '編輯全部'}
+        </button>
       </div>
 
       <div className="scroll detail-scroll">
@@ -1040,12 +1033,18 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         {isActual && <PhotoSection trip={trip} itemId={item.id} kind="trip" />}
       </div>
 
-      {/* 沒在編輯就沒有鍵盤，「離開」留在底部好按；編輯中的兩顆鍵在頂列。 */}
-      {!hasEditing && (
-        <div className="editor-actions">
+      <div className="editor-actions">
+        {hasEditing ? (
+          <>
+            <button className="btn" onClick={requestCancel}>取消編輯</button>
+            <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>
+              完成編輯
+            </button>
+          </>
+        ) : (
           <button className="btn detail-leave-wide" onClick={requestCancel}>離開</button>
-        </div>
-      )}
+        )}
+      </div>
     </>
   )
 }

@@ -83,16 +83,15 @@ export default function Modal({
           onClick={(e) => e.stopPropagation()}
         >
           <div className="sheethead">
-            <button className="btn btn-sm" onClick={requestCancel}>{cancelLabel}</button>
-            <strong className="sheethead-title">{title}</strong>
-            <button
-              className={completeDanger ? 'btn btn-sm btn-danger' : 'btn btn-sm btn-primary'}
-              onClick={onComplete}
-            >
+            <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>{title}</strong>
+          </div>
+          <div className="sheetbody">{children}</div>
+          <div className="sheetactions">
+            <button className="btn" onClick={requestCancel}>{cancelLabel}</button>
+            <button className={completeDanger ? 'btn btn-danger' : 'btn btn-primary'} onClick={onComplete}>
               {completeLabel}
             </button>
           </div>
-          <div className="sheetbody">{children}</div>
         </div>
       </div>
 
@@ -106,7 +105,7 @@ export default function Modal({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="sheethead">
-              <strong className="sheethead-title" style={{ textAlign: 'left' }}>尚未儲存變更</strong>
+              <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>尚未儲存變更</strong>
             </div>
             <div className="sheetbody">
               <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的修改嗎？</p>
