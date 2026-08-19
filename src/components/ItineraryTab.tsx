@@ -6,6 +6,9 @@ import { isSubmitEnter } from '../lib/keys'
 import { formatMoney, formatTotals, isUncategorized, itemTotals, mergeTotals, toHome } from '../lib/money'
 import CategoryIcon from './CategoryIcon'
 import MapPinIcon from './MapPinIcon'
+import LinkIcon from './LinkIcon'
+import PhotoIcon from './PhotoIcon'
+import ReceiptIcon from './ReceiptIcon'
 
 interface Props {
   trip: Trip
@@ -36,12 +39,20 @@ export default function ItineraryTab({
     [allItems, plan.id],
   )
   const createItem = useStore((s) => s.createItem)
-  const itemIdsWithPhotos = useMemo(() => {
-    if (plan.kind !== 'actual') return new Set<string>()
-    return new Set([
-      ...allPhotos.filter((photo) => !photo.deleted && photo.tripId === trip.id).map((photo) => photo.itemId),
-      ...pendingPhotos.filter((photo) => photo.tripId === trip.id).map((photo) => photo.itemId),
-    ])
+  // 收據與行程照片在列表上是兩個不同的標記，所以分開統計。
+  const photoMarks = useMemo(() => {
+    const receipt = new Set<string>()
+    const trip_ = new Set<string>()
+    if (plan.kind !== 'actual') return { receipt, trip: trip_ }
+    const mark = (kind: 'receipt' | 'trip', itemId: string) =>
+      (kind === 'receipt' ? receipt : trip_).add(itemId)
+    allPhotos
+      .filter((photo) => !photo.deleted && photo.tripId === trip.id)
+      .forEach((photo) => mark(photo.kind, photo.itemId))
+    pendingPhotos
+      .filter((photo) => photo.tripId === trip.id)
+      .forEach((photo) => mark(photo.kind, photo.itemId))
+    return { receipt, trip: trip_ }
   }, [allPhotos, pendingPhotos, plan.kind, trip.id])
   const today = todayISO()
 
@@ -206,21 +217,28 @@ export default function ItineraryTab({
                     </span>
                   )}
                   {item.links.some((link) => link.kind === 'web') && (
-                    <span className="dim" style={{ fontSize: 12, marginLeft: 4 }} title="相關連結">↗</span>
-                  )}
-                  {itemIdsWithPhotos.has(item.id) && (
-                    <span className="row-photo-icon" title="有照片" aria-label="有照片">▧</span>
-                  )}
-                  {isUncategorized(item) && <span className="warn" style={{ marginLeft: 6 }}>缺類型</span>}
-                  {item.notes.some((n) => n.showInOverview && n.text.trim()) && (
-                    <span className="overview-note">
-                      提醒：
-                      {item.notes
-                        .filter((n) => n.showInOverview && n.text.trim())
-                        .map((n) => n.text.trim())
-                        .join(' · ')}
+                    <span title="相關連結">
+                      <LinkIcon size={13} className="row-link-icon" />
                     </span>
                   )}
+                  {photoMarks.receipt.has(item.id) && (
+                    <span title="有收據照片" aria-label="有收據照片">
+                      <ReceiptIcon size={13} className="row-photo-icon" />
+                    </span>
+                  )}
+                  {photoMarks.trip.has(item.id) && (
+                    <span title="有行程照片" aria-label="有行程照片">
+                      <PhotoIcon size={13} className="row-photo-icon" />
+                    </span>
+                  )}
+                  {isUncategorized(item) && <span className="warn" style={{ marginLeft: 6 }}>缺類型</span>}
+                  {item.notes
+                    .filter((n) => n.showInOverview && n.text.trim())
+                    .map((n) => (
+                      <span key={n.id} className="overview-note">
+                        {n.text.trim()}
+                      </span>
+                    ))}
                 </span>
                 <span className="rowmoney">{formatTotals(itemTotals(item))}</span>
               </button>

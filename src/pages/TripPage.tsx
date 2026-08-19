@@ -12,12 +12,22 @@ import Modal from '../components/Modal'
 import type { Item } from '../types'
 import { copyItemSnapshot } from '../lib/items'
 import AlbumView from '../components/AlbumView'
+import BackIcon from '../components/BackIcon'
+import SearchIcon from '../components/SearchIcon'
+import CloseIcon from '../components/CloseIcon'
+import GearIcon from '../components/GearIcon'
+import SyncIcon from '../components/SyncIcon'
+import SyncErrorIcon from '../components/SyncErrorIcon'
+import OfflineIcon from '../components/OfflineIcon'
+import ItineraryIcon from '../components/ItineraryIcon'
+import RewardsIcon from '../components/RewardsIcon'
+import NotesIcon from '../components/NotesIcon'
 
 // 花費統計不常看，從導航列移走，改由行程頁的「全程合計」點進去。
 const TABS = [
-  { key: 'itinerary', label: '行程', icon: '☰' },
-  { key: 'rewards', label: '回饋', icon: '%' },
-  { key: 'notes', label: '筆記', icon: '✎' },
+  { key: 'itinerary', label: '行程', Icon: ItineraryIcon },
+  { key: 'rewards', label: '回饋', Icon: RewardsIcon },
+  { key: 'notes', label: '筆記', Icon: NotesIcon },
 ] as const
 
 export default function TripPage() {
@@ -188,11 +198,11 @@ export default function TripPage() {
 
       <div className="topbar" ref={topbarRef}>
         <button
-          className="btn btn-sm"
+          className="btn btn-sm btn-glyph"
           onClick={() => requestNavigation(() => navigate('/'))}
           aria-label="回到旅程列表"
         >
-          ‹
+          <BackIcon />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -206,7 +216,7 @@ export default function TripPage() {
         </div>
         {linked && (
           <button
-            className="btn btn-sm"
+            className="btn btn-sm btn-glyph btn-glyph-grow"
             onClick={() => tripId && void syncTrip(tripId)}
             disabled={sync.busy || !online}
             aria-label={sync.busy ? '同步中' : '同步'}
@@ -220,18 +230,18 @@ export default function TripPage() {
             }
             style={sync.error && online ? { color: 'var(--danger)' } : undefined}
           >
-            {!online ? '○' : sync.busy ? '同步中…' : sync.error ? '⚠' : '⟳'}
+            {sync.busy ? '同步中…' : !online ? <OfflineIcon /> : sync.error ? <SyncErrorIcon /> : <SyncIcon />}
           </button>
         )}
         <button
-          className="btn btn-sm"
+          className="btn btn-sm btn-glyph"
           onClick={() => navigateParam('q', searching ? undefined : '1')}
-          aria-label="搜尋"
+          aria-label={searching ? '關閉搜尋' : '搜尋'}
         >
-          {searching ? '✕' : '⌕'}
+          {searching ? <CloseIcon /> : <SearchIcon />}
         </button>
         <button
-          className="btn btn-sm"
+          className="btn btn-sm btn-glyph"
           onClick={() =>
             requestNavigation(() => {
               setParam('sel')
@@ -241,7 +251,7 @@ export default function TripPage() {
           aria-label="行程設定"
           title="行程設定"
         >
-          ⚙
+          <GearIcon />
         </button>
       </div>
 
@@ -337,8 +347,8 @@ export default function TripPage() {
               requestNavigation(() => setParams(next, { replace: true }))
             }}
           >
-            <span className="tabicon" aria-hidden="true">
-              {t.icon}
+            <span className="tabicon">
+              <t.Icon size={21} />
             </span>
             {t.label}
           </button>
