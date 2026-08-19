@@ -12,6 +12,9 @@ import { tripFormValid } from '../lib/tripForm'
 export default function TripsPage() {
   // selector 必須回傳穩定參照，過濾留給 useMemo，否則每次重繪都是新陣列。
   const allTrips = useStore((s) => s.data.trips)
+  // 標題掛使用者自己的名字：本機資料被瀏覽器清掉後名字會退回預設值，
+  // 標題變回「我的旅程」就是最早看得到的徵兆。
+  const memberName = useStore((s) => s.settings.memberName)
   const trips = useMemo(() => allTrips.filter((t) => !t.deleted), [allTrips])
   const createTrip = useStore((s) => s.createTrip)
   const allPlans = useStore((s) => s.data.plans)
@@ -40,7 +43,19 @@ export default function TripsPage() {
   return (
     <div className="app">
       <div className="topbar">
-        <strong style={{ flex: 1, fontSize: 16, fontWeight: 500 }}>我的旅程</strong>
+        <strong
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 16,
+            fontWeight: 500,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {(memberName.trim() || '我')}的旅程
+        </strong>
         <button
           className="btn btn-sm btn-glyph"
           onClick={() => setSettingsOpen(true)}
