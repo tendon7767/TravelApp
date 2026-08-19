@@ -1,14 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
-import type { Item, Plan, Trip } from '../types'
-import { eachDay, HALF_HOUR_SLOTS, shortDate, timeSortKey, todayISO } from '../lib/date'
-import { isSubmitEnter } from '../lib/keys'
+import { ITINERARY_CATEGORIES, type ItineraryCategory, type Item, type Plan, type Trip } from '../types'
+import { eachDay, nextSlotAfter, shortDate, timeSortKey } from '../lib/date'
+import { useNowClock } from '../lib/useNowClock'
+import { pickCurrentItemId } from '../lib/items'
+import { flightStatusUrl, hasFlightStatus } from '../lib/flight'
+import { applyCategoryTemplate, needsSecondLevel, quickItemsFor, soleQuickItem } from '../lib/presets'
 import { formatMoney, formatTotals, isUncategorized, itemTotals, mergeTotals, toHome } from '../lib/money'
 import CategoryIcon from './CategoryIcon'
 import MapPinIcon from './MapPinIcon'
 import LinkIcon from './LinkIcon'
 import PhotoIcon from './PhotoIcon'
+import PlaneIcon from './PlaneIcon'
 import ReceiptIcon from './ReceiptIcon'
+
+/**
+ * .itinerary-scroll 與它的祖先都是 position:static，section.offsetTop 是相對 body 量的，
+ * 會多算導航列與日期橫條的高度。改用兩個 rect 相減，排版怎麼變都成立。
+ */
+const scrollToElement = (scroller: HTMLElement, el: HTMLElement, offset = 0) => {
+  const top =
+    scroller.scrollTop + el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - offset
+  scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+}
 
 interface Props {
   trip: Trip
@@ -54,11 +68,12 @@ export default function ItineraryTab({
       .forEach((photo) => mark(photo.kind, photo.itemId))
     return { receipt, trip: trip_ }
   }, [allPhotos, pendingPhotos, plan.kind, trip.id])
-  const today = todayISO()
+  const { today, minutes: nowMin } = useNowClock()
 
   const days = useMemo(() => eachDay(trip.startDate, trip.endDate), [trip.startDate, trip.endDate])
+  // 新增項目只走快選：先點類型，子項多於一個才展開第二層。
   const [addingOn, setAddingOn] = useState<string | null>(null)
-  const [draft, setDraft] = useState({ startTime: '', title: '' })
+  const [pickedCategory, setPickedCategory] = useState<ItineraryCategory | null>(null)
   const [activeDay, setActiveDay] = useState(() => (days.includes(today) ? today : (days[0] ?? '')))
   const scrollRef = useRef<HTMLDivElement>(null)
   const daystripRef = useRef<HTMLDivElement>(null)
@@ -74,6 +89,12 @@ export default function ItineraryTab({
     }
     return map
   }, [days, items])
+
+  // 今天不在旅程日期範圍內就沒有「現在」可言。
+  const currentItemId = useMemo(
+    () => (days.includes(today) ? pickCurrentItemId(byDay.get(today) ?? [], nowMin) : undefined),
+    [byDay, days, today, nowMin],
+  )
 
   const dayTotals = (day: string): Record<string, number> => {
     const acc: Record<string, number> = {}
@@ -135,23 +156,45 @@ export default function ItineraryTab({
     const section = scroller?.querySelector<HTMLElement>(`[data-day-section="${day}"]`)
     programmaticDay.current = day
     setActiveDay(day)
-    if (scroller && section) scroller.scrollTo({ top: section.offsetTop, behavior: 'smooth' })
+    if (scroller && section) scrollToElement(scroller, section)
+  }
+
+  const scrollToCurrent = () => {
+    const scroller = scrollRef.current
+    const row = scroller?.querySelector<HTMLElement>(`[data-item-id="${currentItemId}"]`)
+    if (!scroller || !row) return
+    // sticky 的 .dayhead 會蓋住捲到頂端的那一列，讓開它實際量到的高度。
+    const head = scroller.querySelector<HTMLElement>(`[data-day-section="${today}"] .dayhead`)
+    programmaticDay.current = today
+    setActiveDay(today)
+    scrollToElement(scroller, row, head?.getBoundingClientRect().height ?? 0)
   }
 
   const beginManualScroll = () => {
     programmaticDay.current = undefined
   }
 
-  const submitDraft = (day: string) => {
-    if (!draft.title.trim()) return
-    createItem({
-      planId: plan.id,
-      date: day,
-      title: draft.title.trim(),
-      startTime: draft.startTime || undefined,
-    })
-    setDraft({ startTime: '', title: '' })
+  const closeAdd = () => {
     setAddingOn(null)
+    setPickedCategory(null)
+  }
+
+  const addQuick = (day: string, category: ItineraryCategory, title: string, time: string) => {
+    const used = (byDay.get(day) ?? []).map((item) => item.startTime)
+    // 固定時段被佔用時（第二頓晚餐、多段交通）就接在當天最後一筆之後，不疊在同一格。
+    const startTime = time && !used.includes(time) ? time : nextSlotAfter(used)
+    const { patch } = applyCategoryTemplate({ costs: [], notes: [] }, category, trip)
+    createItem({ planId: plan.id, date: day, title, startTime, category, ...patch })
+    setPickedCategory(null)
+  }
+
+  const pickCategory = (day: string, category: ItineraryCategory) => {
+    if (needsSecondLevel(category)) {
+      setPickedCategory(category)
+      return
+    }
+    const quick = soleQuickItem(category)
+    addQuick(day, category, quick.title, quick.time)
   }
 
   return (
@@ -201,11 +244,22 @@ export default function ItineraryTab({
             </div>
 
             {rows.map((item) => (
-              <button
+              /* 航班連結要當這一列的子元素，<a> 不能巢狀在 <button> 裡，所以改用 role="button"。 */
+              <div
                 key={item.id}
                 className="row"
+                role="button"
+                tabIndex={0}
                 data-sel={item.id === selectedId}
+                data-item-id={item.id}
+                data-now={item.id === currentItemId}
+                aria-current={item.id === currentItemId ? 'time' : undefined}
                 onClick={() => onSelect(item.id)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter' && e.key !== ' ') return
+                  e.preventDefault()
+                  onSelect(item.id)
+                }}
               >
                 <CategoryIcon category={item.category} className="row-category-icon" />
                 <span className="rowtime">{item.startTime ?? ''}</span>
@@ -240,41 +294,68 @@ export default function ItineraryTab({
                       </span>
                     ))}
                 </span>
+                {hasFlightStatus(item.title) && (
+                  <a
+                    className="row-flight"
+                    href={flightStatusUrl(item.title)}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="查航班動態"
+                    aria-label={`查「${item.title}」的航班動態`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <PlaneIcon size={15} />
+                  </a>
+                )}
                 <span className="rowmoney">{formatTotals(itemTotals(item))}</span>
-              </button>
+              </div>
             ))}
 
             {addingOn === day ? (
-              <div className="sec" style={{ display: 'flex', gap: 8 }}>
-                <select
-                  className="field mono"
-                  style={{ width: 92, flex: 'none' }}
-                  value={draft.startTime}
-                  onChange={(e) => setDraft({ ...draft, startTime: e.target.value })}
-                  aria-label="時間"
-                >
-                  <option value="">--:--</option>
-                  {HALF_HOUR_SLOTS.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className="field"
-                  style={{ flex: 1, minWidth: 0 }}
-                  placeholder="做什麼"
-                  autoFocus
-                  value={draft.title}
-                  onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                  onKeyDown={(e) => isSubmitEnter(e) && submitDraft(day)}
-                />
-                <button className="btn btn-primary" onClick={() => submitDraft(day)}>
-                  加入
-                </button>
-                <button className="btn" onClick={() => setAddingOn(null)} aria-label="關閉新增">
-                  ✕
-                </button>
+              <div className="sec itinerary-quick">
+                <div className="itinerary-quick-head">
+                  <span className="label" style={{ margin: 0 }}>
+                    {pickedCategory ? `${pickedCategory}：選一個` : '要加什麼？'}
+                  </span>
+                  {pickedCategory ? (
+                    <button className="btn btn-sm" onClick={() => setPickedCategory(null)}>‹ 上一層</button>
+                  ) : (
+                    <button className="btn btn-sm" onClick={closeAdd} aria-label="關閉新增">✕</button>
+                  )}
+                </div>
+
+                {pickedCategory ? (
+                  <div className="quick-picker" role="group" aria-label={`${pickedCategory}項目`}>
+                    {quickItemsFor(pickedCategory).map((quick) => (
+                      <button
+                        key={quick.title}
+                        className="category-choice"
+                        onClick={() => addQuick(day, pickedCategory, quick.title, quick.time)}
+                      >
+                        <CategoryIcon category={pickedCategory} size={18} />
+                        <span>{quick.title}</span>
+                        <span className="mono quick-time">{quick.time}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="quick-picker" role="group" aria-label="行程類型">
+                    {ITINERARY_CATEGORIES.map((category) => (
+                      <button
+                        key={category}
+                        className="category-choice"
+                        onClick={() => pickCategory(day, category)}
+                      >
+                        <CategoryIcon category={category} size={18} />
+                        <span>{category}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <p className="dim" style={{ fontSize: 11, margin: '2px 0 0' }}>
+                  建好後點進去改名稱與時間。可以連續點，不會自動關閉。
+                </p>
               </div>
             ) : (
               <div className="row itinerary-add-row">
@@ -282,7 +363,7 @@ export default function ItineraryTab({
                   className="dim itinerary-add-action"
                   onClick={() => {
                     setAddingOn(day)
-                    setDraft({ startTime: '', title: '' })
+                    setPickedCategory(null)
                   }}
                 >
                   <span className="dot" />
@@ -320,6 +401,17 @@ export default function ItineraryTab({
         </span>
       </button>
       </div>
-    </div>
+
+      {currentItemId && (
+        <button
+          className="fab"
+          onClick={scrollToCurrent}
+          title="回到現在的行程"
+          aria-label="回到現在的行程"
+        >
+          ⌖
+        </button>
+      )}
+      </div>
   )
 }

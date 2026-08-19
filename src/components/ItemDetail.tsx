@@ -4,6 +4,7 @@ import {
   ITINERARY_CATEGORIES,
   type CostLine,
   type Item,
+  type ItemNote,
   type ItineraryCategory,
   type LinkRef,
   type Trip,
@@ -40,6 +41,9 @@ import BookIcon from './BookIcon'
 import StickyNoteIcon from './StickyNoteIcon'
 import { fetchLinkMetadata } from '../sync/client'
 import { copyItemSnapshot } from '../lib/items'
+import { applyCategoryTemplate } from '../lib/presets'
+import { flightStatusUrl, hasFlightStatus } from '../lib/flight'
+import PlaneIcon from './PlaneIcon'
 import PhotoSection from './PhotoSection'
 
 interface Props {
@@ -93,6 +97,10 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const [noteDraft, setNoteDraft] = useState('')
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
   const [choosingCategory, setChoosingCategory] = useState(false)
+  /** 剛剛被模板帶入預設值的類型；顯示提示與「清除」用。 */
+  const [templateHint, setTemplateHint] = useState<ItineraryCategory | null>(null)
+  /** 套用模板前的費用與備註，「清除」就是還原這份快照。 */
+  const templateUndo = useRef<{ costs: CostLine[]; notes: ItemNote[] } | null>(null)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [restored, setRestored] = useState(false)
@@ -306,6 +314,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setEditingSections(new Set())
     setFocusSection(null)
     setChoosingCategory(false)
+    setTemplateHint(null)
+    templateUndo.current = null
     setConfirmingCancel(false)
     setRestored(false)
     setTouched(false)
@@ -341,14 +351,33 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setEditingSections(new Set())
     setFocusSection(null)
     setChoosingCategory(false)
+    setTemplateHint(null)
+    templateUndo.current = null
     setTouched(false)
     setRestored(false)
     void clearItemDraft(item.id)
   }
 
+  const clearTemplate = () => {
+    const snapshot = templateUndo.current
+    if (snapshot) patchItem({ costs: snapshot.costs, notes: snapshot.notes })
+    templateUndo.current = null
+    setTemplateHint(null)
+  }
+
   const selectCategory = (category?: ItineraryCategory) => {
-    patchItem({ category })
+    // 只補空欄位，所以本來就有內容的項目換類型不會有任何損失。
+    const { patch, opened } = applyCategoryTemplate(item, category, trip)
+    patchItem({ category, ...patch })
     setChoosingCategory(false)
+    if (!opened.length) {
+      templateUndo.current = null
+      setTemplateHint(null)
+      return
+    }
+    templateUndo.current = { costs: item.costs, notes: item.notes }
+    setTemplateHint(category ?? null)
+    setEditingSections((current) => new Set([...current, ...opened]))
   }
 
   const selectPayment = (paymentMethodId?: string) => {
@@ -542,6 +571,18 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               <div className="detail-meta">
                 <span>{shortDate(item.date)}</span>
                 <span>{item.startTime || '未設定時間'}</span>
+                {hasFlightStatus(item.title) && (
+                  <a
+                    className="detail-flight"
+                    href={flightStatusUrl(item.title)}
+                    target="_blank"
+                    rel="noreferrer"
+                    /* 這一區未編輯時整塊是 role="button"，不擋冒泡會連帶進入編輯。 */
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <PlaneIcon size={14} />航班動態
+                  </a>
+                )}
               </div>
             </>
           )}
@@ -585,6 +626,13 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
             <div className="detail-value-action">
               <CategoryIcon category={item.category} size={20} />
               <span>{item.category ?? '未分類'}</span>
+            </div>
+          )}
+
+          {templateHint && (
+            <div className="template-hint" onClick={(event) => event.stopPropagation()}>
+              <span>已依「{templateHint}」帶入預設欄位</span>
+              <button className="btn btn-sm" onClick={clearTemplate}>清除</button>
             </div>
           )}
         </section>
@@ -746,6 +794,14 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     onChange={(value) => patchCost(cost.id, { qty: value ?? 0 })}
                     aria-label="數量"
                   />
+                  <input
+                    className="field"
+                    style={{ width: 46 }}
+                    placeholder="單位"
+                    value={cost.unit ?? ''}
+                    onChange={(event) => patchCost(cost.id, { unit: event.target.value || undefined })}
+                    aria-label="數量單位"
+                  />
                   <select
                     className="field"
                     style={{ width: 74 }}
@@ -782,7 +838,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   <div key={cost.id} className="detail-cost-row">
                     <span>{cost.label || '未命名費用'}</span>
                     <span className="dim">{formatMoney(cost.unitPrice, cost.currency)}</span>
-                    <span className="dim">× {cost.qty}</span>
+                    <span className="dim">× {cost.qty}{cost.unit ?? ''}</span>
                     <span className="mono">{formatMoney(lineTotal(cost), cost.currency)}</span>
                   </div>
                 ))}

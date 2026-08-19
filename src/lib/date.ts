@@ -101,3 +101,21 @@ export const timeSortKey = (t?: string): number => {
   const [h, m] = t.split(':').map(Number)
   return h * 60 + (m || 0)
 }
+
+/** 現在是今天的第幾分鐘，與 timeSortKey 同一個座標系。 */
+export const nowMinutes = (): number => {
+  const d = new Date()
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+/**
+ * 新增項目的預設時間：接在當天最後一筆有時間的項目之後一小時。
+ * 一定要對齊到 HALF_HOUR_SLOTS 上，否則 select 找不到對應選項會顯示空白。
+ */
+export const nextSlotAfter = (times: (string | undefined)[]): string => {
+  const keys = times.filter((t): t is string => Boolean(t)).map(timeSortKey)
+  if (!keys.length) return '09:00'
+  const last = Math.max(...keys)
+  const snapped = Math.min(Math.floor((last + 60) / 30) * 30, 23 * 60 + 30)
+  return `${String(Math.floor(snapped / 60)).padStart(2, '0')}:${snapped % 60 ? '30' : '00'}`
+}
