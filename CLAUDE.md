@@ -78,6 +78,8 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 
 - **回饋計算只認 `kind === 'actual'` 的版本**（[src/lib/rewards.ts](src/lib/rewards.ts)）。一張卡可有多組同時累積的規則；消費上限不獨立儲存，它恆等於 `rewardCap / rate`。
 - **邀請連結就是通行證**：`#/join?u=<後端網址>&s=<試算表 ID>&k=<密鑰>`。密鑰存在試算表的 `_meta` 分頁，撤銷方式是去改那一列。
+- **本機儲存隨時可能被清空，所以邀請連結要備份到雲端。** `tripLinks`（試算表 ID + 密鑰）跟旅程資料在同一個 IndexedDB，瀏覽器清除是整個 origin 一起清，鑰匙會跟資料一起消失。因此同步時會呼叫後端 `saveInvite`，把連結寫進該趟試算表的「邀請連結」分頁 —— 使用者手上唯一還在的線索就是雲端硬碟裡那份試算表。連結字串由前端算（後端不知道前端網域），存進 `tripLinks[].inviteBackupUrl` 避免每次同步重送；能力由 `ping` 的 `capabilities.invite` 判斷。
+- 啟動時呼叫 `navigator.storage.persist()`（[src/lib/storage.ts](src/lib/storage.ts)）。Android Chrome 拿到後就豁免容量淘汰；iOS Safari 沒有實作這個 API，分頁模式下七天沒互動仍會被清，只有加到主畫面的 PWA 不受影響。
 - **中文輸入法**：所有「按 Enter 送出」的地方都要用 [src/lib/keys.ts](src/lib/keys.ts) 的 `isSubmitEnter`。注音選字階段的 Enter 是確認選字，不是送出。
 - **樣式集中在單一檔案** [src/styles.css](src/styles.css)，沒有 CSS-in-JS 或模組化。
 - 導航列高度由 `TripPage` 量測後寫進 `--topbar-h` / `--tabbar-h` CSS 變數，不要在 CSS 裡硬寫數字。

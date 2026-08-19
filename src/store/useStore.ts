@@ -27,6 +27,7 @@ import {
   type TripLinkState,
 } from './db'
 import {
+  buildInviteLink,
   createRemoteTrip,
   fetchFolderInfo,
   mergeRemote,
@@ -35,6 +36,7 @@ import {
   ping,
   pullRemote,
   pushRemote,
+  saveRemoteInvite,
   uploadRemotePhoto,
 } from '../sync/client'
 import { collectTripRecords } from '../sync/collect'
@@ -176,7 +178,11 @@ export const useStore = create<State>((setState, getState) => {
       if (settings.gasUrl && (typeof navigator === 'undefined' || navigator.onLine)) {
         try {
           const pong = await ping(settings.gasUrl)
-          settings = { ...settings, photoApiVersion: pong.capabilities?.photos }
+          settings = {
+            ...settings,
+            photoApiVersion: pong.capabilities?.photos,
+            inviteApiVersion: pong.capabilities?.invite,
+          }
           await saveSettings(settings)
         } catch {
           // 啟動不應被後端暫時無法連線卡住；保留上次確認過的 capability。
@@ -574,6 +580,7 @@ export const useStore = create<State>((setState, getState) => {
         ...getState().settings,
         gasUrl,
         photoApiVersion: pong?.capabilities?.photos,
+        inviteApiVersion: pong?.capabilities?.invite,
       }
       setState({ settings })
       await saveSettings(settings)
@@ -626,6 +633,7 @@ export const useStore = create<State>((setState, getState) => {
         ...getState().settings,
         gasUrl,
         photoApiVersion: pong.capabilities?.photos,
+        inviteApiVersion: pong.capabilities?.invite,
         tripLinks: { ...getState().settings.tripLinks, [tripId]: link },
       }
       setState({ data: merged.data, settings })
@@ -688,8 +696,23 @@ export const useStore = create<State>((setState, getState) => {
             overwritten = [...overwritten, ...reconciled.overwritten]
           }
 
+          // 邀請連結是本機資料被清空後回得去雲端的唯一線索，趁著已經連上線留一份在試算表裡。
+          // 失敗不影響這次同步的結果，游標不動，下次同步會再試一遍。
+          const inviteUrl = buildInviteLink(settings.gasUrl, link)
+          let inviteBackupUrl = link.inviteBackupUrl
+          if ((getState().settings.inviteApiVersion ?? 0) >= 1 && inviteUrl !== inviteBackupUrl) {
+            try {
+              await saveRemoteInvite(settings.gasUrl, link, inviteUrl)
+              inviteBackupUrl = inviteUrl
+            } catch {
+              // 舊後端或暫時的網路問題；保留舊值即可。
+            }
+            if (invalidated()) return
+          }
+
           const nextLink: TripLinkState = {
             ...link,
+            inviteBackupUrl,
             lastSyncAt,
             // 舊後端會靜默忽略未知的 photos 集合；保留游標才能在重新部署後補送墓碑。
             lastPushedAt: hasUnsupportedPhotoChanges ? link.lastPushedAt : pushedAt,

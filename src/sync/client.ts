@@ -45,7 +45,22 @@ const call = async <T>(gasUrl: string, payload: Record<string, unknown>): Promis
 }
 
 export const ping = (gasUrl: string) =>
-  call<{ ok: boolean; version?: string; capabilities?: { photos?: number } }>(gasUrl, { action: 'ping' })
+  call<{ ok: boolean; version?: string; capabilities?: { photos?: number; invite?: number } }>(
+    gasUrl,
+    { action: 'ping' },
+  )
+
+/**
+ * 在試算表裡留一份邀請連結。本機資料被瀏覽器清掉時，試算表 ID 與密鑰會一起消失，
+ * 那時能從雲端硬碟打開試算表看到連結，才有辦法把這趟加回來。
+ */
+export const saveRemoteInvite = (gasUrl: string, link: TripLink, inviteUrl: string) =>
+  call<{ ok: boolean }>(gasUrl, {
+    action: 'saveInvite',
+    sheetId: link.sheetId,
+    secret: link.secret,
+    inviteUrl,
+  })
 
 const blobToBase64 = (blob: Blob): Promise<string> =>
   new Promise((resolve, reject) => {

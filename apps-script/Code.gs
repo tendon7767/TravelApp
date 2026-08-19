@@ -14,7 +14,10 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-19-photos2'
+var BACKEND_VERSION = '2026-08-19-invite'
+
+/** 邀請連結備份的分頁名稱。不在 SCHEMA 裡，pull/push 都不會碰到它。 */
+var INVITE_SHEET = '邀請連結'
 
 /** 每次修復邏輯有變動就換一個 key，讓既有試算表重新執行修復。 */
 var TEXT_COLUMNS_REPAIR_KEY = 'textColumnsFixedV2'
@@ -195,10 +198,12 @@ function doPost(e) {
         return json(push(body))
       case 'expandUrl':
         return json(expandUrl(body))
+      case 'saveInvite':
+        return json(saveInvite(body))
       case 'uploadPhoto':
         return json(uploadPhoto(body))
       case 'ping':
-        return json({ ok: true, version: BACKEND_VERSION, capabilities: { photos: 1 } })
+        return json({ ok: true, version: BACKEND_VERSION, capabilities: { photos: 1, invite: 1 } })
       default:
         return json({ error: 'unknown action' })
     }
@@ -292,6 +297,38 @@ function openChecked(body) {
   for (var i = 0; i < meta.length; i++) if (meta[i][0] === 'secret') secret = String(meta[i][1])
   if (!secret || secret !== String(body.secret)) throw new Error('密鑰不符')
   return ss
+}
+
+/**
+ * 把邀請連結留一份在試算表自己的分頁裡。
+ *
+ * 為什麼需要：手機端的試算表 ID 與密鑰跟旅程資料存在同一個 IndexedDB，瀏覽器清除
+ * 儲存空間時是整個 origin 一起清，連回得去雲端的鑰匙也會一併消失。那時使用者手上
+ * 唯一還在的東西就是雲端硬碟裡這份試算表，所以連結必須放在打開試算表就看得到的地方。
+ *
+ * 連結字串由前端算好送上來：後端不知道前端部署在哪個網域，而
+ * ScriptApp.getService().getUrl() 拿到的不保證是呼叫端正在用的那個部署。這個值只寫進
+ * 儲存格顯示，不參與任何判斷，而且呼叫者本來就得先通過密鑰檢查，偽造它動不了其他資料。
+ */
+function saveInvite(body) {
+  var ss = openChecked(body)
+  var url = String(body.inviteUrl || '')
+  if (!url) throw new Error('缺少邀請連結')
+
+  var sheet = ss.getSheetByName(INVITE_SHEET)
+  if (!sheet) {
+    // 放在第一個分頁，打開試算表第一眼就看得到。
+    sheet = ss.insertSheet(INVITE_SHEET, 0)
+    sheet.setColumnWidth(1, 640)
+    sheet.getRange(1, 1, 4, 1).setNumberFormat('@')
+  }
+  sheet.getRange(1, 1, 4, 1).setValues([
+    ['邀請連結（等同這趟的通行證，只給同行的人）'],
+    [url],
+    ['手機裡的資料被清掉時，把上面那段網址整段貼回 App 的「加入旅程」，就能把這趟拿回來。'],
+    ['最後更新：' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm')],
+  ])
+  return { ok: true }
 }
 
 function readSheet(ss, name, since) {

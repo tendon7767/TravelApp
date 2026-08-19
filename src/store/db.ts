@@ -23,6 +23,8 @@ export interface Settings {
   syncRepairVersion?: number
   /** 後端宣告的照片 API 版本；未支援時介面會提示重新部署 Apps Script。 */
   photoApiVersion?: number
+  /** 後端宣告的邀請連結備份版本；舊後端不認得 saveInvite，跳過就好。 */
+  inviteApiVersion?: number
 }
 
 export interface TripLinkState {
@@ -34,6 +36,8 @@ export interface TripLinkState {
   lastSyncAt: number
   /** 本機時間，用來判斷哪些記錄改過還沒推上去 */
   lastPushedAt: number
+  /** 已經備份到試算表的邀請連結。和目前算出來的不同才需要重寫一次，不必每次同步都送。 */
+  inviteBackupUrl?: string
 }
 
 export const DEFAULT_PACKING = [
