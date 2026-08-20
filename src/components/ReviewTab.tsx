@@ -28,13 +28,29 @@ const autoGrow = (el: HTMLTextAreaElement | null) => {
   el.style.height = `${el.scrollHeight}px`
 }
 
+const TAG_HUES = 5
+
+/**
+ * 名牌只放一個字。中文取第二個字（「阿翰」→「翰」）比取姓好認，
+ * 但英數名字的第二個字母沒有意義，那種就取首字大寫，比較像頭像。
+ */
+const tagCharOf = (name: string) => {
+  const chars = [...name.trim()]
+  if (!chars.length) return '？'
+  if (/^[A-Za-z0-9][\w\s.'-]*$/.test(name.trim())) return chars[0].toUpperCase()
+  return chars[1] ?? chars[0]
+}
+
+/** 取消編輯的對象：底部那顆是整批，點列則只丟棄那一列。 */
+type CancelTarget = { kind: 'all' } | { kind: 'row'; itemId: string }
+
 /**
  * 心得模式：整趟的心得攤在同一頁，由上而下讀得完，要補寫就在原地展開輸入框。
  *
- * 點擊語意刻意只有兩種，而且不重疊：**列＝開合、心得區＝編輯**。
- * 收合時不留任何心得預覽 —— 只有一行的心得，收合與展開會長得一模一樣，
- * 但同一行字一個是展開、一個是進編輯，怎麼標示都救不回來。
- * 開合狀態改由列尾的箭頭表達，收合而裡面有東西的再補一個泡泡圖示。
+ * 點行程列的意思固定是「處理這則的心得」，實際做什麼看它的狀態：
+ * 編輯中就取消該列編輯、有東西可讀就開合、什麼都沒有就直接進編輯。
+ * 沒東西可讀的那則不存在「展開」狀態，所以也不需要開合箭頭 ——
+ * 列尾的泡泡（有東西可讀）與鉛筆（你還沒寫）已經把會發生什麼講完了。
  *
  * 編輯沿用詳細行程的「改完按儲存」：可以同時開好幾則，最後按一次完成一起寫入。
  */
@@ -60,6 +76,8 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     return map
   }, [days, items])
 
+  const itemIds = useMemo(() => new Set(items.map((item) => item.id)), [items])
+
   const byItem = useMemo(() => {
     const map = new Map<string, Review[]>()
     for (const review of allReviews) {
@@ -68,6 +86,19 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     }
     return map
   }, [allReviews])
+
+  /*
+   * 名牌配色按「這趟出現過的作者排序後的位置」給，不用 hash ——
+   * 五個色號獨立 hash，兩個人就有兩成機率撞色，而配色的全部意義就是分辨誰是誰。
+   * 排序後配號在五人以內不可能撞，多一個人頂多讓顏色重排一次。
+   */
+  const hueByAuthor = useMemo(() => {
+    const names = new Set<string>([me])
+    for (const review of allReviews) {
+      if (!review.deleted && itemIds.has(review.itemId)) names.add(review.author)
+    }
+    return new Map([...names].sort((a, b) => a.localeCompare(b)).map((n, i) => [n, i % TAG_HUES]))
+  }, [allReviews, itemIds, me])
 
   const mineText = (itemId: string) =>
     byItem.get(itemId)?.find((review) => review.author === me)?.text ?? ''
@@ -82,7 +113,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [focusId, setFocusId] = useState<string | null>(null)
-  const [confirmingCancel, setConfirmingCancel] = useState(false)
+  const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null)
   const [hydrated, setHydrated] = useState(false)
 
   const editingIds = Object.keys(drafts)
@@ -148,13 +179,29 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     }
   }
 
+  /** 丟棄單獨一列的草稿，其他列正在編輯的內容不受影響。 */
+  const discardRow = (itemId: string) => {
+    setDrafts((current) => {
+      const next = { ...current }
+      delete next[itemId]
+      return next
+    })
+    setFocusId((current) => (current === itemId ? null : current))
+    setCancelTarget(null)
+  }
+
   /**
-   * 點行程列的意思是「讓我看／寫這則的心得」，實際做什麼由它有沒有東西可讀決定：
-   * 沒東西可讀就沒有「展開」這個狀態可言，直接進編輯，中間不經過一個空框。
+   * 點行程列的意思固定是「處理這則的心得」，做什麼由它現在的狀態決定。
+   * 收合永遠不會把編輯中的草稿藏起來 —— 編輯中的那列，點列是取消編輯，
+   * 動過的會先問一次。
    */
   const openRow = (itemId: string, hasContent: boolean) => {
-    // 編輯中的不給收，草稿被藏起來會以為自己打的東西不見了。
-    if (itemId in drafts) return
+    if (itemId in drafts) {
+      if (drafts[itemId] !== mineText(itemId)) setCancelTarget({ kind: 'row', itemId })
+      else discardRow(itemId)
+      return
+    }
+    // 沒東西可讀就沒有「展開」這個狀態可言，直接進編輯，中間不經過一個空框。
     if (!hasContent) {
       beginEdit(itemId)
       return
@@ -187,7 +234,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   const stopEditing = () => {
     setDrafts({})
     setFocusId(null)
-    setConfirmingCancel(false)
+    setCancelTarget(null)
     void clearReviewDrafts(plan.id)
   }
 
@@ -199,22 +246,28 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   }
 
   const requestCancel = () => {
-    if (dirty) setConfirmingCancel(true)
+    if (dirty) setCancelTarget({ kind: 'all' })
     else stopEditing()
   }
 
   return (
     <div className="itinerary-view">
-      {confirmingCancel && (
+      {cancelTarget && (
         <Modal
           title="尚未儲存變更"
-          onCancel={() => setConfirmingCancel(false)}
-          onComplete={stopEditing}
+          onCancel={() => setCancelTarget(null)}
+          onComplete={() =>
+            cancelTarget.kind === 'all' ? stopEditing() : discardRow(cancelTarget.itemId)
+          }
           cancelLabel="繼續編輯"
           completeLabel="放棄變更"
           completeDanger
         >
-          <p style={{ margin: '12px 0 0' }}>確定要取消編輯並放棄這次的全部修改嗎？</p>
+          <p style={{ margin: '12px 0 0' }}>
+            {cancelTarget.kind === 'all'
+              ? '確定要取消編輯並放棄這次的全部修改嗎？'
+              : '確定要放棄這則心得的修改嗎？其他正在編輯的不受影響。'}
+          </p>
         </Modal>
       )}
 
@@ -259,8 +312,14 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                       className="row review-row"
                       role="button"
                       tabIndex={0}
-                      aria-expanded={hasContent ? expanded : undefined}
-                      aria-label={hasContent ? undefined : `寫「${item.title}」的心得`}
+                      aria-expanded={editing || !hasContent ? undefined : expanded}
+                      aria-label={
+                        editing
+                          ? `取消編輯「${item.title}」的心得`
+                          : hasContent
+                            ? undefined
+                            : `寫「${item.title}」的心得`
+                      }
                       onClick={() => openRow(item.id, hasContent)}
                       onKeyDown={(event) => {
                         if (event.key !== 'Enter' && event.key !== ' ') return
@@ -291,14 +350,19 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                       >
                         {others.map((review) => (
                           <div key={review.id} className="detail-review">
-                            <p>
-                              <span className="detail-key">{review.author}：</span>
-                              {review.text}
-                            </p>
+                            <span
+                              className="review-tag"
+                              data-hue={hueByAuthor.get(review.author) ?? 0}
+                              title={review.author}
+                            >
+                              {tagCharOf(review.author)}
+                            </span>
+                            <p>{review.text}</p>
                           </div>
                         ))}
                         {editing ? (
-                          <div className="detail-review">
+                          /* 編輯時不掛名牌，改用等寬的縮排讓輸入框跟上面的氣泡對齊。 */
+                          <div className="detail-review detail-review-edit">
                             <textarea
                               className="field"
                               ref={autoGrow}
@@ -315,10 +379,10 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                           /* 還沒寫的不畫任何東西 —— 空框沒有資訊量，列尾那支筆已經講完了。 */
                           mine.trim() && (
                             <div className="detail-review">
-                              <p>
-                                <span className="detail-key">{me}：</span>
-                                {mine}
-                              </p>
+                              <span className="review-tag" data-hue={hueByAuthor.get(me) ?? 0} title={me}>
+                                {tagCharOf(me)}
+                              </span>
+                              <p>{mine}</p>
                             </div>
                           )
                         )}

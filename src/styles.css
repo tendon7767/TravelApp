@@ -1065,13 +1065,44 @@ a { color: var(--accent); }
 .review-body { padding: 0 14px 12px calc(14px + 18px + 9px); }
 .review-body .detail-review:first-child { margin-top: 0; }
 
-/* 作者名改成內文開頭的前綴：不獨占一行，字級也跟著內文，
-   放大之後原本 11px 用的字距會鬆得很明顯，一併拿掉。 */
-.review-body .detail-key {
-  display: inline;
-  margin: 0;
-  font-size: inherit;
-  letter-spacing: normal;
+/* 作者名做成氣泡左側的單字名牌，像聊天室。不佔高度，橫向也只花 36px。 */
+.review-body .detail-review {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.review-body .detail-review > p { flex: 1; min-width: 0; }
+
+.review-tag {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px; /* 跟氣泡同一個圓角，不用圓形，這個 app 沒有別的圓形元素 */
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  user-select: none;
+}
+
+/* 編輯時不掛名牌，改用等寬縮排讓輸入框跟上面的氣泡對齊。 */
+.detail-review-edit { padding-left: calc(28px + 8px); }
+
+/* 同一個人永遠同一色，色號由名字 hash 出來。 */
+.review-tag[data-hue='0'] { background: #ede9fe; color: #6d28d9; }
+.review-tag[data-hue='1'] { background: #dbeafe; color: #1d4ed8; }
+.review-tag[data-hue='2'] { background: #ccfbf1; color: #0f766e; }
+.review-tag[data-hue='3'] { background: #fef3c7; color: #b45309; }
+.review-tag[data-hue='4'] { background: #ffe4e6; color: #be123c; }
+
+@media (prefers-color-scheme: dark) {
+  .review-tag[data-hue='0'] { background: #3a2a4d; color: #d8b4fe; }
+  .review-tag[data-hue='1'] { background: #19365e; color: #93c5fd; }
+  .review-tag[data-hue='2'] { background: #123c31; color: #6ee7b7; }
+  .review-tag[data-hue='3'] { background: #493711; color: #fcd34d; }
+  .review-tag[data-hue='4'] { background: #4b1f2a; color: #fda4af; }
 }
 
 .review-body textarea {
