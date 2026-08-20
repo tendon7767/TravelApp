@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import type { Plan, Trip } from '../types'
-import { computeMethod, type MethodResult } from '../lib/rewards'
+import { computeMethod, focusedRule, type MethodResult } from '../lib/rewards'
 import { formatMoney } from '../lib/money'
 import { dayCount, shortDate } from '../lib/date'
 import { methodLabel, OWNERLESS } from '../lib/owners'
@@ -283,16 +283,7 @@ function MethodCard({
   const focusId = useStore((s) => s.settings.rewardRuleFocus?.[res.method.id])
   const setRewardRuleFocus = useStore((s) => s.setRewardRuleFocus)
   const cur = res.method.currency
-  /*
-   * 上面那個大數字要照哪條規則算：預設擇優，挑回饋率最高的那條 ——
-   * 要決定的通常是「這張還能不能用最好的那個%刷」。
-   * 怎麼算沒有統一標準，所以點任一條規則就能改成照它算。
-   * 指定的規則被刪掉時 find 會落空，自動退回回饋率最高的，不會變成空白。
-   */
-  const best = res.rules.length
-    ? res.rules.reduce((a, b) => (b.rule.rate > a.rule.rate ? b : a))
-    : undefined
-  const binding = res.rules.find((r) => r.rule.id === focusId) ?? best
+  const binding = focusedRule(res.rules, focusId)
   const remaining = binding?.remainingSpend
   const exhausted = remaining === 0
   // 進度看的是「回饋領了多少」，不是「刷了多少」——

@@ -39,6 +39,17 @@ export interface MethodResult {
  * 「照理想筆數刷的話，刷到這個金額就把回饋領滿」。只用來在設定頁顯示參考值。
  * 不能拿來當扣減依據 —— 有單筆回饋上限時，刷出去的錢不會等比例換成回饋。
  */
+/**
+ * 卡片上那個「還可刷」要照哪一條規則算。
+ * 預設擇優挑回饋率最高的那條 —— 要決定的通常是「這張還能不能用最好的那個%刷」；
+ * 使用者在回饋頁點過某條規則的話（settings.rewardRuleFocus）就照它算。
+ * 指定的規則被刪掉時 find 會落空，自動退回回饋率最高的，不會變成空白。
+ * 回饋頁與選擇支付方式的選單共用這裡，兩邊的數字才不會各算各的。
+ */
+export const focusedRule = (rules: RuleResult[], focusId?: string): RuleResult | undefined =>
+  rules.find((r) => r.rule.id === focusId) ??
+  (rules.length ? rules.reduce((a, b) => (b.rule.rate > a.rule.rate ? b : a)) : undefined)
+
 export const spendCapOf = (rule: RewardRule): number | undefined =>
   rule.rewardCap !== undefined && rule.rate > 0 ? rule.rewardCap / rule.rate : undefined
 

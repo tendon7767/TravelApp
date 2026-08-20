@@ -18,7 +18,7 @@ import NumberField from './NumberField'
 import { methodLabel, OWNERLESS } from '../lib/owners'
 import SettingsModal from './SettingsModal'
 import Modal from './Modal'
-import { amountInMethodCurrency, computeMethod, suggestSplit } from '../lib/rewards'
+import { amountInMethodCurrency, computeMethod, focusedRule, suggestSplit } from '../lib/rewards'
 import {
   clearItemDraft,
   loadItemDraft,
@@ -64,6 +64,19 @@ const SECTION_LABELS: Record<ItemDraftSection, string> = {
 
 // 按「新增一筆費用」（或空白費用按鉛筆）會先長出一列空的，使用者什麼都沒填就取消時
 // 不該被當成有未儲存變更；比對與儲存前都把這種空列濾掉。
+/*
+ * 現金與其他不是支付方式記錄 —— 沒有回饋規則、不該出現在回饋頁 ——
+ * 但仍然要能標在一筆花費上，所以借 paymentMethodId 存保留字。
+ * id 都由 newId() 產生不會撞到這兩個字；而且「找不到對應的支付方式就是沒有回饋」
+ * 這個行為本來就成立（computeMethod 是用 id 比對挑出自己的花費），
+ * 所以回饋計算與同步層都不必為它們改任何東西。
+ */
+const OTHER_PAYMENTS = [
+  ['cash', '現金'],
+  ['other', '其他'],
+  [undefined, '不指定'],
+] as const
+
 const isBlankCost = (cost: CostLine) =>
   !cost.label.trim() && !cost.unitPrice
 
@@ -79,6 +92,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const setReview = useStore((state) => state.setReview)
   const me = useStore((state) => state.settings.memberName)
   const gasUrl = useStore((state) => state.settings.gasUrl)
+  const ruleFocus = useStore((state) => state.settings.rewardRuleFocus)
   const tripLink = useStore((state) => state.settings.tripLinks?.[trip.id])
   const isActual = useStore((state) =>
     state.data.plans.some(
@@ -155,14 +169,15 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     )
     for (const payment of methods) {
       const { rules } = computeMethod(payment, others, trip)
-      const capped = rules.filter((rule) => rule.remainingSpend !== undefined)
       map.set(payment.id, {
-        remaining: capped.length ? Math.min(...capped.map((rule) => rule.remainingSpend!)) : undefined,
+        // 跟回饋頁看到的是同一條規則，否則同一張卡在兩個畫面會給出不同的數字。
+        remaining: focusedRule(rules, ruleFocus?.[payment.id])?.remainingSpend,
+        // 停用與否問的是「這張還有沒有回饋可拿」，跟看哪條規則無關。
         exhausted: rules.length > 0 && rules.every((rule) => rule.remainingSpend === 0),
       })
     }
     return map
-  }, [methods, allItems, item, trip, isActual])
+  }, [methods, allItems, item, trip, isActual, ruleFocus])
 
   // 依持有者分區，同一區裡把拿滿回饋的沉到最後，其餘維持 methods 既有的名稱排序。
   const pickerGroups = useMemo(() => {
@@ -467,7 +482,9 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       <span className="detail-key">支付方式</span>
       <button className="btn btn-sm detail-payment-pick" onClick={() => setPickingPayment(true)}>
         <span className="detail-payment-name">
-          {pickedMethod ? methodLabel(pickedMethod.name, pickedMethod.owner) : '未設定'}
+          {pickedMethod
+            ? methodLabel(pickedMethod.name, pickedMethod.owner)
+            : (OTHER_PAYMENTS.find(([id]) => id && id === item.paymentMethodId)?.[1] ?? '未設定')}
         </span>
         <span aria-hidden="true">›</span>
       </button>
@@ -484,7 +501,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       <div className="picker-body">
         {pickerGroups.map(([owner, list]) => (
           <div key={owner} className="picker-group">
-            <div className="picker-group-head"><span className="picker-dot" />{owner}</div>
+            <div className="picker-group-head">{owner}</div>
             <div className="picker-grid">
               {list.map((payment) => {
                 const status = methodStatus.get(payment.id)
@@ -496,9 +513,9 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     disabled={status?.exhausted}
                     onClick={() => choosePayment(payment.id)}
                   >
-                    <span className="picker-card-name">{payment.name || '未命名'}</span>
+                    <span className="picker-card-band">{payment.name || '未命名'}</span>
                     {status && (
-                      <>
+                      <span className="picker-card-body">
                         <span className="picker-card-label">{status.exhausted ? '回饋' : '還可刷'}</span>
                         <span
                           className={status.exhausted || uncapped ? 'picker-card-value' : 'picker-card-value mono'}
@@ -510,7 +527,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                               ? '無上限'
                               : formatMoney(status.remaining!, payment.currency)}
                         </span>
-                      </>
+                      </span>
                     )}
                   </button>
                 )
@@ -519,15 +536,15 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           </div>
         ))}
 
-        {/* 自成一區，用同樣的方塊，版面才是一套的。 */}
+        {/* 現金與其他不是支付方式記錄，沒有回饋可算，所以只有名稱一行。 */}
         <div className="picker-group">
-          <div className="picker-group-head"><span className="picker-dot" />未設定</div>
+          <div className="picker-group-head">其他</div>
           <div className="picker-grid">
-            <button className="picker-card" onClick={() => choosePayment(undefined)}>
-              <span className="picker-card-name">不指定</span>
-              <span className="picker-card-label">回饋</span>
-              <span className="picker-card-value">不計入</span>
-            </button>
+            {OTHER_PAYMENTS.map(([id, label]) => (
+              <button key={label} className="picker-card" onClick={() => choosePayment(id)}>
+                <span className="picker-card-band">{label}</span>
+              </button>
+            ))}
           </div>
         </div>
       </div>
