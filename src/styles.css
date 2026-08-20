@@ -1048,12 +1048,12 @@ a { color: var(--accent); }
   z-index: 17; /* .dayhead 是 18，要壓在它下面 */
 }
 
-/* 收合與展開要一眼分得出來，尤其是只有一行的心得。 */
-.review-caret {
+/* 泡泡是狀態標記，這支筆是「還沒寫，來寫」的邀請，所以給它 accent 而不是淡灰。 */
+.review-write-hint {
+  display: inline-flex;
   flex: none;
-  font-size: 11px;
-  line-height: 1;
-  color: var(--text-3);
+  margin-left: 5px;
+  color: var(--accent);
 }
 
 /* 分隔線改由 entry 之間給，否則展開的那則會在心得下方多一條。 */
@@ -1065,8 +1065,14 @@ a { color: var(--accent); }
 .review-body { padding: 0 14px 12px calc(14px + 18px + 9px); }
 .review-body .detail-review:first-child { margin-top: 0; }
 
-/* 作者名改成內文開頭的前綴，不再獨占一行。 */
-.review-body .detail-key { display: inline; margin: 0; }
+/* 作者名改成內文開頭的前綴：不獨占一行，字級也跟著內文，
+   放大之後原本 11px 用的字距會鬆得很明顯，一併拿掉。 */
+.review-body .detail-key {
+  display: inline;
+  margin: 0;
+  font-size: inherit;
+  letter-spacing: normal;
+}
 
 .review-body textarea {
   display: block;

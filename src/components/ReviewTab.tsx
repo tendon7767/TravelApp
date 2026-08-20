@@ -8,6 +8,7 @@ import { clearReviewDrafts, loadReviewDrafts, saveReviewDrafts } from '../store/
 import CategoryIcon from './CategoryIcon'
 import DayStrip from './DayStrip'
 import Modal from './Modal'
+import PencilIcon from './PencilIcon'
 import ReviewIcon from './ReviewIcon'
 
 interface Props {
@@ -72,6 +73,9 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     byItem.get(itemId)?.find((review) => review.author === me)?.text ?? ''
   const othersOf = (itemId: string) =>
     (byItem.get(itemId) ?? []).filter((review) => review.author !== me && review.text.trim())
+  /** 有沒有東西可讀，是列尾圖示與點列行為的唯一判準。 */
+  const hasContentOf = (itemId: string) =>
+    Boolean(mineText(itemId).trim()) || othersOf(itemId).length > 0
 
   const { activeDay, scrollRef, daystripRef, scrollProps, jumpTo } = useDayScroller(days, today)
   // 只有正在編輯的那幾則會進 drafts；沒動過的不佔位子，dirty 才好算。
@@ -144,9 +148,17 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     }
   }
 
-  const toggleItem = (itemId: string) => {
+  /**
+   * 點行程列的意思是「讓我看／寫這則的心得」，實際做什麼由它有沒有東西可讀決定：
+   * 沒東西可讀就沒有「展開」這個狀態可言，直接進編輯，中間不經過一個空框。
+   */
+  const openRow = (itemId: string, hasContent: boolean) => {
     // 編輯中的不給收，草稿被藏起來會以為自己打的東西不見了。
     if (itemId in drafts) return
+    if (!hasContent) {
+      beginEdit(itemId)
+      return
+    }
     setCollapsed((current) => {
       const next = new Set(current)
       if (!next.delete(itemId)) next.add(itemId)
@@ -159,7 +171,10 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
    * 收合狀態只存 collapsed 這一份，整天開合就是批次改它的成員，不另開一組狀態。
    */
   const toggleDay = (day: string) => {
-    const ids = (byDay.get(day) ?? []).map((item) => item.id).filter((id) => !(id in drafts))
+    // 沒東西可讀的那些本來就沒有收合狀態，不列入判斷也不動它們。
+    const ids = (byDay.get(day) ?? [])
+      .filter((item) => !(item.id in drafts) && hasContentOf(item.id))
+      .map((item) => item.id)
     if (!ids.length) return
     const allCollapsed = ids.every((id) => collapsed.has(id))
     setCollapsed((current) => {
@@ -232,33 +247,41 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
 
               {rows.map((item) => {
                 const editing = item.id in drafts
-                const expanded = editing || !collapsed.has(item.id)
                 const others = othersOf(item.id)
                 const mine = mineText(item.id)
                 const hasContent = Boolean(mine.trim()) || others.length > 0
+                // 沒東西可讀的那則不存在「展開」狀態，所以進來的第一眼就是
+                // 有心得的都攤開、沒心得的各佔一行。
+                const expanded = editing || (hasContent && !collapsed.has(item.id))
                 return (
                   <div key={item.id} className="review-entry">
                     <div
                       className="row review-row"
                       role="button"
                       tabIndex={0}
-                      aria-expanded={expanded}
-                      onClick={() => toggleItem(item.id)}
+                      aria-expanded={hasContent ? expanded : undefined}
+                      aria-label={hasContent ? undefined : `寫「${item.title}」的心得`}
+                      onClick={() => openRow(item.id, hasContent)}
                       onKeyDown={(event) => {
                         if (event.key !== 'Enter' && event.key !== ' ') return
                         event.preventDefault()
-                        toggleItem(item.id)
+                        openRow(item.id, hasContent)
                       }}
                     >
                       <CategoryIcon category={item.category} className="row-category-icon" />
                       <span className="rowtime">{item.startTime ?? ''}</span>
                       <span className="rowtitle">{item.title}</span>
-                      {!expanded && hasContent && (
-                        <span title="收起來了，裡面有心得" aria-label="有心得">
+                      {/* 兩個圖示回答的是兩個不同的問題，所以各自獨立、可以同時出現。 */}
+                      {hasContent && (
+                        <span title="有心得" aria-label="有心得">
                           <ReviewIcon size={13} className="row-photo-icon" />
                         </span>
                       )}
-                      <span className="review-caret" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+                      {!mine.trim() && !editing && (
+                        <span className="review-write-hint" title="你還沒寫" aria-label="你還沒寫">
+                          <PencilIcon size={13} />
+                        </span>
+                      )}
                     </div>
 
                     {expanded && (
@@ -276,7 +299,6 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                         ))}
                         {editing ? (
                           <div className="detail-review">
-                            <span className="detail-key">{me}：</span>
                             <textarea
                               className="field"
                               ref={autoGrow}
@@ -290,13 +312,15 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                             />
                           </div>
                         ) : (
-                          /* 還沒寫過的就是同一個氣泡、名字後面沒字，不另做一種空狀態的樣子。 */
-                          <div className="detail-review">
-                            <p>
-                              <span className="detail-key">{me}：</span>
-                              {mine}
-                            </p>
-                          </div>
+                          /* 還沒寫的不畫任何東西 —— 空框沒有資訊量，列尾那支筆已經講完了。 */
+                          mine.trim() && (
+                            <div className="detail-review">
+                              <p>
+                                <span className="detail-key">{me}：</span>
+                                {mine}
+                              </p>
+                            </div>
+                          )
                         )}
                       </div>
                     )}
