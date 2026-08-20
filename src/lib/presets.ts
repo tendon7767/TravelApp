@@ -25,7 +25,7 @@ const CATEGORY_PRESETS = presets.類型 as Partial<Record<ItineraryCategory, Cat
 
 /** 解析後的預設值，已經處理過快選蓋掉類型的繼承。 */
 export interface Preset {
-  cost?: { label: string; unit?: string }
+  cost?: { label: string }
   notes: string[]
 }
 
@@ -35,7 +35,7 @@ const readBody = (row: PresetBody | undefined, fallback?: Preset): Preset => {
   const raw = overrides ? row?.預設費用 : undefined
   return {
     cost: overrides
-      ? (raw ? { label: raw.項目, unit: raw.單位 || undefined } : undefined)
+      ? (raw ? { label: raw.項目 } : undefined)
       : fallback?.cost,
     notes: row?.預設備註 ?? fallback?.notes ?? [],
   }
@@ -99,7 +99,6 @@ export const applyTemplate = (
         label: preset.cost.label,
         unitPrice: 0,
         qty: 1,
-        unit: preset.cost.unit,
         currency: trip.foreignCurrency,
       },
     ]

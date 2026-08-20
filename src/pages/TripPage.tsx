@@ -147,6 +147,16 @@ export default function TripPage() {
     return () => document.body.classList.remove('detail-open')
   }, [selectedId])
 
+  // 設定視窗、筆記、複製資料這些浮層都是 portal 到 body 的，不在 .app 底下，
+  // 只掛在 .app 上的實際版配色蓋不到它們，所以同一個旗標也寫一份到 body。
+  useEffect(() => {
+    const actual = plan?.kind === 'actual'
+    document.body.dataset.actual = String(actual)
+    return () => {
+      delete document.body.dataset.actual
+    }
+  }, [plan?.kind])
+
   // iOS 從主畫面恢復 PWA 時可能保留更新前的 hash 路徑。該 ID 已不存在就回列表，
   // 讓使用者選目前真正存在的旅程，不停在無法操作的錯誤頁。
   useEffect(() => {

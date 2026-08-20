@@ -78,6 +78,8 @@ interface State {
   setReviewHue: (tripId: string, author: string, hue?: number) => void
   /** 介面配色；跟 reviewHues 一樣是這台裝置自己的偏好，不上傳。 */
   setTheme: (theme: 'dark' | 'light') => void
+  /** 行程列的每筆金額顯示與否，全趟一起開關。同樣是本機偏好。 */
+  toggleItemMoney: () => void
   setActive: (tripId?: string, planId?: string) => void
 
   createTrip: (input: Omit<Trip, keyof SyncFields>) => { trip: Trip; plan: Plan }
@@ -226,6 +228,12 @@ export const useStore = create<State>((setState, getState) => {
 
     setTheme: (theme) => {
       const settings = { ...getState().settings, theme }
+      setState({ settings })
+      void saveSettings(settings)
+    },
+
+    toggleItemMoney: () => {
+      const settings = { ...getState().settings, hideItemMoney: !getState().settings.hideItemMoney }
       setState({ settings })
       void saveSettings(settings)
     },

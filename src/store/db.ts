@@ -27,6 +27,11 @@ export interface Settings {
   reviewHues?: Record<string, Record<string, number>>
   /** 介面配色。undefined 等同 'dark'，所以舊資料不必遷移。 */
   theme?: 'dark' | 'light'
+  /**
+   * 行程列右邊的每筆金額是否收起來。undefined 等同顯示，舊資料不必遷移。
+   * 收起來時日期列的當日總計還在，要看細項再點總計打開。
+   */
+  hideItemMoney?: boolean
   /** 資料格式修復版本；升版時可讓既有裝置安全地完整重拉一次。 */
   syncRepairVersion?: number
   /** 後端宣告的照片 API 版本；未支援時介面會提示重新部署 Apps Script。 */
@@ -72,8 +77,18 @@ const migrateItem = (value: AppData['items'][number]): AppData['items'][number] 
   delete item.chargeDate
   // 「費用類型」改為「行程類型」後，娛樂以較廣義、較好理解的活動取代。
   if (item.category === '娛樂') item.category = '活動'
+  // 數量單位（人／晚／罐）已移除，比照 paymentStatus 從既有資料裡清掉，
+  // 免得它繼續在本機與雲端之間往返。
+  const costs = Array.isArray(item.costs)
+    ? item.costs.map((cost) => {
+        const next = { ...(cost as Record<string, unknown>) }
+        delete next.unit
+        return next
+      })
+    : item.costs
   return {
     ...item,
+    costs,
     date: normalizeStoredDate(item.date) ?? item.date,
     startTime: normalizeStoredTime(item.startTime) ?? item.startTime,
     notes: normalizeItemNotes(item.notes, String(item.id)),

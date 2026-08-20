@@ -15,7 +15,7 @@ import { normalizeTime, shortDate } from '../lib/date'
 import { isSubmitEnter } from '../lib/keys'
 import ConfirmButton from './ConfirmButton'
 import NumberField from './NumberField'
-import { methodLabel } from '../lib/owners'
+import { methodLabel, OWNERLESS } from '../lib/owners'
 import SettingsModal from './SettingsModal'
 import Modal from './Modal'
 import { amountInMethodCurrency, computeMethod, suggestSplit } from '../lib/rewards'
@@ -62,6 +62,13 @@ const SECTION_LABELS: Record<ItemDraftSection, string> = {
   review: '心得',
 }
 
+// 按「新增一筆費用」（或空白費用按鉛筆）會先長出一列空的，使用者什麼都沒填就取消時
+// 不該被當成有未儲存變更；比對與儲存前都把這種空列濾掉。
+const isBlankCost = (cost: CostLine) =>
+  !cost.label.trim() && !cost.unitPrice
+
+const filledCosts = (costs: CostLine[]) => costs.filter((cost) => !isBlankCost(cost))
+
 export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChange }: Props) {
   const storedItem = useStore((state) => state.data.items.find((item) => item.id === itemId))
   const updateItem = useStore((state) => state.updateItem)
@@ -95,6 +102,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const [noteDraft, setNoteDraft] = useState('')
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
   const [choosingCategory, setChoosingCategory] = useState(false)
+  const [pickingPayment, setPickingPayment] = useState(false)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [restored, setRestored] = useState(false)
@@ -133,6 +141,46 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     return suggestSplit(method, amountInMethodCurrency(item, method, trip), spent)
   }, [item, method, allItems, trip])
 
+  /*
+   * 每張卡還能刷多少、以及回饋是不是拿滿了。
+   * 「拿滿」是所有規則都有上限且都歸零；只要還有一條沒上限的規則，這張卡就永遠有回饋。
+   * 算的時候排除這筆自己的花費，因為要問的是「這筆用這張刷還划算嗎」，
+   * 跟旁邊 splitHint 的算法一致。規劃版不計算回饋，所以整個不算。
+   */
+  const methodStatus = useMemo(() => {
+    const map = new Map<string, { remaining?: number; exhausted: boolean }>()
+    if (!isActual || !item) return map
+    const others = allItems.filter(
+      (candidate) => candidate.id !== item.id && candidate.planId === item.planId && !candidate.deleted,
+    )
+    for (const payment of methods) {
+      const { rules } = computeMethod(payment, others, trip)
+      const capped = rules.filter((rule) => rule.remainingSpend !== undefined)
+      map.set(payment.id, {
+        remaining: capped.length ? Math.min(...capped.map((rule) => rule.remainingSpend!)) : undefined,
+        exhausted: rules.length > 0 && rules.every((rule) => rule.remainingSpend === 0),
+      })
+    }
+    return map
+  }, [methods, allItems, item, trip, isActual])
+
+  // 依持有者分區，同一區裡把拿滿回饋的沉到最後，其餘維持 methods 既有的名稱排序。
+  const pickerGroups = useMemo(() => {
+    const map = new Map<string, typeof methods>()
+    for (const payment of methods) {
+      const owner = payment.owner?.trim() || OWNERLESS
+      map.set(owner, [...(map.get(owner) ?? []), payment])
+    }
+    return [...map.entries()].map(([owner, list]) => {
+      const sorted = [...list].sort(
+        (a, b) =>
+          Number(methodStatus.get(a.id)?.exhausted ?? false) -
+          Number(methodStatus.get(b.id)?.exhausted ?? false),
+      )
+      return [owner, sorted] as const
+    })
+  }, [methods, methodStatus])
+
   const itemDirty = useMemo(() => {
     if (!item || !storedItem) return false
     return (
@@ -144,7 +192,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       item.paymentMethodId !== storedItem.paymentMethodId ||
       JSON.stringify(item.notes) !== JSON.stringify(storedItem.notes) ||
       JSON.stringify(item.links) !== JSON.stringify(storedItem.links) ||
-      JSON.stringify(item.costs) !== JSON.stringify(storedItem.costs)
+      JSON.stringify(filledCosts(item.costs)) !== JSON.stringify(filledCosts(storedItem.costs))
     )
   }, [item, storedItem, timeDraft])
   const dirty = itemDirty || reviewDraft !== (mine?.text ?? '')
@@ -332,7 +380,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         paymentMethodId: item.paymentMethodId,
         notes: item.notes,
         links: item.links,
-        costs: item.costs,
+        costs: filledCosts(item.costs),
       })
     }
     if (isActual && reviewDraft !== (mine?.text ?? '')) setReview(item.id, reviewDraft)
@@ -412,23 +460,78 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setNoteDraft('')
   }
 
+  const pickedMethod = methods.find((payment) => payment.id === item.paymentMethodId)
+
   const paymentPicker = item.costs.length > 0 && (
     <div className="detail-payment-row" onClick={(event) => event.stopPropagation()}>
-      <label className="detail-key" htmlFor="d-method">支付方式</label>
-      <select
-        id="d-method"
-        className="field detail-payment-select"
-        value={item.paymentMethodId ?? ''}
-        onChange={(event) => selectPayment(event.target.value || undefined)}
-      >
-        <option value="">未設定</option>
-        {methods.map((payment) => (
-          <option key={payment.id} value={payment.id}>
-            {methodLabel(payment.name, payment.owner)}
-          </option>
-        ))}
-      </select>
+      <span className="detail-key">支付方式</span>
+      <button className="btn btn-sm detail-payment-pick" onClick={() => setPickingPayment(true)}>
+        <span className="detail-payment-name">
+          {pickedMethod ? methodLabel(pickedMethod.name, pickedMethod.owner) : '未設定'}
+        </span>
+        <span aria-hidden="true">›</span>
+      </button>
     </div>
+  )
+
+  const choosePayment = (id?: string) => {
+    selectPayment(id)
+    setPickingPayment(false)
+  }
+
+  const paymentModal = pickingPayment && (
+    <Modal title="選擇支付方式" onCancel={() => setPickingPayment(false)} variant="picker">
+      <div className="picker-body">
+        {pickerGroups.map(([owner, list]) => (
+          <div key={owner} className="picker-group">
+            <div className="picker-group-head"><span className="picker-dot" />{owner}</div>
+            <div className="picker-grid">
+              {list.map((payment) => {
+                const status = methodStatus.get(payment.id)
+                const uncapped = status?.remaining === undefined
+                return (
+                  <button
+                    key={payment.id}
+                    className="picker-card"
+                    disabled={status?.exhausted}
+                    onClick={() => choosePayment(payment.id)}
+                  >
+                    <span className="picker-card-name">{payment.name || '未命名'}</span>
+                    {status && (
+                      <>
+                        <span className="picker-card-label">{status.exhausted ? '回饋' : '還可刷'}</span>
+                        <span
+                          className={status.exhausted || uncapped ? 'picker-card-value' : 'picker-card-value mono'}
+                          data-bad={status.exhausted}
+                        >
+                          {status.exhausted
+                            ? '已拿滿'
+                            : uncapped
+                              ? '無上限'
+                              : formatMoney(status.remaining!, payment.currency)}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+
+        {/* 自成一區，用同樣的方塊，版面才是一套的。 */}
+        <div className="picker-group">
+          <div className="picker-group-head"><span className="picker-dot" />未設定</div>
+          <div className="picker-grid">
+            <button className="picker-card" onClick={() => choosePayment(undefined)}>
+              <span className="picker-card-name">不指定</span>
+              <span className="picker-card-label">回饋</span>
+              <span className="picker-card-value">不計入</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Modal>
   )
 
   return (
@@ -450,6 +553,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         </Modal>
       )}
       {renaming && <SettingsModal onClose={() => setRenaming(false)} />}
+      {paymentModal}
 
       <div className="topbar detail-head">
         <ConfirmButton
@@ -760,24 +864,18 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     onChange={(value) => patchCost(cost.id, { qty: value ?? 0 })}
                     aria-label="數量"
                   />
-                  <input
-                    className="field"
-                    style={{ width: 46 }}
-                    placeholder="單位"
-                    value={cost.unit ?? ''}
-                    onChange={(event) => patchCost(cost.id, { unit: event.target.value || undefined })}
-                    aria-label="數量單位"
-                  />
-                  <select
-                    className="field"
-                    style={{ width: 74 }}
-                    value={cost.currency}
-                    onChange={(event) => patchCost(cost.id, { currency: event.target.value })}
-                    aria-label="幣別"
-                  >
-                    <option value={trip.foreignCurrency}>{trip.foreignCurrency}</option>
-                    <option value={trip.homeCurrency}>{trip.homeCurrency}</option>
-                  </select>
+                  <div className="seg" role="group" aria-label="幣別">
+                    {[trip.foreignCurrency, trip.homeCurrency].map((code) => (
+                      <button
+                        key={code}
+                        className="seg-btn seg-btn-sm"
+                        aria-pressed={cost.currency === code}
+                        onClick={() => patchCost(cost.id, { currency: code })}
+                      >
+                        {code}
+                      </button>
+                    ))}
+                  </div>
                   <span className="mono dim cl-sub">{formatMoney(lineTotal(cost), cost.currency)}</span>
                 </div>
               ))}
@@ -803,8 +901,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                 {item.costs.map((cost) => (
                   <div key={cost.id} className="detail-cost-row">
                     <span>{cost.label || '未命名費用'}</span>
-                    <span className="dim">{formatMoney(cost.unitPrice, cost.currency)}</span>
-                    <span className="dim">× {cost.qty}{cost.unit ?? ''}</span>
+                    <span className="dim mono">{formatMoney(cost.unitPrice, cost.currency)}</span>
+                    <span className="dim mono">× {cost.qty}</span>
                     <span className="mono">{formatMoney(lineTotal(cost), cost.currency)}</span>
                   </div>
                 ))}

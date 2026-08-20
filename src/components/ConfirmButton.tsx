@@ -31,8 +31,7 @@ export default function ConfirmButton({
   if (!armed) {
     return (
       <button
-        className="btn btn-sm"
-        style={danger ? { color: 'var(--danger)' } : undefined}
+        className={danger ? 'btn btn-sm btn-quiet-danger' : 'btn btn-sm'}
         onClick={() => setArmed(true)}
       >
         {label}

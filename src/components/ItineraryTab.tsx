@@ -5,7 +5,6 @@ import { eachDay, shortDate, timeSortKey } from '../lib/date'
 import { useDayScroller } from '../lib/useDayScroller'
 import { useNowClock } from '../lib/useNowClock'
 import { pickCurrentItemId } from '../lib/items'
-import { flightStatusUrl, hasFlightStatus } from '../lib/flight'
 import { applyTemplate, needsSecondLevel, quickItemsFor, soleQuickItem, type QuickItem } from '../lib/presets'
 import { formatMoney, formatTotals, isUncategorized, itemTotals, mergeTotals, toHome } from '../lib/money'
 import CategoryIcon from './CategoryIcon'
@@ -14,7 +13,6 @@ import DayStrip from './DayStrip'
 import MapPinIcon from './MapPinIcon'
 import LinkIcon from './LinkIcon'
 import PhotoIcon from './PhotoIcon'
-import PlaneIcon from './PlaneIcon'
 import ReceiptIcon from './ReceiptIcon'
 
 interface Props {
@@ -27,6 +25,8 @@ interface Props {
   onClearCopied: () => void
   onOpenExpenses: () => void
 }
+
+const mapLinkOf = (item: Item) => item.links.find((link) => link.kind === 'map')
 
 export default function ItineraryTab({
   trip,
@@ -46,6 +46,8 @@ export default function ItineraryTab({
     [allItems, plan.id],
   )
   const createItem = useStore((s) => s.createItem)
+  const hideItemMoney = useStore((s) => Boolean(s.settings.hideItemMoney))
+  const toggleItemMoney = useStore((s) => s.toggleItemMoney)
   // 收據與行程照片在列表上是兩個不同的標記，所以分開統計。
   const photoMarks = useMemo(() => {
     const receipt = new Set<string>()
@@ -141,9 +143,17 @@ export default function ItineraryTab({
                 Day {i + 1} · {shortDate(day)}
                 {day === today && <span className="chip chip-accent" style={{ marginLeft: 6 }}>今天</span>}
               </span>
-              <span className="mono dim" style={{ fontSize: 12 }}>
+              {/* 當日總計同時是「每筆金額顯示與否」的開關，全趟一起切換：
+                  平常只看總計就夠，要追細項再打開。 */}
+              <button
+                type="button"
+                className="mono dim dayhead-total"
+                aria-pressed={!hideItemMoney}
+                title={hideItemMoney ? '顯示每筆金額' : '收起每筆金額'}
+                onClick={toggleItemMoney}
+              >
                 {formatTotals(totals) || '—'}
-              </span>
+              </button>
             </div>
 
             {rows.map((item) => (
@@ -168,7 +178,7 @@ export default function ItineraryTab({
                 <span className="rowtime">{item.startTime ?? ''}</span>
                 <span className="rowtitle">
                   {item.title}
-                  {item.links.some((link) => link.kind === 'map') && (
+                  {!hideItemMoney && item.links.some((link) => link.kind === 'map') && (
                     <span title="Google Maps 地點">
                       <MapPinIcon size={13} className="row-map-icon" />
                     </span>
@@ -197,20 +207,25 @@ export default function ItineraryTab({
                       </span>
                     ))}
                 </span>
-                {hasFlightStatus(item.title) && (
-                  <a
-                    className="row-flight"
-                    href={flightStatusUrl(item.title)}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="查航班動態"
-                    aria-label={`查「${item.title}」的航班動態`}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <PlaneIcon size={15} />
-                  </a>
+                {hideItemMoney ? (
+                  mapLinkOf(item) && (
+                    /* 收起金額才出現：標題後那顆 pin 只是指示器，這裡是一點就導航。
+                       巢在 role="button" 裡，要擋冒泡才不會連詳細頁一起開。 */
+                    <a
+                      className="row-action"
+                      href={mapLinkOf(item)!.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="開啟 Google Maps"
+                      aria-label={`在 Google Maps 開啟「${item.title}」`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MapPinIcon size={15} />
+                    </a>
+                  )
+                ) : (
+                  <span className="rowmoney">{formatTotals(itemTotals(item))}</span>
                 )}
-                <span className="rowmoney">{formatTotals(itemTotals(item))}</span>
               </div>
             ))}
 

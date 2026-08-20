@@ -90,8 +90,8 @@ function NoteCard({ note, onEdit }: { note: Note; onEdit: () => void }) {
   return (
     <div className="sec">
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
-        <strong style={{ flex: 1, minWidth: 0, fontSize: 16 }}>{title}</strong>
-        <button className="btn btn-sm" onClick={onEdit} aria-label={`編輯 ${title}`}>
+        <strong style={{ flex: 1, minWidth: 0, fontSize: 16, overflowWrap: 'anywhere' }}>{title}</strong>
+        <button className="icon-btn" onClick={onEdit} aria-label={`編輯 ${title}`}>
           <PencilIcon />
         </button>
       </div>
@@ -117,8 +117,12 @@ function NoteCard({ note, onEdit }: { note: Note; onEdit: () => void }) {
               style={{ flex: 'none', width: 18, height: 18 }}
             />
           ) : (
-            <span className="dim" style={{ flex: 'none', width: 18, textAlign: 'center' }}>
-              ¶
+            <span
+              className="dim"
+              style={{ flex: 'none', width: 18, textAlign: 'center', fontSize: 17, lineHeight: 1 }}
+              aria-hidden="true"
+            >
+              •
             </span>
           )}
           <span
@@ -127,6 +131,7 @@ function NoteCard({ note, onEdit }: { note: Note; onEdit: () => void }) {
               minWidth: 0,
               fontSize: 14,
               whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
               textDecoration: b.done ? 'line-through' : undefined,
               opacity: b.done ? 0.55 : 1,
             }}
@@ -139,7 +144,7 @@ function NoteCard({ note, onEdit }: { note: Note; onEdit: () => void }) {
       {!isPacking && note.links.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
           {note.links.map((link) => (
-            <a key={link.id} className="chip" href={link.url} target="_blank" rel="noreferrer">
+            <a key={link.id} className="chip chip-wrap" href={link.url} target="_blank" rel="noreferrer">
               {link.kind === 'map' ? <MapPinIcon size={13} /> : <LinkIcon size={13} />}
               {link.label || link.url}
             </a>
@@ -164,14 +169,12 @@ function NoteEditorModal({
   const updateNote = useStore((s) => s.updateNote)
   const removeNote = useStore((s) => s.removeNote)
   const savePackingTemplate = useStore((s) => s.savePackingTemplate)
-  const template = useStore((s) => s.settings.packingTemplate)
   const gasUrl = useStore((s) => s.settings.gasUrl)
   const tripLink = useStore((s) => s.settings.tripLinks?.[trip.id])
   const [linkDraft, setLinkDraft] = useState('')
   const [resolvingLink, setResolvingLink] = useState(false)
   const [linkLookupError, setLinkLookupError] = useState('')
   const [saved, setSaved] = useState(false)
-  const [templateNote, setTemplateNote] = useState('')
 
   /*
    * 進入編輯就複製一份來改，按完成才寫回。
@@ -240,25 +243,6 @@ function NoteEditorModal({
     onClose()
   }
 
-  /**
-   * 範本是「附加」而不是「取代」：取代會把使用者自己加的項目清掉。
-   * 已經在清單裡的品項也略過，重複按不會長出兩份護照。
-   */
-  const addTemplate = () => {
-    const source = template ?? DEFAULT_PACKING
-    const existing = new Set(draft.blocks.map((b) => b.text.trim()).filter(Boolean))
-    const added = source.map((t) => t.trim()).filter((t) => t && !existing.has(t))
-    if (!added.length) {
-      setTemplateNote('範本項目都已經在清單裡了')
-      return
-    }
-    setBlocks([
-      ...draft.blocks,
-      ...added.map<NoteBlock>((text) => ({ id: newId(), kind: 'check', text, done: false })),
-    ])
-    setTemplateNote(`已加入 ${added.length} 項`)
-  }
-
   const checks = draft.blocks.filter((b) => b.kind === 'check')
   const isPacking = draft.title.trim() === PACKING_TITLE
 
@@ -284,19 +268,16 @@ function NoteEditorModal({
           <span className="label">內容</span>
           {draft.blocks.map((b) => (
             <div key={b.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 5 }}>
-              {b.kind === 'check' ? (
-                <input
-                  type="checkbox"
-                  checked={Boolean(b.done)}
-                  onChange={(e) => patchBlock(b.id, { done: e.target.checked })}
-                  aria-label={`勾選 ${b.text}`}
-                  style={{ flex: 'none', width: 18, height: 18 }}
-                />
-              ) : (
-                <span className="dim" style={{ flex: 'none', width: 18, textAlign: 'center' }}>
-                  ¶
-                </span>
-              )}
+              {/* 左邊這格同時是「這行是什麼類型」和切換鈕。編輯時不放 checkbox ——
+                  真正要打勾是在閱讀畫面做的，這裡只決定這一行是勾選項還是文字。 */}
+              <button
+                className="block-kind"
+                onClick={() => patchBlock(b.id, { kind: b.kind === 'check' ? 'text' : 'check', done: false })}
+                title={b.kind === 'check' ? '改成文字段落' : '改成勾選項'}
+                aria-label={b.kind === 'check' ? '改成文字段落' : '改成勾選項'}
+              >
+                {b.kind === 'check' ? '☑' : '•'}
+              </button>
               <input
                 className="field"
                 style={{
@@ -312,13 +293,6 @@ function NoteEditorModal({
               />
               <button
                 className="btn btn-sm delete-icon-btn"
-                onClick={() => patchBlock(b.id, { kind: b.kind === 'check' ? 'text' : 'check', done: false })}
-                title={b.kind === 'check' ? '改成文字段落' : '改成勾選項'}
-              >
-                {b.kind === 'check' ? '¶' : '☑'}
-              </button>
-              <button
-                className="btn btn-sm delete-icon-btn"
                 onClick={() => setBlocks(draft.blocks.filter((v) => v.id !== b.id))}
                 aria-label="刪除這一行"
               >
@@ -330,7 +304,6 @@ function NoteEditorModal({
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
             <button className="btn btn-sm" onClick={() => addBlock('check')}>＋ 勾選項</button>
             <button className="btn btn-sm" onClick={() => addBlock('text')}>＋ 文字</button>
-            <button className="btn btn-sm" onClick={addTemplate}>帶入打包範本</button>
             {checks.length > 0 && (
               <button
                 className="btn btn-sm"
@@ -345,9 +318,6 @@ function NoteEditorModal({
               </button>
             )}
           </div>
-          {templateNote && (
-            <p className="dim" style={{ fontSize: 11, margin: '6px 0 0' }}>{templateNote}</p>
-          )}
         </div>
 
         {!isPacking && (

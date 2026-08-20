@@ -10,6 +10,11 @@ import TrashIcon from './TrashIcon'
  * 三個上限都能填，因為它們限制的東西不一樣：
  * 回饋上限管總額、消費上限管刷多少之後失效、單筆回饋上限決定要不要拆單。
  */
+const KINDS = [
+  ['card', '信用卡'],
+  ['epay', '電子支付'],
+] as const
+
 export default function PaymentEditor({
   method,
   trip,
@@ -48,26 +53,40 @@ export default function PaymentEditor({
           onChange={(e) => onChange({ owner: e.target.value || undefined })}
           aria-label="持有人"
         />
-        <select
-          className="field"
-          style={{ width: 92 }}
-          value={method.kind}
-          onChange={(e) => onChange({ kind: e.target.value as PaymentMethod['kind'] })}
-          aria-label="種類"
-        >
-          <option value="card">信用卡</option>
-          <option value="epay">電子支付</option>
-        </select>
-        <select
-          className="field"
-          style={{ width: 96 }}
-          value={method.currency}
-          onChange={(e) => onChange({ currency: e.target.value })}
-          aria-label="上限幣別"
-        >
-          <option value={trip.homeCurrency}>上限 {trip.homeCurrency}</option>
-          <option value={trip.foreignCurrency}>上限 {trip.foreignCurrency}</option>
-        </select>
+      </div>
+
+      {/* 兩者都只有兩個選項，攤開比 <select> 快 —— 系統選單在 iOS 是整頁彈滾輪。 */}
+      <div style={{ display: 'flex', gap: 14, marginBottom: 8, flexWrap: 'wrap' }}>
+        <div>
+          <span className="label">種類</span>
+          <div className="seg" role="group" aria-label="種類">
+            {KINDS.map(([value, label]) => (
+              <button
+                key={value}
+                className="seg-btn"
+                aria-pressed={method.kind === value}
+                onClick={() => onChange({ kind: value })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <span className="label">上限幣別</span>
+          <div className="seg" role="group" aria-label="上限幣別">
+            {[trip.homeCurrency, trip.foreignCurrency].map((code) => (
+              <button
+                key={code}
+                className="seg-btn"
+                aria-pressed={method.currency === code}
+                onClick={() => onChange({ currency: code })}
+              >
+                {code}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {method.rules.map((r) => (

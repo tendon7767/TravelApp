@@ -36,8 +36,6 @@ export interface CostLine {
   label: string
   unitPrice: number
   qty: number
-  /** 數量單位，純顯示用：人、罐、晚、天 */
-  unit?: string
   currency: string
 }
 

@@ -348,7 +348,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                       {/*
                        * 筆是獨立按鈕，按它一定是寫自己的心得，不受該列展開與否影響 ——
                        * 別人寫了而我沒寫的那則，點列只會展開，這裡才是補寫的直接入口。
-                       * <button> 巢在 role="button" 裡要擋冒泡，跟 .row-flight 同一招。
+                       * <button> 巢在 role="button" 裡要擋冒泡，跟 .row-action 同一招。
                        */}
                       {!mine.trim() && !editing && (
                         <button

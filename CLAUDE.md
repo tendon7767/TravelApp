@@ -83,11 +83,12 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - **量高度要先同步寫一次，再交給 `ResizeObserver` 管後續變化。** 它的回呼掛在瀏覽器的算繪步驟上，**分頁在背景時不會送達** —— 只靠它的話初值永遠停在 fallback，而且是靜默的，畫面只是位置怪怪的不會報錯。
 - **iOS 鍵盤升起時版面視窗不會縮，只有可視視窗縮。** 畫面底部那段被鍵盤蓋住，在流內的底部按鈕列就消失了。`--kb`（[src/lib/keyboard.ts](src/lib/keyboard.ts)）量的就是這段：蓋板用它調 `inset`（`.pane-detail`），流內版面用它加 `padding-bottom`（`.review-view`）。Android 的版面視窗會跟著縮，`--kb` 算出來是 0，同一條規則自動失效，不用寫兩套。
 - **使用者輸入的文字都要 `overflow-wrap: anywhere`。** 沒有空白的長字串（英文店名、訂位代號、貼上來的網址）預設不斷行；`min-width: 0` 只讓它縮不讓它斷，照樣頂破版面。
-- **巢狀點擊區要 `stopPropagation()`。** 整列是 `role="button"` 而列裡又有按鈕或連結時（`.row-flight`、`.review-write-hint`）不擋冒泡會兩層一起觸發。小圖示的點擊區用 `::after` 撐開而不是把元素本身放大，版面才不受影響 —— 但別撐出容器右緣，那就變成上面第一條的橫向拖動。
+- **巢狀點擊區要 `stopPropagation()`。** 整列是 `role="button"` 而列裡又有按鈕或連結時（`.row-action`、`.review-write-hint`）不擋冒泡會兩層一起觸發。小圖示的點擊區用 `::after` 撐開而不是把元素本身放大，版面才不受影響 —— 但別撐出容器右緣，那就變成上面第一條的橫向拖動。
 
 ## 其他值得知道的
 
 - **回饋計算只認 `kind === 'actual'` 的版本**（[src/lib/rewards.ts](src/lib/rewards.ts)）。一張卡可有多組同時累積的規則；消費上限不獨立儲存，它恆等於 `rewardCap / rate`。
+- **介面文字講「消費」不講「刷卡」。** 支付方式包含電子支付，「刷卡明細」「已刷 N 筆」對悠遊付、LINE Pay 這類根本不成立。同理，泛稱時用「支付方式」而不是「卡片」。
 - **邀請連結就是通行證**：`#/join?u=<後端網址>&s=<試算表 ID>&k=<密鑰>`。密鑰存在試算表的 `_meta` 分頁，撤銷方式是去改那一列。
 - **本機儲存隨時可能被清空，所以邀請連結要備份到雲端。** `tripLinks`（試算表 ID + 密鑰）跟旅程資料在同一個 IndexedDB，瀏覽器清除是整個 origin 一起清，鑰匙會跟資料一起消失。因此同步時會呼叫後端 `saveInvite`，把連結寫進該趟試算表的「邀請連結」分頁 —— 使用者手上唯一還在的線索就是雲端硬碟裡那份試算表。連結字串由前端算（後端不知道前端網域），存進 `tripLinks[].inviteBackupUrl` 避免每次同步重送；能力由 `ping` 的 `capabilities.invite` 判斷。
 - 啟動時呼叫 `navigator.storage.persist()`（[src/lib/storage.ts](src/lib/storage.ts)）。Android Chrome 拿到後就豁免容量淘汰；iOS Safari 沒有實作這個 API，分頁模式下七天沒互動仍會被清，只有加到主畫面的 PWA 不受影響。

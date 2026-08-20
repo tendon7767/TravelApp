@@ -16,8 +16,9 @@ export default function PencilIcon({ size = 16 }: Props) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M4 20h4l10-10a2.8 2.8 0 0 0-4-4L4 16v4Z" />
-      <path d="M13.5 6.5l4 4" />
+      {/* 整個圖形在 viewBox 裡本來往下沉約 0.6 個單位（含筆畫寬算進去），上移補正。 */}
+      <path d="M4 19.4h4l10-10a2.8 2.8 0 0 0-4-4L4 15.4v4Z" />
+      <path d="M13.5 5.9l4 4" />
     </svg>
   )
 }

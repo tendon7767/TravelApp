@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import CloseIcon from './CloseIcon'
 
 interface Props {
   title: string
   onCancel: () => void
-  onComplete: () => void
+  /** 省略代表這個彈窗沒有「要不要套用」的問題（例如單純選一個），底部按鈕列整排不出現。 */
+  onComplete?: () => void
   cancelLabel?: string
   completeLabel?: string
   completeDanger?: boolean
+  /**
+   * 'picker' 是「點一個選項就關掉」的格式：四邊都留邊的置中彈窗，
+   * 高度跟著選項長，不像 sheet 那樣貼著底部滿版。
+   */
+  variant?: 'sheet' | 'picker'
   dirty?: boolean
   children: ReactNode
 }
@@ -23,6 +30,7 @@ export default function Modal({
   cancelLabel = '取消',
   completeLabel = '完成',
   completeDanger = false,
+  variant = 'sheet',
   dirty = false,
   children,
 }: Props) {
@@ -48,9 +56,10 @@ export default function Modal({
 
   return createPortal(
     <>
-      <div className="backdrop" onClick={requestCancel}>
+      <div className="backdrop" data-variant={variant} onClick={requestCancel}>
         <div
           className="sheet"
+          data-variant={variant}
           role="dialog"
           aria-modal="true"
           aria-label={title}
@@ -58,14 +67,22 @@ export default function Modal({
         >
           <div className="sheethead">
             <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>{title}</strong>
+            {/* 沒有底部按鈕列時，關閉的出口要留在標題列，不能只靠點背景。 */}
+            {!onComplete && (
+              <button className="icon-btn" onClick={requestCancel} aria-label="關閉">
+                <CloseIcon />
+              </button>
+            )}
           </div>
           <div className="sheetbody">{children}</div>
-          <div className="sheetactions">
-            <button className="btn" onClick={requestCancel}>{cancelLabel}</button>
-            <button className={completeDanger ? 'btn btn-danger' : 'btn btn-primary'} onClick={onComplete}>
-              {completeLabel}
-            </button>
-          </div>
+          {onComplete && (
+            <div className="sheetactions">
+              <button className="btn" onClick={requestCancel}>{cancelLabel}</button>
+              <button className={completeDanger ? 'btn btn-danger' : 'btn btn-primary'} onClick={onComplete}>
+                {completeLabel}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

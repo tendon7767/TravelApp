@@ -15,7 +15,7 @@
   --ok: #56d364;
   --ok-bg: rgba(46, 160, 67, 0.18);
   --note-bg: #3d2f0a;
-  --note-ink: #f8d66d;
+  --note-ink: #ff8a4c;
   --note-border: #d29922;
   --radius: 10px;
   --topbar-h: 60px;
@@ -44,7 +44,7 @@
   --actual-ok: #059669;
   --actual-ok-bg: #d1fae5;
   --actual-note-bg: #fff3c4;
-  --actual-note-ink: #854d0e;
+  --actual-note-ink: #c53410;
   --actual-note-border: #f59e0b;
   --actual-chip: #bfdbfe;
   --actual-ink: #1d4ed8;
@@ -72,18 +72,22 @@
   --danger-bg: #ffe5e5;
   --ok: #248a3d;
   --ok-bg: #dcf5e3;
-  --note-bg: #fff4d6;
-  --note-ink: #7a5300;
-  --note-border: #ffb300;
+  --note-bg: #fff2c0;
+  --note-ink: #d13415;
+  --note-border: #e3a008;
 
-  /* 原本那組是為深底挑的中高明度色，放到白底上對比不足會發淡，整批調深一階。 */
-  --cat-景點: #d70015;
-  --cat-交通: #0062cc;
-  --cat-餐飲: #b35c00;
-  --cat-住宿: #8944ab;
-  --cat-活動: #1d8a3f;
-  --cat-購物: #b8003c;
-  --cat-其他: #6c6c70;
+  /*
+   * 圖示是 1.8px 的線稿（CategoryIcon）不是色塊，同一個顏色畫成細線看起來會比填色淡得多，
+   * 所以是壓明度到剛好過白底的對比門檻，彩度維持住 —— 一起降彩度就變成土色。
+   * 白底對比本來就夠的三個直接沿用深色的原值。
+   */
+  --cat-景點: #e11d48;
+  --cat-交通: #0b6fd0;
+  --cat-餐飲: #e2620a;
+  --cat-住宿: #7c3aed;
+  --cat-活動: #12924a;
+  --cat-購物: #db2777;
+  --cat-其他: #64748b;
 
   --actual-bg: #eaf4f3;
   --actual-surface: #ffffff;
@@ -100,9 +104,9 @@
   --actual-danger-bg: #ffe5e5;
   --actual-ok: #1c7d4d;
   --actual-ok-bg: #d6f0e2;
-  --actual-note-bg: #fff2cf;
-  --actual-note-ink: #6f4d00;
-  --actual-note-border: #f0a500;
+  --actual-note-bg: #fff2c0;
+  --actual-note-ink: #d13415;
+  --actual-note-border: #e3a008;
   --actual-chip: #c2e9e3;
   --actual-ink: #046b62;
 }
@@ -113,6 +117,63 @@
  */
 :root[data-theme='light'] .topbar { box-shadow: 0 1px 3px rgba(60, 60, 67, 0.07); }
 :root[data-theme='light'] .tabbar { box-shadow: 0 -1px 3px rgba(60, 60, 67, 0.07); }
+
+/*
+ * --surface-2 在深色是「浮起來的那一層」（比 --surface 更亮），亮色卻是全畫面最深的色塊，
+ * 語意整個翻轉。當凹陷用的地方（.chip、.row:hover、引言塊）亮色下仍然正確，
+ * 但這兩處要的是「浮起」，所以只在亮色下改掉。
+ */
+:root[data-theme='light'] .category-choice,
+:root[data-theme='light'] .detail-link-card,
+:root[data-theme='light'] .copy-source,
+:root[data-theme='light'] .costline { background: var(--surface); }
+
+/*
+ * 無填色的按鈕在亮色下把文字與 icon 降到次級文字色 —— 純黑配淡灰框太衝，
+ * 框跟字的重量對不上。外框維持原本的深灰不動。
+ * 深色不套用：那裡 --text 就是按鈕該有的顏色。
+ * 底下兩條是把特異性較低、會被上一條蓋掉的填色按鈕重新宣告回來。
+ */
+:root[data-theme='light'] .btn { color: var(--text-2); }
+:root[data-theme='light'] .btn-primary { color: var(--accent-contrast); }
+:root[data-theme='light'] .btn-danger { color: #fff; }
+/* 這顆本來就是設計成框線與文字同走強調色的，上一條會蓋掉它的 color，補回來。 */
+:root[data-theme='light'] .detail-edit-all { color: var(--accent); }
+/*
+ * 純圖示的按鈕再淡一階：icon 的線是 2px，外框是 1px，同一個顏色下
+ * icon 會比框重、看起來比較深。降到 --text-3 兩者的視覺重量才對得上。
+ * （真的調到比外框算出來的 #c4c4c7 更淡會低於 3:1，小圖示就糊了。）
+ * 認的是「裡面只有一個圖示」而不是 .btn-glyph 這個 class ——
+ * 回饋與筆記的編輯鉛筆沒掛那個 class，但問題完全一樣。
+ * 選中狀態與刪除鍵各有自己的顏色，排除掉。
+ */
+:root[data-theme='light'] .btn:has(> svg:only-child):not([data-on='true']):not(.delete-icon-btn) {
+  color: var(--text-3);
+}
+/* 選中的切換鈕（心得模式、設定裡的配色）本來就寫著強調色，一樣要從 .btn 那條手上搶回來。 */
+:root[data-theme='light'] .btn-glyph[data-on='true'],
+:root[data-theme='light'] .btn[aria-pressed='true'] { color: var(--accent); }
+/* 刪除類是唯一連線框也跟著換色的：紅框紅字。 */
+:root[data-theme='light'] .btn-quiet-danger,
+:root[data-theme='light'] .delete-icon-btn {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 38%, transparent);
+}
+/* 照片燈箱永遠是黑底，不跟主題走。 */
+:root[data-theme='light'] .photo-lightbox .btn { color: #fff; border-color: #555; }
+:root[data-theme='light'] .photo-lightbox .btn-danger { color: #fff; border-color: transparent; }
+/* 日期列用淡一階的強調底色。實際版經由 .app[data-actual] 的 remap 會自動變成藍綠，不必另寫。 */
+:root[data-theme='light'] .dayhead {
+  background: color-mix(in srgb, var(--accent-bg) 55%, var(--surface));
+}
+
+/* 浮動的「現在」鈕原本是半透明的 --text，亮色下會變成一顆黑藥丸，跟其他強調元素對不上。 */
+:root[data-theme='light'] .now-fab {
+  background: color-mix(in srgb, var(--accent) 92%, transparent);
+  color: var(--accent-contrast);
+  border-color: transparent;
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 32%, transparent);
+}
 
 @media (prefers-color-scheme: dark) {
   /* 選成亮色的裝置不受系統深色影響，否則實際版會突然變深。 */
@@ -133,7 +194,7 @@
     --actual-ok: #6ee7b7;
     --actual-ok-bg: #123c31;
     --actual-note-bg: #493711;
-    --actual-note-ink: #fde68a;
+    --actual-note-ink: #ff9560;
     --actual-note-border: #fbbf24;
     --actual-chip: #244c80;
     --actual-ink: #bfdbfe;
@@ -214,7 +275,36 @@ a { color: var(--accent); }
   box-shadow: 0 2px 7px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 .btn-danger { background: var(--danger); color: #fff; border-color: transparent; }
+/* 刪除類的無填色按鈕。深色維持中性框線（那裡染紅會過重），亮色另有一條把框線一起染。 */
+.btn-quiet-danger { color: var(--danger); }
 .btn-sm { padding: 4px 9px; font-size: 13px; }
+
+/*
+ * 二選一的切換。只有兩個選項時 <select> 划不來：要點兩次，
+ * 在 iOS 還會整頁彈出滾輪，選完才知道自己選了什麼。
+ */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.seg-btn {
+  padding: 7px 12px;
+  font-size: 14px;
+  color: var(--text-2);
+  background: var(--surface);
+  white-space: nowrap;
+}
+.seg-btn + .seg-btn { border-left: 1px solid var(--border-2); }
+.seg-btn[aria-pressed='true'] { background: var(--accent-bg); color: var(--accent); }
+.seg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/*
+ * 費用列裡的幣別切換：字比表單小一號，但高度要跟旁邊的單價、數量欄切齊，
+ * 所以讓整組拉伸到跟同一列的 .field 一樣高，由按鈕自己把文字置中。
+ */
+.costline .seg { align-self: stretch; }
+.seg-btn-sm { display: inline-flex; align-items: center; padding: 0 10px; font-size: 13px; }
 /* 二選一的按鈕組（例如配色）：選中的那顆要一眼看得出來。 */
 .btn[aria-pressed='true'] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
 
@@ -242,6 +332,18 @@ a { color: var(--accent); }
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/*
+ * 只裝一個圖示、沒有 .btn-glyph 的按鈕（回饋與筆記的編輯鉛筆）也要置中：
+ * SVG 是行內元素，會坐在文字基線上、底下留著降部的空間，看起來就是偏上。
+ * 這是版面不是配色，兩個主題都要。
+ */
+.btn:has(> svg:only-child) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 
 /*
  * 同步狀態直接接在匯率後面，長得跟旁邊的說明文字一樣，點下去就是手動同步。
@@ -313,10 +415,15 @@ a { color: var(--accent); }
   border: 0.5px solid var(--border);
   white-space: nowrap;
 }
+/* 使用者輸入當標籤的 chip（如筆記連結貼上的長網址）要能斷行，不然會頂破卡片。 */
+.chip-wrap { white-space: normal; max-width: 100%; overflow-wrap: anywhere; }
 .chip-accent { background: var(--accent-bg); color: var(--accent); border-color: transparent; }
 .chip-actual { background: var(--actual-chip); color: var(--actual-ink); border-color: transparent; }
 /* 實際版沿用原本規劃版的藍色系；規劃版則固定為程式碼風格的深灰色。 */
-.app[data-actual='true'] {
+/* Modal 與詳細頁是 portal 到 body 的，不在 .app 底下，
+   所以 TripPage 會把 data-actual 同時寫到 body 上，兩邊都要吃得到這組 remap。 */
+.app[data-actual='true'],
+body[data-actual='true'] {
   --bg: var(--actual-bg);
   --surface: var(--actual-surface);
   --surface-2: var(--actual-surface-2);
@@ -360,9 +467,11 @@ a { color: var(--accent); }
   white-space: nowrap;
   border: 0.5px solid transparent;
 }
+/* 這裡要的是強調色而不是文字色。深色主題兩者剛好同值，所以長年寫成 --text 也看不出來；
+   亮色把它們分開之後才現形（黑膠囊配藍框）。深色的算繪結果不受這次改動影響。 */
 .daypill[data-on="true"] {
-  background: var(--text);
-  color: var(--bg);
+  background: var(--accent);
+  color: var(--accent-contrast);
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
@@ -384,6 +493,25 @@ a { color: var(--accent); }
   z-index: 18;
 }
 
+/* 當日總計兼每筆金額的開關；外觀維持純文字，不要讓日期列多一顆按鈕的重量。 */
+.dayhead-total {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  position: relative;
+}
+.dayhead-total::after {
+  /* 點擊區靠 ::after 撐開，不動版面。右緣不外擴，免得頂出容器變成能橫向拖動。 */
+  content: '';
+  position: absolute;
+  inset: -9px 0 -9px -16px;
+}
+
 /* 行程列：時間、標題、金額 */
 .row {
   display: flex;
@@ -402,20 +530,29 @@ a { color: var(--accent); }
 .row[data-now="true"] { box-shadow: inset 3px 0 0 var(--accent); }
 .row[data-now="true"] .rowtime { color: var(--accent); font-weight: 600; }
 
-/* 列表列本身是一整塊點擊區，航班連結要夠大才不會誤觸旁邊。 */
-.row-flight {
+/*
+ * 行程列右側的動作鍵（目前是導航）。元素本身只有圖示大小，才不會把整列撐高；
+ * 真機按得到靠 ::after 撐開點擊區 —— 右緣不外擴，免得整列能橫向拖動。
+ */
+.row-action {
   flex: none;
+  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  margin: -4px 0;
-  border-radius: 8px;
+  align-items: flex-start;
+  padding-top: 2px;
   color: var(--accent);
 }
+.row-action::after {
+  content: '';
+  position: absolute;
+  inset: -10px 0 -10px -14px;
+}
 
-/* 多筆提醒各自一行；只有第一行需要和標題拉開距離。 */
+/*
+ * 多筆提醒各自一行；只有第一行需要和標題拉開距離。
+ * 顏色走橘紅：提醒被拉到行程列上就是為了跳出來，黃褐色系在兩個主題下
+ * 都撐不起這件事 —— 亮色壓到夠對比就變土色，深色調亮又變成沒力氣的淡黃。
+ */
 .overview-note {
   display: block;
   max-width: 100%;
@@ -483,7 +620,7 @@ a { color: var(--accent); }
 
 .category-choice[data-on="true"] {
   border-color: var(--accent);
-  color: var(--text);
+  color: var(--accent);
   background: var(--accent-bg);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
@@ -576,7 +713,8 @@ a { color: var(--accent); }
   color: var(--text-3);
   text-align: center;
 }
-.tab[data-on="true"] { color: var(--text); }
+/* 同 .daypill：選中的分頁要的是強調色。 */
+.tab[data-on="true"] { color: var(--accent); }
 .tabicon { display: block; margin: 0 auto 1px; line-height: 0; }
 
 .scroll,
@@ -934,23 +1072,34 @@ a { color: var(--accent); }
 }
 
 .detail-cost-summary strong { color: var(--text); font-size: 14px; }
+/*
+ * 格線開在清單上、每一列用 display: contents，欄位才會跨列對齊。
+ * 每列各自是一個 grid 的話，欄寬由該列自己的內容決定，
+ * 數字位數一不同就各對各的，看起來像沒對齊。
+ */
 .detail-cost-list {
   margin: 2px 0 8px;
   padding: 7px 9px;
   border-radius: 8px;
   background: var(--surface-2);
-}
-
-.detail-cost-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto auto;
-  gap: 8px;
+  column-gap: 8px;
+}
+
+.detail-cost-row { display: contents; }
+.detail-cost-row > * {
   padding: 4px 0;
   color: var(--text-2);
   font-size: 12px;
+  min-width: 0;
 }
+/* 數字欄一律靠右，個位數才會在同一條線上。 */
+.detail-cost-row > * + * { text-align: right; }
 
-.detail-cost-row .mono { color: var(--text); }
+/* 單筆總額是這一列的主角，比單價與數量重一階。
+   單價與數量現在也是 .mono，所以要指最後一欄而不是指 .mono。 */
+.detail-cost-row > *:last-child { color: var(--text); }
 
 .detail-payment-row,
 .detail-total-row {
@@ -966,14 +1115,114 @@ a { color: var(--accent); }
   border-top: 0.5px solid var(--border);
 }
 
-.detail-payment-select {
-  width: auto;
+.detail-payment-pick {
+  display: inline-flex;
+  align-items: center;
   max-width: 70%;
-  padding: 6px 28px 6px 9px;
+  gap: 6px;
+  padding: 5px 9px;
   font-size: 13px;
 }
+.detail-payment-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .detail-total-row { font-size: 13px; }
+
+/*
+ * picker 彈窗的內容：單頁、依持有者分區。
+ * 沒有任何選中或使用中的狀態 —— 點下去彈窗就關了，沒有人看得到那個狀態。
+ * 方塊用跟一般按鈕同一組的線框，不加陰影 —— App 裡沒有別的地方靠陰影分層，
+ * 只有這裡加會變成風格上的例外。
+ */
+.picker-body { display: grid; gap: 16px; padding: 12px 0 2px; }
+.picker-group { display: grid; gap: 8px; }
+.picker-group-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.picker-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+/* 卡片名稱都不長，一排放得下三四張才看得到全部的選擇。 */
+.picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.picker-card {
+  display: grid;
+  align-content: start;
+  padding: 10px 11px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.picker-card:disabled { opacity: 0.45; cursor: default; }
+.picker-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.picker-card-name { font-size: 14px; line-height: 1.35; }
+.picker-card-label { font-size: 11px; color: var(--text-3); line-height: 1.15; margin-top: 4px; }
+.picker-card-value { font-size: 13px; color: var(--text-2); line-height: 1.3; }
+.picker-card-value[data-bad='true'] { color: var(--danger); }
+
+/*
+ * 支付方式卡片：一張卡就是一個完整的東西 —— 圓角、彼此隔開，
+ * 抬頭是一條實心的主題色帶，卡與卡的界線一眼分得出來。
+ * 整張卡可點（開消費明細），只有右上角的鉛筆例外，靠 stopPropagation 擋掉冒泡。
+ */
+.method-cards { display: grid; gap: 10px; padding: 10px; }
+.method-card {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 0.5px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+}
+.method-card[role='button']:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.method-band {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+.method-band-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.method-band-kind { font-size: 11px; opacity: 0.78; margin-left: 6px; }
+/* 色帶上的鉛筆要用色帶的前景色，不能跟著亮色主題的圖示規則變淡。 */
+.method-band-edit { color: inherit; opacity: 0.9; }
+:root[data-theme='light'] .method-band-edit { color: inherit; }
+.method-card-body { padding: 10px 12px 12px; }
+
+/*
+ * 消費明細。摘要與每一列都是同一組欄、金額都在最後一欄靠右，
+ * 所以右緣自然對齊，不必去湊數值。摘要釘在頂端，捲到一半也看得到總額。
+ */
+.txn-table { display: grid; padding: 12px 0 2px; }
+.txn-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 6px 0;
+  border-bottom: 0.5px solid var(--border);
+  font-size: 12px;
+  color: var(--text-2);
+  text-align: left;
+}
+.txn-row > :last-child { text-align: right; color: var(--text); }
+.txn-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.txn-sum {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-2);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+}
 
 /* 複製來源的可選列，選中時比照分類選單的 accent 外框。 */
 .copy-source {
@@ -992,6 +1241,7 @@ a { color: var(--accent); }
 .copy-source[data-on="true"] {
   border-color: var(--accent);
   background: var(--accent-bg);
+  color: var(--accent);
 }
 
 .detail-split-hint {
@@ -1331,6 +1581,55 @@ a { color: var(--accent); }
 .costline-head .cl-label { flex: 1; min-width: 0; }
 .costline .cl-sub { flex: 1; text-align: right; font-size: 12px; }
 
+/*
+ * 無外框的圖示按鈕（編輯用的小鉛筆）。外框套在這種尺寸的圖示上太搶眼，
+ * 但沒有框就更需要夠大的點擊區 —— 照慣例用 ::after 撐開而不是把元素本身放大，
+ * 版面才不受影響。inset 10px 仍在 .sec 的 14px 內距裡，不會撐出容器右緣。
+ */
+.icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-2);
+}
+.icon-btn::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+}
+.icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/*
+ * 編輯筆記時每一行左邊那格：既顯示這行目前是勾選項還是文字，點一下就切換。
+ * 沒有外框，所以點擊區一樣用 ::after 撐開。
+ */
+.block-kind {
+  position: relative;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-3);
+  font-size: 15px;
+  line-height: 1;
+}
+.block-kind::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+}
+.block-kind:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .delete-icon-btn {
   display: inline-flex;
   align-items: center;
@@ -1474,6 +1773,19 @@ a { color: var(--accent); }
   gap: 10px;
   padding: 12px 14px;
   border-bottom: 0.5px solid var(--border);
+}
+
+/*
+ * picker：點一個選項就關掉的彈窗自成一格。sheet 是從底部升起的滿版面板，
+ * 適合有內容要編輯的情境；選一個東西不需要那麼大的動作，四邊留邊置中就好。
+ * 高度跟著選項數量長，最高七成，超過的部分在 .sheetbody 裡捲。
+ */
+.backdrop[data-variant='picker'] { align-items: center; padding: 16px; }
+.sheet[data-variant='picker'] {
+  max-width: 420px;
+  max-height: 70%;
+  border-radius: 14px;
+  margin-bottom: 0;
 }
 
 .sheetbody {

@@ -4,7 +4,7 @@ import type { Plan, Trip } from '../types'
 import { computeMethod, type MethodResult } from '../lib/rewards'
 import { formatMoney } from '../lib/money'
 import { dayCount, shortDate } from '../lib/date'
-import { methodLabel, OWNERLESS, ownerColor } from '../lib/owners'
+import { methodLabel, OWNERLESS } from '../lib/owners'
 import PaymentEditor from './PaymentEditor'
 import PencilIcon from './PencilIcon'
 import Modal from './Modal'
@@ -44,12 +44,14 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
     () => (isActual && plan ? allItems.filter((i) => i.planId === plan.id && !i.deleted) : []),
     [allItems, isActual, plan],
   )
+  /*
+   * 規劃版與實際版共用同一套卡片，不再各做一套介面。
+   * 差別只在 items：規劃版拿到的是空陣列（回饋只認實際版），
+   * 所以數字全是初始值、消費明細是空的 —— 明細下面那行字就是在解釋這件事。
+   */
   const results = useMemo(
-    () =>
-      isActual
-        ? methods.filter((m) => m.enabled).map((m) => computeMethod(m, items, trip))
-        : [],
-    [methods, items, trip, isActual],
+    () => methods.filter((m) => m.enabled).map((m) => computeMethod(m, items, trip)),
+    [methods, items, trip],
   )
 
 
@@ -76,7 +78,10 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
   }, [results])
 
   const owners = useMemo(() => byOwner.map(([owner]) => owner), [byOwner])
-  const shown = ownerFilter ? byOwner.filter(([owner]) => owner === ownerFilter) : byOwner
+  // 沒有「全部」這個選項，所以一定有一位被選中。選中的人被刪掉或改名時退回第一位，
+  // 否則 ownerFilter 會指向一個不存在的人，整頁變空白。
+  const activeOwner = ownerFilter && owners.includes(ownerFilter) ? ownerFilter : owners[0]
+  const shown = byOwner.filter(([owner]) => owner === activeOwner)
   const openEditor = (method: MethodResult['method'], isNew = false) => {
     setEditingDraft({ ...method, rules: method.rules.map((r) => ({ ...r })) })
     setEditingNew(isNew)
@@ -167,35 +172,6 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
         </Modal>
       )}
 
-      {!isActual && (
-        <div className="sec" style={{ background: 'var(--accent-bg)' }}>
-          <div style={{ fontSize: 14, marginBottom: 4 }}>規劃版不計算回饋</div>
-          <p className="dim" style={{ fontSize: 12, margin: 0 }}>
-            規劃中的費用只是預估，不會算進已刷金額與回饋。出發後請用上方的「建立實際版」，
-            或切換到既有的實際版查看計算結果。
-          </p>
-        </div>
-      )}
-
-      {!isActual && methods.length > 0 && (
-        <div className="sec">
-          <span className="label">支付方式設定</span>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {methods.map((m) => (
-              <button
-                key={m.id}
-                className="chip"
-                onClick={() => openEditor(m)}
-                aria-label={`編輯 ${methodLabel(m.name, m.owner)}`}
-              >
-                {methodLabel(m.name, m.owner)}{m.enabled ? '' : ' · 這趟沒帶'}
-                <PencilIcon size={12} />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* 蓋板而非嵌在列表裡：嵌在分組內的話，一改持有人分組就變動，
           整個區塊會被重建，輸入框當場失去焦點，中文根本打不完一個字。 */}
       {editingDraft && (
@@ -222,19 +198,11 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
 
       {owners.length > 1 && (
         <div className="daystrip" style={{ position: 'static' }}>
-          <button
-            className="daypill"
-            data-on={ownerFilter === null}
-            onClick={() => setOwnerFilter(null)}
-          >
-            全部
-          </button>
           {owners.map((owner) => (
             <button
               key={owner}
               className="daypill"
-              data-on={ownerFilter === owner}
-              style={ownerFilter === owner ? { background: ownerColor(owner), color: '#fff' } : undefined}
+              data-on={owner === activeOwner}
               onClick={() => setOwnerFilter(owner)}
             >
               {owner}
@@ -243,31 +211,22 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
         </div>
       )}
 
-      {shown.map(([owner, list]) => (
-        <div key={owner}>
-          <div
-            className="dayhead"
-            style={{ position: 'static', borderLeft: `3px solid ${ownerColor(owner)}` }}
-          >
-            <span style={{ fontSize: 13, fontWeight: 500, color: ownerColor(owner) }}>{owner}</span>
-            <span className="mono dim" style={{ fontSize: 12 }}>
-              已累積回饋 {formatMoney(list.reduce((s, r) => s + r.totalReward, 0), list[0].method.currency)}
-            </span>
-          </div>
-
-          {list.map((res) => (
+      {/* 上面的持有人膠囊已經說明現在看的是誰，不再重複一條持有人橫條。 */}
+      <div className="method-cards">
+        {shown.flatMap(([, list]) =>
+          list.map((res) => (
             <MethodCard
               key={res.method.id}
               res={res}
-              accent={ownerColor(owner)}
+              planning={!isActual}
               onEdit={() => openEditor(res.method)}
               onSelect={onSelect}
             />
-          ))}
-        </div>
-      ))}
+          )),
+        )}
+      </div>
 
-      {isActual && methods.filter((m) => !m.enabled).length > 0 && (
+      {methods.filter((m) => !m.enabled).length > 0 && (
         <div className="sec">
           <span className="label">這趟沒帶</span>
           {methods.filter((m) => !m.enabled).map((m) => (
@@ -309,15 +268,17 @@ function Stat({
 /** 主角是「還能刷多少」，不是「已經拿了多少」—— 站在收銀台前要看的是前者。 */
 function MethodCard({
   res,
-  accent,
+  planning,
   onEdit,
   onSelect,
 }: {
   res: MethodResult
-  accent: string
+  /** 規劃版：卡片長得一樣，但沒有消費紀錄可看，明細入口關掉。 */
+  planning: boolean
   onEdit: () => void
   onSelect: (id: string) => void
 }) {
+  const [detailOpen, setDetailOpen] = useState(false)
   const cur = res.method.currency
   const capped = res.rules.filter((r) => r.remainingSpend !== undefined)
   // 最緊的那條規則決定你實際還能刷多少
@@ -331,24 +292,81 @@ function MethodCard({
   const rewardCap = binding?.rule.rewardCap
   const pct = rewardCap ? Math.min(100, (binding!.reward / rewardCap) * 100) : 0
 
+  const openDetail = () => {
+    if (!planning) setDetailOpen(true)
+  }
+
   return (
-    <div className="sec" style={{ borderLeft: `3px solid ${accent}` }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-        <span style={{ fontSize: 14, fontWeight: 500 }}>
+    <>
+      {/*
+       * 彈窗要放在可點的卡片外面。Modal 是 portal 到 body 的，但 React 的合成事件
+       * 沿的是 React 樹不是 DOM 樹 —— 掛在卡片裡面的話，點背景關掉的那一個點擊
+       * 會接著冒泡到卡片的 onClick，當場又把它打開。
+       */}
+      {detailOpen && (
+        <Modal
+          title={`${res.method.name || '未命名'} 消費明細`}
+          onCancel={() => setDetailOpen(false)}
+          variant="picker"
+        >
+          <div className="txn-table">
+            {/* 摘要釘在頂端，明細捲到一半也還看得到總額。 */}
+            <div className="txn-row txn-sum">
+              <span>已消費 {res.txns.length} 筆</span>
+              <span className="mono">{formatMoney(res.spend, cur)}</span>
+            </div>
+            {res.txns.length === 0 && (
+              <p className="dim" style={{ fontSize: 12, margin: '10px 0 0' }}>這張卡還沒有紀錄。</p>
+            )}
+            {res.txns.map(({ item, amount }) => (
+              <button
+                key={item.id}
+                className="txn-row"
+                onClick={() => {
+                  setDetailOpen(false)
+                  onSelect(item.id)
+                }}
+              >
+                <span className="dim mono">{shortDate(item.date)}</span>
+                <span className="dim txn-title">{item.title}</span>
+                <span className="mono">{formatMoney(amount, cur)}</span>
+              </button>
+            ))}
+          </div>
+        </Modal>
+      )}
+
+      <div
+        className="method-card"
+        role={planning ? undefined : 'button'}
+        tabIndex={planning ? undefined : 0}
+        onClick={openDetail}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            openDetail()
+          }
+        }}
+      >
+      <div className="method-band">
+        <span className="method-band-name">
           {res.method.name || '未命名'}
-          <span className="dim" style={{ fontSize: 11, marginLeft: 6 }}>
+          <span className="method-band-kind">
             {res.method.kind === 'card' ? '信用卡' : '電子支付'}
-            {res.method.owner?.trim() ? ` · ${res.method.owner.trim()}` : ''}
           </span>
         </span>
         <button
-          className="btn btn-sm"
-          onClick={onEdit}
+          className="icon-btn method-band-edit"
+          onClick={(event) => {
+            event.stopPropagation()
+            onEdit()
+          }}
           aria-label={`編輯 ${methodLabel(res.method.name, res.method.owner)}`}
         >
           <PencilIcon />
         </button>
       </div>
+      <div className="method-card-body">
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 6 }}>
         <div style={{ flex: 1 }}>
@@ -368,11 +386,11 @@ function MethodCard({
 
       {rewardCap !== undefined && (
         <div style={{ height: 6, background: 'var(--surface-2)', borderRadius: 3, marginTop: 8 }}>
-          <div style={{ width: `${pct}%`, height: '100%', borderRadius: 3, background: exhausted ? 'var(--danger)' : accent }} />
+          <div style={{ width: `${pct}%`, height: '100%', borderRadius: 3, background: exhausted ? 'var(--danger)' : 'var(--accent)' }} />
         </div>
       )}
       <div className="mono dim" style={{ fontSize: 11, marginTop: 4 }}>
-        已刷 {formatMoney(res.spend, cur)} · {res.txns.length} 筆
+        已消費 {res.txns.length} 筆 {formatMoney(res.spend, cur)}
         {rewardCap !== undefined &&
           ` · 回饋 ${formatMoney(binding!.reward, cur)} / ${formatMoney(rewardCap, cur)}`}
       </div>
@@ -403,22 +421,11 @@ function MethodCard({
       ))}
 
 
-      <div style={{ marginTop: 10 }}>
-        <span className="label">刷卡明細</span>
-        {res.txns.length === 0 && <div className="dim" style={{ fontSize: 12 }}>這張卡還沒有紀錄。</div>}
-        {res.txns.map(({ item, amount }) => (
-          <button
-            key={item.id}
-            onClick={() => onSelect(item.id)}
-            style={{ display: 'flex', width: '100%', justifyContent: 'space-between', gap: 8, fontSize: 12, padding: '4px 0', borderBottom: '0.5px solid var(--border)' }}
-          >
-            <span className="dim" style={{ textAlign: 'left', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {shortDate(item.date)} {item.title}
-            </span>
-            <span className="mono" style={{ flex: 'none' }}>{formatMoney(amount, cur)}</span>
-          </button>
-        ))}
+      {planning && (
+        <p className="dim" style={{ fontSize: 12, margin: '10px 0 0' }}>規劃版不計算回饋</p>
+      )}
       </div>
-    </div>
+      </div>
+    </>
   )
 }
