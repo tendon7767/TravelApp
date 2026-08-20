@@ -115,6 +115,28 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     return () => ro.disconnect()
   }, [scrollRef, days.length])
 
+  /*
+   * 作者名牌要釘在自己那則行程列的正下方，所以還得知道那一列多高。
+   * 列高不一致（標題會換行），只好各量各的 —— 但一個 ResizeObserver 可以掛
+   * 多個目標，不是每列一個觀察器，所以這件事很便宜。
+   */
+  useEffect(() => {
+    const scroller = scrollRef.current
+    if (!scroller) return
+    const write = (row: HTMLElement) =>
+      row.parentElement?.style.setProperty('--reviewrow-h', `${row.offsetHeight}px`)
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) write(entry.target as HTMLElement)
+    })
+    scroller.querySelectorAll<HTMLElement>('.review-row').forEach((row) => {
+      // 先同步寫一次再交給觀察器：ResizeObserver 的回呼掛在算繪步驟上，
+      // 分頁在背景時不會送達，只靠它的話初值永遠是 fallback。
+      write(row)
+      ro.observe(row)
+    })
+    return () => ro.disconnect()
+  }, [scrollRef, items])
+
   useEffect(() => {
     let cancelled = false
     void loadReviewDrafts(plan.id).then((saved) => {
@@ -305,16 +327,29 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                       <CategoryIcon category={item.category} className="row-category-icon" />
                       <span className="rowtime">{item.startTime ?? ''}</span>
                       <span className="rowtitle">{item.title}</span>
-                      {/* 兩個圖示回答的是兩個不同的問題，所以各自獨立、可以同時出現。 */}
-                      {hasContent && (
+                      {/* 展開時內容就在眼前，這個標記只在收合時才有資訊量。 */}
+                      {!expanded && hasContent && (
                         <span title="有心得" aria-label="有心得">
                           <ReviewIcon size={13} className="row-photo-icon" />
                         </span>
                       )}
+                      {/*
+                       * 筆是獨立按鈕，按它一定是寫自己的心得，不受該列展開與否影響 ——
+                       * 別人寫了而我沒寫的那則，點列只會展開，這裡才是補寫的直接入口。
+                       * <button> 巢在 role="button" 裡要擋冒泡，跟 .row-flight 同一招。
+                       */}
                       {!mine.trim() && !editing && (
-                        <span className="review-write-hint" title="你還沒寫" aria-label="你還沒寫">
-                          <PencilIcon size={13} />
-                        </span>
+                        <button
+                          className="review-write-hint"
+                          title="新增心得"
+                          aria-label={`寫「${item.title}」的心得`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            beginEdit(item.id)
+                          }}
+                        >
+                          <PencilIcon size={15} />
+                        </button>
                       )}
                     </div>
 
