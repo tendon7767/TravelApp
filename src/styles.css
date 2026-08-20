@@ -1707,12 +1707,42 @@ body[data-actual='true'] {
   border-radius: var(--radius);
 }
 
+/*
+ * 規則區塊是可點的：點哪一條，上面的「還可刷」就照那條算。
+ * 怎麼算沒有統一標準（有人只看國外消費、有人在意加碼那條），交給使用者指定。
+ */
+.rulebox {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+}
+/* 選中的標記只有右上那顆圖示 —— 再加一圈外框跟其他上了色的選項對不起來。 */
+.rulebox:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .rulehead {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
+  /* 預留勾勾的高度。不留的話，被選中那條會比其他規則高 1px，
+     整排方塊的高度就跟著選擇跳動。字級放大時行高自然超過它，這條就自動失效。 */
+  min-height: 19px;
   font-size: 12px;
   color: var(--text-2);
+}
+
+/* 靠 margin-left: auto 貼到右緣那塊空白，不跟規則名稱與回饋率搶位置。 */
+.rule-focus {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .rulerate {

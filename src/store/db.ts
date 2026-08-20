@@ -28,6 +28,12 @@ export interface Settings {
   /** 介面配色。undefined 等同 'dark'，所以舊資料不必遷移。 */
   theme?: 'dark' | 'light'
   /**
+   * 支付方式卡片上的「還可刷」要照哪一條回饋規則算，methodId → ruleId。
+   * 沒指定就自動挑最緊的那條。規則怎麼算會因人而異（有人只看國外消費、
+   * 有人在意加碼那條），這純粹是閱讀偏好，跟 reviewHues 一樣留在本機不上傳。
+   */
+  rewardRuleFocus?: Record<string, string>
+  /**
    * 行程列右邊的每筆金額是否收起來。undefined 等同顯示，舊資料不必遷移。
    * 收起來時日期列的當日總計還在，要看細項再點總計打開。
    */

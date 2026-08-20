@@ -7,6 +7,7 @@ import { dayCount, shortDate } from '../lib/date'
 import { methodLabel, OWNERLESS } from '../lib/owners'
 import PaymentEditor from './PaymentEditor'
 import PencilIcon from './PencilIcon'
+import CheckIcon from './CheckIcon'
 import Modal from './Modal'
 
 interface Props {
@@ -279,12 +280,19 @@ function MethodCard({
   onSelect: (id: string) => void
 }) {
   const [detailOpen, setDetailOpen] = useState(false)
+  const focusId = useStore((s) => s.settings.rewardRuleFocus?.[res.method.id])
+  const setRewardRuleFocus = useStore((s) => s.setRewardRuleFocus)
   const cur = res.method.currency
-  const capped = res.rules.filter((r) => r.remainingSpend !== undefined)
-  // 最緊的那條規則決定你實際還能刷多少
-  const binding = capped.length
-    ? capped.reduce((a, b) => ((a.remainingSpend ?? 0) <= (b.remainingSpend ?? 0) ? a : b))
+  /*
+   * 上面那個大數字要照哪條規則算：預設擇優，挑回饋率最高的那條 ——
+   * 要決定的通常是「這張還能不能用最好的那個%刷」。
+   * 怎麼算沒有統一標準，所以點任一條規則就能改成照它算。
+   * 指定的規則被刪掉時 find 會落空，自動退回回饋率最高的，不會變成空白。
+   */
+  const best = res.rules.length
+    ? res.rules.reduce((a, b) => (b.rule.rate > a.rule.rate ? b : a))
     : undefined
+  const binding = res.rules.find((r) => r.rule.id === focusId) ?? best
   const remaining = binding?.remainingSpend
   const exhausted = remaining === 0
   // 進度看的是「回饋領了多少」，不是「刷了多少」——
@@ -396,10 +404,29 @@ function MethodCard({
       </div>
 
       {res.rules.map((rr) => (
-        <div key={rr.rule.id} className="rulebox">
+        <button
+          key={rr.rule.id}
+          className="rulebox"
+          aria-pressed={binding?.rule.id === rr.rule.id}
+          title={
+            binding?.rule.id === rr.rule.id
+              ? '上面的「還可刷」算的就是這條'
+              : '改用這條規則算上面的「還可刷」'
+          }
+          onClick={(event) => {
+            // 巢在整張可點的卡片裡，不擋冒泡會連消費明細一起打開。
+            event.stopPropagation()
+            setRewardRuleFocus(res.method.id, focusId === rr.rule.id ? undefined : rr.rule.id)
+          }}
+        >
           <div className="rulehead">
             {rr.rule.name}
             <span className="mono rulerate">{(rr.rule.rate * 100).toFixed(1)}%</span>
+            {binding?.rule.id === rr.rule.id && (
+              <span className="rule-focus" aria-label="上面的「還可刷」算的就是這條">
+                <CheckIcon size={13} />
+              </span>
+            )}
           </div>
           <div className="rulestats">
             {rr.remainingSpend !== undefined && (
@@ -417,7 +444,7 @@ function MethodCard({
               <Stat label="單筆上限" value={formatMoney(rr.rule.perTxnRewardCap, cur)} muted />
             )}
           </div>
-        </div>
+        </button>
       ))}
 
 

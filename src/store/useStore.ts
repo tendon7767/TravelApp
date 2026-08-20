@@ -78,6 +78,8 @@ interface State {
   setReviewHue: (tripId: string, author: string, hue?: number) => void
   /** 介面配色；跟 reviewHues 一樣是這台裝置自己的偏好，不上傳。 */
   setTheme: (theme: 'dark' | 'light') => void
+  /** 卡片上「還可刷」要看哪一條規則；ruleId 傳 undefined 就回到自動挑最緊的。 */
+  setRewardRuleFocus: (methodId: string, ruleId?: string) => void
   /** 行程列的每筆金額顯示與否，全趟一起開關。同樣是本機偏好。 */
   toggleItemMoney: () => void
   setActive: (tripId?: string, planId?: string) => void
@@ -234,6 +236,15 @@ export const useStore = create<State>((setState, getState) => {
 
     toggleItemMoney: () => {
       const settings = { ...getState().settings, hideItemMoney: !getState().settings.hideItemMoney }
+      setState({ settings })
+      void saveSettings(settings)
+    },
+
+    setRewardRuleFocus: (methodId, ruleId) => {
+      const current = { ...(getState().settings.rewardRuleFocus ?? {}) }
+      if (ruleId === undefined) delete current[methodId]
+      else current[methodId] = ruleId
+      const settings = { ...getState().settings, rewardRuleFocus: current }
       setState({ settings })
       void saveSettings(settings)
     },

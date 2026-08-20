@@ -37,22 +37,26 @@ export default function PaymentEditor({
   return (
     <div style={{ padding: '10px 0 0' }}>
       <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-        <input
-          className="field"
-          style={{ flex: 2, minWidth: 140 }}
-          placeholder="卡片或電子支付名稱"
-          value={method.name}
-          onChange={(e) => onChange({ name: e.target.value })}
-          aria-label="名稱"
-        />
-        <input
-          className="field"
-          style={{ flex: 1, minWidth: 80 }}
-          placeholder="持有人"
-          value={method.owner ?? ''}
-          onChange={(e) => onChange({ owner: e.target.value || undefined })}
-          aria-label="持有人"
-        />
+        <div style={{ flex: 2, minWidth: 140 }}>
+          <label className="label">名稱</label>
+          <input
+            className="field"
+            placeholder="卡片或電子支付名稱"
+            value={method.name}
+            onChange={(e) => onChange({ name: e.target.value })}
+            aria-label="名稱"
+          />
+        </div>
+        <div style={{ flex: 1, minWidth: 80 }}>
+          <label className="label">持有人</label>
+          <input
+            className="field"
+            placeholder="誰的"
+            value={method.owner ?? ''}
+            onChange={(e) => onChange({ owner: e.target.value || undefined })}
+            aria-label="持有人"
+          />
+        </div>
       </div>
 
       {/* 兩者都只有兩個選項，攤開比 <select> 快 —— 系統選單在 iOS 是整頁彈滾輪。 */}
@@ -91,25 +95,31 @@ export default function PaymentEditor({
 
       {method.rules.map((r) => (
         <div key={r.id} className="card" style={{ padding: 9, marginBottom: 8 }}>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-            <input
-              className="field"
-              style={{ flex: 1, minWidth: 0 }}
-              placeholder="規則名稱"
-              value={r.name}
-              onChange={(e) => patchRule(r.id, { name: e.target.value })}
-              aria-label="規則名稱"
-            />
-            <div style={{ width: 96, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <NumberField
-                className="field mono"
-                style={{ width: 62 }}
-                value={Math.round(r.rate * 1000) / 10}
-                emptyAs={0}
-                onChange={(v) => patchRule(r.id, { rate: (v ?? 0) / 100 })}
-                aria-label="回饋率"
+          {/* 加了欄位名稱之後三者高度不同，靠底部對齊才不會參差。 */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <label className="label">規則名稱</label>
+              <input
+                className="field"
+                placeholder="例如國外消費"
+                value={r.name}
+                onChange={(e) => patchRule(r.id, { name: e.target.value })}
+                aria-label="規則名稱"
               />
-              <span className="dim">%</span>
+            </div>
+            <div style={{ width: 96 }}>
+              <label className="label">回饋率</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <NumberField
+                  className="field mono"
+                  style={{ width: 62 }}
+                  value={Math.round(r.rate * 1000) / 10}
+                  emptyAs={0}
+                  onChange={(v) => patchRule(r.id, { rate: (v ?? 0) / 100 })}
+                  aria-label="回饋率"
+                />
+                <span className="dim">%</span>
+              </div>
             </div>
             {method.rules.length > 1 && (
               <button
