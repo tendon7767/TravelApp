@@ -161,11 +161,15 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     setDrafts((current) => ({ ...current, [itemId]: mineText(itemId) }))
   }
 
+  /**
+   * 只掛在自己那則氣泡上。別人的氣泡純閱讀 ——
+   * 點別人寫的東西卻跳出自己的輸入框，怎麼想都是意外而不是意圖。
+   */
   const editProps = (itemId: string) => {
     if (itemId in drafts) return {}
     return {
       role: 'button' as const,
-      'aria-label': '編輯心得',
+      'aria-label': '編輯我的心得',
       tabIndex: 0,
       onClick: () => beginEdit(itemId),
       onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
@@ -248,7 +252,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   }
 
   return (
-    <div className="itinerary-view">
+    <div className="itinerary-view review-view">
       {cancelTarget && (
         <Modal
           title="尚未儲存變更"
@@ -354,10 +358,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                     </div>
 
                     {expanded && (
-                      <div
-                        className={`review-body${editing ? '' : ' detail-section-clickable'}`}
-                        {...editProps(item.id)}
-                      >
+                      <div className="review-body">
                         {others.map((review) => (
                           <div
                             key={review.id}
@@ -388,7 +389,11 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                         ) : (
                           /* 還沒寫的不畫任何東西 —— 空框沒有資訊量，列尾那支筆已經講完了。 */
                           mine.trim() && (
-                            <div className="detail-review review-hue" data-hue={hues?.[me]}>
+                            <div
+                              className="detail-review review-hue detail-section-clickable"
+                              data-hue={hues?.[me]}
+                              {...editProps(item.id)}
+                            >
                               <span className="review-tag" title={me}>
                                 {tagCharOf(me)}
                               </span>

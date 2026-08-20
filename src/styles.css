@@ -1079,6 +1079,15 @@ a { color: var(--accent); }
 .review-entry { background: var(--surface); border-bottom: 0.5px solid var(--border); }
 .review-entry .row { border-bottom: 0; }
 
+/*
+ * iOS 鍵盤升起時版面視窗不會縮，只有可視視窗縮，所以畫面底部那段被鍵盤蓋住
+ * ——「取消／完成編輯」就在那裡。詳細頁沒這問題是因為它是 position: fixed 的蓋板；
+ * 心得模式在流內，改成讓外層讓開，捲動區自己吸收，按鈕列就升到鍵盤上緣。
+ * 扣掉 --tabbar-h 是因為底部導航列已經佔掉那一段，不扣會抬過頭。
+ * Android 的版面視窗會跟著縮，--kb 算出來是 0，這條自動失效，不用寫兩套。
+ */
+.review-view { padding-bottom: max(0px, calc(var(--kb, 0px) - var(--tabbar-h))); }
+
 /* 名牌左緣對齊行程列的類型圖示，層次由名牌本身撐出來，不再另外縮排。 */
 .review-body { padding: 0 14px 12px; }
 .review-body .detail-review:first-child { margin-top: 0; }
