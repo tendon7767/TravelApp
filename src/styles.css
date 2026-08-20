@@ -1130,25 +1130,18 @@ body[data-actual='true'] {
 /*
  * picker 彈窗的內容：單頁、依持有者分區。
  * 沒有任何選中或使用中的狀態 —— 點下去彈窗就關了，沒有人看得到那個狀態。
- * 底色用 --bg 而不是彈窗本身的 --surface，跟回饋頁「卡片浮在頁面底色上」
- * 是同一個關係；實際版會自動變成那層淡藍綠。負外距是為了抵銷 .sheetbody
- * 的內距，讓底色鋪滿整個內容區而不是只鋪在中間。
  */
-.picker-body {
-  display: grid;
-  gap: 16px;
-  margin: 0 -14px -14px;
-  padding: 14px;
-  background: var(--bg);
-}
+.picker-body { display: grid; gap: 16px; padding: 12px 0 2px; }
 .picker-group { display: grid; gap: 8px; }
 .picker-group-head { font-size: 14px; font-weight: 600; }
 /* 卡片名稱都不長，一排放得下三四張才看得到全部的選擇。 */
 .picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
 /*
- * 選項比照回饋頁的支付方式卡片：上緣一條實心色帶，名稱放在色帶裡，
- * 白底浮在頁面底色上，不用外框。overflow: hidden 讓色帶跟著卡片的圓角切，
- * 色帶又是第一個子元素且不留外距，所以左右上三邊都貼齊卡片邊緣。
+ * 選項比照回饋頁的支付方式卡片：上緣一條實心色帶，名稱放在色帶裡。
+ * 卡身帶一層很淡的主題色，在白底的彈窗上就分得出來，不必再加外框。
+ * 實際版的 --accent-bg 是藍綠，這層淡色會自己跟著換。
+ * overflow: hidden 讓色帶跟著卡片的圓角切，色帶又是第一個子元素且不留外距，
+ * 所以左右上三邊都貼齊卡片邊緣。
  */
 .picker-card {
   display: grid;
@@ -1156,7 +1149,7 @@ body[data-actual='true'] {
   overflow: hidden;
   border: none;
   border-radius: var(--radius);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--accent-bg) 45%, var(--surface));
   color: var(--text);
   text-align: left;
   overflow-wrap: anywhere;

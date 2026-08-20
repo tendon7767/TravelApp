@@ -74,7 +74,6 @@ const SECTION_LABELS: Record<ItemDraftSection, string> = {
 const OTHER_PAYMENTS = [
   ['cash', '現金'],
   ['other', '其他'],
-  [undefined, '不指定'],
 ] as const
 
 const isBlankCost = (cost: CostLine) =>
@@ -484,7 +483,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         <span className="detail-payment-name">
           {pickedMethod
             ? methodLabel(pickedMethod.name, pickedMethod.owner)
-            : (OTHER_PAYMENTS.find(([id]) => id && id === item.paymentMethodId)?.[1] ?? '未設定')}
+            : (OTHER_PAYMENTS.find(([id]) => id === item.paymentMethodId)?.[1] ?? '未設定')}
         </span>
         <span aria-hidden="true">›</span>
       </button>

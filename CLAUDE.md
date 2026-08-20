@@ -74,6 +74,17 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - 縮圖靠 service worker 的 CacheFirst 規則（見 [vite.config.ts](vite.config.ts)）離線可看，刪除照片時要一併清快取。
 - 後端能力靠 `ping` 回傳的 `capabilities.photos` 判斷。舊後端會靜默忽略 `photos` 集合，所以偵測到不支援時要保留 `lastPushedAt` 不前進，重新部署後才補得回來。
 
+## 配色主題
+
+深色是預設，亮色是 `settings.theme` 選出來的（純本機偏好，不上傳）。旗標寫在 `<html>` 上而不是 `.app` 上，因為彈窗是 `createPortal` 到 `body` 的，掛在 `.app` 上蓋不到它們；同理 `TripPage` 也把 `data-actual` 補寫一份到 `body`，實際版的配色才跟得到浮層。
+
+- **改亮色不要動深色。** 深色的值留在 `:root`，亮色一律寫成 `:root[data-theme='light']` 的覆寫。改完務必確認深色的算繪結果沒變。
+- **兩個 `prefers-color-scheme: dark` 區塊都要排除亮色**（`:root:not([data-theme='light'])`）。不排除的話，選亮色的人在深色系統的裝置上，實際版與心得配色會被系統拉回深色。
+- **深色的 `--text` 與 `--accent` 是同一個值**（`#f0f6fc`）。所以過去要表達「強調色」時寫哪個都看不出差別，亮色把它們分開才會現形（黑色的日期膠囊、黑色的選中分頁）。要強調色就寫 `--accent`／`--accent-contrast`，不要寫 `--text`／`--bg`。
+- **`--surface-2` 的語意隨主題翻轉。** 深色它比 `--surface` 亮，是「浮起來的那一層」；亮色它是全畫面最深的色塊，是「凹陷」。用它之前先想要的是哪一種，要浮起的地方（可點的方塊、區塊抬頭）在亮色下得另外覆寫。
+- **顏色用既有 token 組出來，不要寫死色值。** 例如淡一階的主題底色寫 `color-mix(in srgb, var(--accent-bg) 45%, var(--surface))` —— 實際版與深色都會自己跟著換，不必為每個情境各寫一條。
+- **`styles.css` 沒有任何型別保護。** class 從 CSS 裡消失、TSX 照樣輸出那個 class，`npm run build` 與 `npm run lint` 都不會報錯，只有看畫面才會發現。整段替換 CSS 時特別小心切到隔壁的區塊。
+
 ## 版面與互動的雷區
 
 這幾條都踩過，共同點是「本機看起來正常、真機才炸」或「當下沒事、之後某次改動才引爆」。
@@ -83,11 +94,15 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - **量高度要先同步寫一次，再交給 `ResizeObserver` 管後續變化。** 它的回呼掛在瀏覽器的算繪步驟上，**分頁在背景時不會送達** —— 只靠它的話初值永遠停在 fallback，而且是靜默的，畫面只是位置怪怪的不會報錯。
 - **iOS 鍵盤升起時版面視窗不會縮，只有可視視窗縮。** 畫面底部那段被鍵盤蓋住，在流內的底部按鈕列就消失了。`--kb`（[src/lib/keyboard.ts](src/lib/keyboard.ts)）量的就是這段：蓋板用它調 `inset`（`.pane-detail`），流內版面用它加 `padding-bottom`（`.review-view`）。Android 的版面視窗會跟著縮，`--kb` 算出來是 0，同一條規則自動失效，不用寫兩套。
 - **使用者輸入的文字都要 `overflow-wrap: anywhere`。** 沒有空白的長字串（英文店名、訂位代號、貼上來的網址）預設不斷行；`min-width: 0` 只讓它縮不讓它斷，照樣頂破版面。
+- **彈窗不能寫在可點元素的 JSX 裡面。** `Modal` 是 `createPortal` 到 `body` 的，但 **React 的合成事件沿的是 React 樹不是 DOM 樹** —— 掛在可點卡片裡面的話，點背景關掉的那一個點擊會接著冒泡到卡片的 `onClick`，當場又把它打開，看起來就是「點外面沒反應」。把 `<Modal>` 放到那個元素外面（用 Fragment 包），不要靠 `stopPropagation` 治症狀。
+- **只有兩個選項就不要用 `<select>`。** iOS 會彈出整頁滾輪，為了兩個選項太重，而且選完才知道自己選了什麼。攤開成 `.seg` 那組二選一按鈕。選項多到攤不開時（例如選支付方式）改用 `variant="picker"` 的彈窗，不要退回原生選單。
 - **巢狀點擊區要 `stopPropagation()`。** 整列是 `role="button"` 而列裡又有按鈕或連結時（`.row-action`、`.review-write-hint`）不擋冒泡會兩層一起觸發。小圖示的點擊區用 `::after` 撐開而不是把元素本身放大，版面才不受影響 —— 但別撐出容器右緣，那就變成上面第一條的橫向拖動。
 
 ## 其他值得知道的
 
 - **回饋計算只認 `kind === 'actual'` 的版本**（[src/lib/rewards.ts](src/lib/rewards.ts)）。一張卡可有多組同時累積的規則；消費上限不獨立儲存，它恆等於 `rewardCap / rate`。
+- **「還可刷」看哪一條規則由 `focusedRule()` 決定**（[src/lib/rewards.ts](src/lib/rewards.ts)），回饋頁與選擇支付方式的選單共用它，否則同一張卡在兩個畫面會報出不同的數字。預設擇優挑回饋率最高的那條，使用者點過某條規則就存進 `settings.rewardRuleFocus`。「停用與否」問的是另一件事（這張還有沒有任何回饋可拿），跟看哪條規則無關。
+- **現金與其他借 `paymentMethodId` 存保留字** `'cash'` / `'other'`。它們不是支付方式記錄（沒有規則、不該出現在回饋頁），但仍要能標在花費上。`computeMethod` 是用 id 比對挑出自己的花費，保留字永遠比不中 = 沒有回饋，正好是要的行為，所以資料結構與同步層都不必為它們改。
 - **介面文字講「消費」不講「刷卡」。** 支付方式包含電子支付，「刷卡明細」「已刷 N 筆」對悠遊付、LINE Pay 這類根本不成立。同理，泛稱時用「支付方式」而不是「卡片」。
 - **邀請連結就是通行證**：`#/join?u=<後端網址>&s=<試算表 ID>&k=<密鑰>`。密鑰存在試算表的 `_meta` 分頁，撤銷方式是去改那一列。
 - **本機儲存隨時可能被清空，所以邀請連結要備份到雲端。** `tripLinks`（試算表 ID + 密鑰）跟旅程資料在同一個 IndexedDB，瀏覽器清除是整個 origin 一起清，鑰匙會跟資料一起消失。因此同步時會呼叫後端 `saveInvite`，把連結寫進該趟試算表的「邀請連結」分頁 —— 使用者手上唯一還在的線索就是雲端硬碟裡那份試算表。連結字串由前端算（後端不知道前端網域），存進 `tripLinks[].inviteBackupUrl` 避免每次同步重送；能力由 `ping` 的 `capabilities.invite` 判斷。
