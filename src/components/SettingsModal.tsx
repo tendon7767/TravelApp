@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import Modal from './Modal'
-import { checkForUpdate } from '../lib/update'
+import AppVersion from './AppVersion'
 
 /** 配色只有兩種，不做「跟隨系統」——多一個狀態要處理，但這是單人裝置的偏好。 */
 const THEMES = [
@@ -25,7 +25,6 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const setDriveFolder = useStore((s) => s.setDriveFolder)
   const [folderDraft, setFolderDraft] = useState(driveFolderId)
   const [folderStatus, setFolderStatus] = useState('')
-  const [updateStatus, setUpdateStatus] = useState('')
   const theme = useStore((s) => s.settings.theme ?? 'dark')
   const setTheme = useStore((s) => s.setTheme)
   const dirty =
@@ -46,30 +45,6 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
       setFolderStatus(`將建立於：${path}`)
     } catch (err) {
       setFolderStatus(err instanceof Error ? `找不到：${err.message}` : String(err))
-    }
-  }
-
-  // 建置時間存的是 UTC 的 ISO 字串，顯示時換成這台裝置的當地時間。
-  const buildLabel = new Date(__BUILD_TIME__).toLocaleString('zh-TW', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  })
-
-  const update = async () => {
-    setUpdateStatus('檢查中…')
-    try {
-      if (await checkForUpdate()) {
-        setUpdateStatus('已取得新版，重新載入中…')
-        location.reload()
-      } else {
-        setUpdateStatus('已經是最新版')
-      }
-    } catch (err) {
-      setUpdateStatus(err instanceof Error ? `檢查失敗：${err.message}` : String(err))
     }
   }
 
@@ -101,9 +76,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           placeholder="阿嘎"
           onChange={(e) => setDraft(e.target.value)}
         />
-        <p className="settings-hint">
-          心得的署名。同一人在各裝置要用同一個名字；改名後舊心得會一起更新。
-        </p>
+        <p className="settings-hint">心得的署名</p>
       </div>
 
       <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 14 }}>
@@ -120,7 +93,6 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             </button>
           ))}
         </div>
-        <p className="settings-hint">只影響這台裝置，不會同步。</p>
       </div>
 
       <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 14 }}>
@@ -136,7 +108,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           <button className="btn btn-sm" onClick={() => void connect()}>測試並儲存</button>
           {status && <span className="dim" style={{ fontSize: 12 }}>{status}</span>}
         </div>
-        <p className="settings-hint">設定一次，所有旅程共用。步驟見 SETUP.md。</p>
+        <p className="settings-hint">設定一次，所有旅程共用</p>
 
         <label className="label" style={{ marginTop: 14 }} htmlFor="s-folder">
           旅程資料夾的存放位置
@@ -156,17 +128,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
       </div>
 
       <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 14 }}>
-        <span className="label">App 版本</span>
-        <p style={{ fontSize: 13, margin: '0 0 8px' }}>
-          {buildLabel}<span className="dim mono" style={{ fontSize: 12 }}> · {__BUILD_SHA__}</span>
-        </p>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
-          <button className="btn btn-sm" onClick={() => void update()}>檢查更新</button>
-          {updateStatus && <span className="dim" style={{ fontSize: 12 }}>{updateStatus}</span>}
-        </div>
-        <p className="settings-hint">
-          有新版就下載並重新載入。剛部署完可能還拿到舊版，過一下再按一次。
-        </p>
+        <AppVersion />
       </div>
     </Modal>
   )

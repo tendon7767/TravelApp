@@ -696,6 +696,17 @@ body[data-actual='true'] {
   font-size: 11px;
 }
 
+/*
+ * 旅程清單頁的版本列。.page-scroll 是 flex: 1，所以這條放在它後面就自動釘在底部，
+ * 不必用 position: fixed —— 版面本來就是固定高度、文件不捲動。
+ */
+.app-version-bar {
+  flex: none;
+  border-top: 0.5px solid var(--border);
+  border-bottom: none;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
 /* 底部四個分頁 */
 .tabbar {
   position: relative;

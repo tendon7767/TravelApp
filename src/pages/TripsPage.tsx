@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { draftTrip, useStore } from '../store/useStore'
 import { dayCount, shortDate } from '../lib/date'
 import SettingsModal from '../components/SettingsModal'
+import AppVersion from '../components/AppVersion'
 import Modal from '../components/Modal'
 import GearIcon from '../components/GearIcon'
 import TripFields from '../components/TripFields'
@@ -129,6 +130,11 @@ export default function TripsPage() {
           })()}
         </div>
       ))}
+      </div>
+
+      {/* 置底固定：開發期間常常要在手機上抓新版，藏在設定頁裡太深。 */}
+      <div className="sec app-version-bar">
+        <AppVersion />
       </div>
     </div>
   )
