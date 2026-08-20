@@ -5,6 +5,7 @@ import { eachDay, shortDate, timeSortKey } from '../lib/date'
 import { useDayScroller } from '../lib/useDayScroller'
 import { useNowClock } from '../lib/useNowClock'
 import { clearReviewDrafts, loadReviewDrafts, saveReviewDrafts } from '../store/drafts'
+import { tagCharOf } from '../lib/reviewHues'
 import CategoryIcon from './CategoryIcon'
 import DayStrip from './DayStrip'
 import Modal from './Modal'
@@ -28,19 +29,6 @@ const autoGrow = (el: HTMLTextAreaElement | null) => {
   el.style.height = `${el.scrollHeight}px`
 }
 
-const TAG_HUES = 5
-
-/**
- * 名牌只放一個字。中文取第二個字（「阿翰」→「翰」）比取姓好認，
- * 但英數名字的第二個字母沒有意義，那種就取首字大寫，比較像頭像。
- */
-const tagCharOf = (name: string) => {
-  const chars = [...name.trim()]
-  if (!chars.length) return '？'
-  if (/^[A-Za-z0-9][\w\s.'-]*$/.test(name.trim())) return chars[0].toUpperCase()
-  return chars[1] ?? chars[0]
-}
-
 /** 取消編輯的對象：底部那顆是整批，點列則只丟棄那一列。 */
 type CancelTarget = { kind: 'all' } | { kind: 'row'; itemId: string }
 
@@ -59,6 +47,8 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   const allReviews = useStore((s) => s.data.reviews)
   const setReview = useStore((s) => s.setReview)
   const me = useStore((s) => s.settings.memberName)
+  // 沒指定的作者一律中性色，交給 CSS 的預設值處理，這裡就不給 data-hue。
+  const hues = useStore((s) => s.settings.reviewHues?.[trip.id])
   const { today } = useNowClock()
 
   const items = useMemo(
@@ -76,8 +66,6 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     return map
   }, [days, items])
 
-  const itemIds = useMemo(() => new Set(items.map((item) => item.id)), [items])
-
   const byItem = useMemo(() => {
     const map = new Map<string, Review[]>()
     for (const review of allReviews) {
@@ -86,19 +74,6 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     }
     return map
   }, [allReviews])
-
-  /*
-   * 名牌配色按「這趟出現過的作者排序後的位置」給，不用 hash ——
-   * 五個色號獨立 hash，兩個人就有兩成機率撞色，而配色的全部意義就是分辨誰是誰。
-   * 排序後配號在五人以內不可能撞，多一個人頂多讓顏色重排一次。
-   */
-  const hueByAuthor = useMemo(() => {
-    const names = new Set<string>([me])
-    for (const review of allReviews) {
-      if (!review.deleted && itemIds.has(review.itemId)) names.add(review.author)
-    }
-    return new Map([...names].sort((a, b) => a.localeCompare(b)).map((n, i) => [n, i % TAG_HUES]))
-  }, [allReviews, itemIds, me])
 
   const mineText = (itemId: string) =>
     byItem.get(itemId)?.find((review) => review.author === me)?.text ?? ''
@@ -349,12 +324,12 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                         {...editProps(item.id)}
                       >
                         {others.map((review) => (
-                          <div key={review.id} className="detail-review">
-                            <span
-                              className="review-tag"
-                              data-hue={hueByAuthor.get(review.author) ?? 0}
-                              title={review.author}
-                            >
+                          <div
+                            key={review.id}
+                            className="detail-review review-hue"
+                            data-hue={hues?.[review.author]}
+                          >
+                            <span className="review-tag" title={review.author}>
                               {tagCharOf(review.author)}
                             </span>
                             <p>{review.text}</p>
@@ -378,8 +353,8 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                         ) : (
                           /* 還沒寫的不畫任何東西 —— 空框沒有資訊量，列尾那支筆已經講完了。 */
                           mine.trim() && (
-                            <div className="detail-review">
-                              <span className="review-tag" data-hue={hueByAuthor.get(me) ?? 0} title={me}>
+                            <div className="detail-review review-hue" data-hue={hues?.[me]}>
+                              <span className="review-tag" title={me}>
                                 {tagCharOf(me)}
                               </span>
                               <p>{mine}</p>

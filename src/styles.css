@@ -1060,18 +1060,37 @@ a { color: var(--accent); }
 .review-entry { background: var(--surface); border-bottom: 0.5px solid var(--border); }
 .review-entry .row { border-bottom: 0; }
 
-/* 左緣對齊 .rowtime（列的 14px 內距 + 18px 類型圖示 + 9px gap），
-   留一點白表示隸屬於上面那一列，其餘橫向空間全給文字。 */
-.review-body { padding: 0 14px 12px calc(14px + 18px + 9px); }
+/* 名牌左緣對齊行程列的類型圖示，層次由名牌本身撐出來，不再另外縮排。 */
+.review-body { padding: 0 14px 12px; }
 .review-body .detail-review:first-child { margin-top: 0; }
 
-/* 作者名做成氣泡左側的單字名牌，像聊天室。不佔高度，橫向也只花 36px。 */
+/* 作者名做成氣泡左側的單字名牌，像聊天室。不佔高度，橫向只花 36px。 */
 .review-body .detail-review {
   display: flex;
   align-items: flex-start;
   gap: 8px;
 }
-.review-body .detail-review > p { flex: 1; min-width: 0; }
+.review-body .detail-review > p {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: var(--bubble-bg);
+  /* 左上角收窄，尖角才接得上去，其餘三角維持 8px。 */
+  border-radius: 4px 8px 8px 8px;
+}
+
+/* 指向名牌的尖角。氣泡沒有邊框，所以一個純色三角形就夠，不用疊兩層。 */
+.review-body .detail-review > p::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 9px;
+  width: 0;
+  height: 0;
+  border-right: 8px solid var(--bubble-bg);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
 
 .review-tag {
   flex: none;
@@ -1081,6 +1100,8 @@ a { color: var(--accent); }
   width: 28px;
   height: 28px;
   border-radius: 8px; /* 跟氣泡同一個圓角，不用圓形，這個 app 沒有別的圓形元素 */
+  background: var(--tag-bg);
+  color: var(--tag-ink);
   font-size: 14px;
   font-weight: 500;
   line-height: 1;
@@ -1090,20 +1111,58 @@ a { color: var(--accent); }
 /* 編輯時不掛名牌，改用等寬縮排讓輸入框跟上面的氣泡對齊。 */
 .detail-review-edit { padding-left: calc(28px + 8px); }
 
-/* 同一個人永遠同一色，色號由名字 hash 出來。 */
-.review-tag[data-hue='0'] { background: #ede9fe; color: #6d28d9; }
-.review-tag[data-hue='1'] { background: #dbeafe; color: #1d4ed8; }
-.review-tag[data-hue='2'] { background: #ccfbf1; color: #0f766e; }
-.review-tag[data-hue='3'] { background: #fef3c7; color: #b45309; }
-.review-tag[data-hue='4'] { background: #ffe4e6; color: #be123c; }
+/*
+ * 名牌與氣泡同色系，一組三個變數。沒指定色號的一律中性色 ——
+ * 「已經分好誰是誰」跟「還沒分」要一眼看得出差別，所以預設不自己配色。
+ * 旅程設定頁的色票也掛同一組 class，改配色不用改兩個地方。
+ */
+.review-hue {
+  --tag-bg: var(--surface-2);
+  --tag-ink: var(--text-3);
+  --bubble-bg: var(--surface-2);
+}
+.review-hue[data-hue='0'] { --tag-bg: #ede9fe; --tag-ink: #6d28d9; --bubble-bg: #f3f0fe; }
+.review-hue[data-hue='1'] { --tag-bg: #dbeafe; --tag-ink: #1d4ed8; --bubble-bg: #e8f1fd; }
+.review-hue[data-hue='2'] { --tag-bg: #ccfbf1; --tag-ink: #0f766e; --bubble-bg: #e0f7f1; }
+.review-hue[data-hue='3'] { --tag-bg: #fef3c7; --tag-ink: #b45309; --bubble-bg: #fdf4dd; }
+.review-hue[data-hue='4'] { --tag-bg: #ffe4e6; --tag-ink: #be123c; --bubble-bg: #fdeaec; }
 
 @media (prefers-color-scheme: dark) {
-  .review-tag[data-hue='0'] { background: #3a2a4d; color: #d8b4fe; }
-  .review-tag[data-hue='1'] { background: #19365e; color: #93c5fd; }
-  .review-tag[data-hue='2'] { background: #123c31; color: #6ee7b7; }
-  .review-tag[data-hue='3'] { background: #493711; color: #fcd34d; }
-  .review-tag[data-hue='4'] { background: #4b1f2a; color: #fda4af; }
+  .review-hue[data-hue='0'] { --tag-bg: #3a2a4d; --tag-ink: #d8b4fe; --bubble-bg: #2b2440; }
+  .review-hue[data-hue='1'] { --tag-bg: #19365e; --tag-ink: #93c5fd; --bubble-bg: #1e2f4d; }
+  .review-hue[data-hue='2'] { --tag-bg: #123c31; --tag-ink: #6ee7b7; --bubble-bg: #1a3330; }
+  .review-hue[data-hue='3'] { --tag-bg: #493711; --tag-ink: #fcd34d; --bubble-bg: #33301f; }
+  .review-hue[data-hue='4'] { --tag-bg: #4b1f2a; --tag-ink: #fda4af; --bubble-bg: #37232d; }
 }
+
+/* 旅程設定頁的配色選擇。色票直接長成名牌的樣子，選了是什麼就看到什麼。 */
+.review-hue-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+}
+.review-hue-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.review-hue-picker { display: flex; gap: 6px; flex: none; }
+.review-hue-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  background: var(--tag-bg);
+  color: var(--tag-ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+}
+.review-hue-swatch[data-on='true'] { border-color: var(--text); }
 
 .review-body textarea {
   display: block;

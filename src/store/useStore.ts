@@ -74,6 +74,8 @@ interface State {
 
   init: () => Promise<void>
   setMemberName: (name: string) => void
+  /** 心得配色；hue 傳 undefined 就是回到中性色。 */
+  setReviewHue: (tripId: string, author: string, hue?: number) => void
   setActive: (tripId?: string, planId?: string) => void
 
   createTrip: (input: Omit<Trip, keyof SyncFields>) => { trip: Trip; plan: Plan }
@@ -208,6 +210,16 @@ export const useStore = create<State>((setState, getState) => {
           ),
         }))
       }
+    },
+
+    setReviewHue: (tripId, author, hue) => {
+      const current = getState().settings.reviewHues ?? {}
+      const forTrip = { ...(current[tripId] ?? {}) }
+      if (hue === undefined) delete forTrip[author]
+      else forTrip[author] = hue
+      const settings = { ...getState().settings, reviewHues: { ...current, [tripId]: forTrip } }
+      setState({ settings })
+      void saveSettings(settings)
     },
 
     setActive: (activeTripId, activePlanId) => {
