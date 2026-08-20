@@ -39,3 +39,33 @@ export const clearItemDraft = (itemId: string): Promise<void> => {
   clearTimeout(timer)
   return del(key(itemId))
 }
+
+/**
+ * 心得模式是一次編輯多則，所以整批存成一筆，key 掛在版本上。
+ * 不共用上面那組 API：它的 debounce 只有一個 timer，同時編輯多則會互相取消，
+ * 最後只有一則寫得進去。丟草稿的理由與上面相同，而批次編輯丟掉的量更大。
+ */
+export interface ReviewDrafts {
+  /** itemId → 尚未按下「完成編輯」的心得內容。 */
+  texts: Record<string, string>
+  savedAt: number
+}
+
+const reviewKey = (planId: string) => `travelapp:draft:reviews:${planId}`
+
+let reviewTimer: ReturnType<typeof setTimeout> | undefined
+
+export const saveReviewDrafts = (planId: string, texts: Record<string, string>) => {
+  clearTimeout(reviewTimer)
+  reviewTimer = setTimeout(() => {
+    void set(reviewKey(planId), { texts, savedAt: Date.now() } satisfies ReviewDrafts)
+  }, 400)
+}
+
+export const loadReviewDrafts = (planId: string): Promise<ReviewDrafts | undefined> =>
+  get<ReviewDrafts>(reviewKey(planId))
+
+export const clearReviewDrafts = (planId: string): Promise<void> => {
+  clearTimeout(reviewTimer)
+  return del(reviewKey(planId))
+}

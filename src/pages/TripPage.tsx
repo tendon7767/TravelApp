@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import ItineraryTab from '../components/ItineraryTab'
+import ReviewTab from '../components/ReviewTab'
 import ItemDetail from '../components/ItemDetail'
 import TripSettingsTab from '../components/TripSettingsTab'
 import TripIcon from '../components/TripIcon'
@@ -17,6 +18,7 @@ import BackIcon from '../components/BackIcon'
 import SearchIcon from '../components/SearchIcon'
 import CloseIcon from '../components/CloseIcon'
 import ItineraryIcon from '../components/ItineraryIcon'
+import ReviewIcon from '../components/ReviewIcon'
 import RewardsIcon from '../components/RewardsIcon'
 import NotesIcon from '../components/NotesIcon'
 
@@ -35,6 +37,7 @@ export default function TripPage() {
   const [online, setOnline] = useState(() => navigator.onLine)
   const [detailDirty, setDetailDirty] = useState(false)
   const [tripDirty, setTripDirty] = useState(false)
+  const [reviewDirty, setReviewDirty] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
   const [copied, setCopied] = useState<{ tripId: string; item: Item } | null>(null)
   const topbarRef = useRef<HTMLDivElement>(null)
@@ -67,6 +70,8 @@ export default function TripPage() {
     [plans, planId, preferredPlan],
   )
   const actualPlan = useMemo(() => plans.find((value) => value.kind === 'actual'), [plans])
+  // 心得只有實際版有，網址殘留 mode=review 但切回規劃版時要自動退回一般列表。
+  const reviewMode = params.get('mode') === 'review' && plan?.kind === 'actual'
   const copiedItem = copied && copied.tripId === tripId && copied.item.planId === plan?.id
     ? copied.item
     : undefined
@@ -155,8 +160,8 @@ export default function TripPage() {
     setParams(next, { replace: true })
   }
 
-  /** 詳細行程與旅程設定都是「改完按儲存」，未存就離開一律走這裡攔。 */
-  const unsaved = (selectedId && detailDirty) || tripDirty
+  /** 詳細行程、心得與旅程設定都是「改完按儲存」，未存就離開一律走這裡攔。 */
+  const unsaved = (selectedId && detailDirty) || tripDirty || reviewDirty
 
   const requestNavigation = (action: () => void) => {
     if (unsaved) setPendingNavigation(() => action)
@@ -199,6 +204,7 @@ export default function TripPage() {
             setPendingNavigation(null)
             setDetailDirty(false)
             setTripDirty(false)
+            setReviewDirty(false)
             action()
           }}
           cancelLabel="繼續編輯"
@@ -206,7 +212,7 @@ export default function TripPage() {
           completeDanger
         >
           <p style={{ margin: '12px 0 0' }}>
-            {selectedId && detailDirty ? '詳細行程' : '旅程設定'}有尚未儲存的修改，確定要離開嗎？
+            {selectedId && detailDirty ? '詳細行程' : reviewDirty ? '心得' : '旅程設定'}有尚未儲存的修改，確定要離開嗎？
           </p>
         </Modal>
       )}
@@ -244,6 +250,17 @@ export default function TripPage() {
             )}
           </div>
         </div>
+        {tab === 'itinerary' && !searching && plan?.kind === 'actual' && (
+          <button
+            className="btn btn-sm btn-glyph"
+            data-on={reviewMode}
+            onClick={() => navigateParam('mode', reviewMode ? undefined : 'review')}
+            aria-label={reviewMode ? '離開心得模式' : '心得模式'}
+            aria-pressed={reviewMode}
+          >
+            <ReviewIcon size={20} />
+          </button>
+        )}
         <button
           className="btn btn-sm btn-glyph"
           onClick={() => navigateParam('q', searching ? undefined : '1')}
@@ -273,7 +290,10 @@ export default function TripPage() {
               />
             </div>
           )}
-          {!searching && tab === 'itinerary' && plan && (
+          {!searching && tab === 'itinerary' && plan && reviewMode && (
+            <ReviewTab trip={trip} plan={plan} onDirtyChange={setReviewDirty} />
+          )}
+          {!searching && tab === 'itinerary' && plan && !reviewMode && (
             <ItineraryTab
               trip={trip}
               plan={plan}
@@ -353,6 +373,7 @@ export default function TripPage() {
               next.set('tab', t.key)
               next.delete('sel')
               next.delete('q')
+              next.delete('mode')
               requestNavigation(() => setParams(next, { replace: true }))
             }}
           >

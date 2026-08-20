@@ -166,6 +166,12 @@ a { color: var(--accent); }
   padding: 0;
   border-radius: 10px;
 }
+/* 心得模式那顆是切換鈕，開著的時候要看得出來現在在哪個模式。 */
+.btn-glyph[data-on="true"] {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 /*
  * 同步狀態直接接在匯率後面，長得跟旁邊的說明文字一樣，點下去就是手動同步。
@@ -1024,6 +1030,35 @@ a { color: var(--accent); }
 .photo-offline { padding: 20px; color: #bbb; text-align: center; font-size: 13px; }
 .photo-lightbox-actions { justify-content: center; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
 .photo-lightbox-error { padding: 0 12px 8px; color: #ffb4ab; text-align: center; font-size: 11px; }
+
+/* 心得模式：列＝開合、心得區＝編輯，兩種點擊目標不重疊。 */
+.review-dayhead { cursor: pointer; }
+.review-dayhead:focus-visible,
+.review-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.review-row { align-items: center; }
+
+/* 收合與展開要一眼分得出來，尤其是只有一行的心得。 */
+.review-caret {
+  flex: none;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-3);
+}
+
+/* 分隔線改由 entry 之間給，否則展開的那則會在心得下方多一條。 */
+.review-entry { background: var(--surface); border-bottom: 0.5px solid var(--border); }
+.review-entry .row { border-bottom: 0; }
+
+/* 縮排對齊 .rowtitle，視覺上隸屬於上面那一列。 */
+.review-body { padding: 0 14px 12px calc(14px + 9px + 38px + 9px); }
+.review-body .detail-review:first-child { margin-top: 0; }
+.review-body textarea { margin-top: 2px; }
+
+.review-blank { padding: 10px 14px; font-size: 13px; background: var(--surface); }
 
 .album-title { padding: 16px 14px; background: var(--surface); font-size: 18px; font-weight: 650; }
 .album-day { border-bottom: 0.5px solid var(--border); }
