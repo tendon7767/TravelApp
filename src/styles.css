@@ -516,6 +516,12 @@ a { color: var(--accent); }
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* 只想要垂直捲動。overflow-y 一設成 auto，沒指定的 overflow-x 就會從 visible
+     被算成 auto —— 內容只要寬出去一點點就能左右拖動並回彈，看起來像版面壞掉。
+     這個坑在彈窗的 .sheetbody 已經踩過一次，所有捲動層都一起擋掉。
+     唯一要橫向捲的 .daystrip 是這層的兄弟不是子孫，不受影響。 */
+  overflow-x: hidden;
+  touch-action: pan-y;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
@@ -1067,12 +1073,14 @@ a { color: var(--accent); }
 
 /*
  * 看到的是一支筆，碰得到的是 44px。用 ::after 撐點擊區而不是把按鈕本身放大，
- * 版面完全不受影響 —— 右邊吃掉列的內距，上下吃掉列的留白。
+ * 版面完全不受影響 —— 右邊吃掉列剩下的內距，上下吃掉列的留白。
+ * 右邊剛好是 8px：筆已經用負 margin 吃掉 6px，再多就會超出列的右緣，
+ * 讓捲動層多出可以左右拖動的寬度。
  */
 .review-write-hint::after {
   content: '';
   position: absolute;
-  inset: -6px -14px -6px -6px;
+  inset: -6px -8px -6px -6px;
 }
 
 /* 分隔線改由 entry 之間給，否則展開的那則會在心得下方多一條。 */
