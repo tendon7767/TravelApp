@@ -467,7 +467,9 @@ a { color: var(--accent); }
   padding-top: 2px;
 }
 
-.rowtitle { flex: 1; font-size: 14px; min-width: 0; }
+/* 沒有空白的長字串（英文店名、訂位代號、貼上來的網址）預設不會斷，
+   min-width: 0 只讓它縮不讓它斷，還是會頂破整列。 */
+.rowtitle { flex: 1; font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
 
 .rowmoney {
   font-family: var(--mono);
@@ -663,6 +665,7 @@ a { color: var(--accent); }
   font-size: 19px;
   font-weight: 650;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .detail-meta {
@@ -1206,7 +1209,7 @@ a { color: var(--accent); }
 .album-day { border-bottom: 0.5px solid var(--border); }
 .album-item { padding: 12px 14px; background: var(--surface); }
 .album-item + .album-item { border-top: 0.5px solid var(--border); }
-.album-item h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+.album-item h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .album-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 @media (min-width: 620px) {
