@@ -6,11 +6,11 @@
  * 這份配色存在本機 settings，不同步：它純粹是這台裝置的閱讀偏好。
  */
 export const REVIEW_HUES = [
-  { hue: 0, label: '紫' },
-  { hue: 1, label: '藍' },
-  { hue: 2, label: '綠' },
-  { hue: 3, label: '黃' },
-  { hue: 4, label: '粉' },
+  { hue: 0, label: '藕紫' },
+  { hue: 1, label: '霧藍' },
+  { hue: 2, label: '草綠' },
+  { hue: 3, label: '沙' },
+  { hue: 4, label: '陶土' },
 ] as const
 
 /**

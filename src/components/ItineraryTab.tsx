@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { ITINERARY_CATEGORIES, type ItineraryCategory, type Item, type Plan, type Trip } from '../types'
 import { eachDay, shortDate, timeSortKey } from '../lib/date'
-import { scrollToElement, useDayScroller } from '../lib/useDayScroller'
+import { useDayScroller } from '../lib/useDayScroller'
 import { useNowClock } from '../lib/useNowClock'
 import { pickCurrentItemId } from '../lib/items'
 import { flightStatusUrl, hasFlightStatus } from '../lib/flight'
@@ -67,7 +67,7 @@ export default function ItineraryTab({
   // 新增項目只走快選：先點類型，子項多於一個才展開第二層。
   const [addingOn, setAddingOn] = useState<string | null>(null)
   const [pickedCategory, setPickedCategory] = useState<ItineraryCategory | null>(null)
-  const { activeDay, scrollRef, daystripRef, scrollProps, jumpTo, focusDay } = useDayScroller(days, today)
+  const { activeDay, scrollRef, daystripRef, scrollProps, jumpTo, scrollToNow } = useDayScroller(days, today)
 
   const byDay = useMemo(() => {
     const map = new Map<string, Item[]>()
@@ -89,16 +89,6 @@ export default function ItineraryTab({
     const acc: Record<string, number> = {}
     for (const item of byDay.get(day) ?? []) mergeTotals(acc, itemTotals(item))
     return acc
-  }
-
-  const scrollToCurrent = () => {
-    const scroller = scrollRef.current
-    const row = scroller?.querySelector<HTMLElement>(`[data-item-id="${currentItemId}"]`)
-    if (!scroller || !row) return
-    // sticky 的 .dayhead 會蓋住捲到頂端的那一列，讓開它實際量到的高度。
-    const head = scroller.querySelector<HTMLElement>(`[data-day-section="${today}"] .dayhead`)
-    focusDay(today)
-    scrollToElement(scroller, row, head?.getBoundingClientRect().height ?? 0)
   }
 
   const closeAdd = () => {
@@ -315,10 +305,12 @@ export default function ItineraryTab({
       </button>
       </div>
 
-      {currentItemId && (
+      {/* 今天在範圍內就給按鈕。沒有「正在進行」的那一筆時捲到今天那一段，
+          不是把按鈕收掉 —— 今天沒行程、或行程都沒填時間都會落到這條。 */}
+      {days.includes(today) && (
         <button
           className="now-fab"
-          onClick={scrollToCurrent}
+          onClick={() => scrollToNow(today, currentItemId)}
           title="回到現在的行程"
           aria-label="回到現在的行程"
         >

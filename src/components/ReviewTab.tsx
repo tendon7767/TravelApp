@@ -4,9 +4,11 @@ import type { Item, Plan, Review, Trip } from '../types'
 import { eachDay, shortDate, timeSortKey } from '../lib/date'
 import { useDayScroller } from '../lib/useDayScroller'
 import { useNowClock } from '../lib/useNowClock'
+import { pickCurrentItemId } from '../lib/items'
 import { clearReviewDrafts, loadReviewDrafts, saveReviewDrafts } from '../store/drafts'
 import { tagCharOf } from '../lib/reviewHues'
 import CategoryIcon from './CategoryIcon'
+import ClockIcon from './ClockIcon'
 import DayStrip from './DayStrip'
 import Modal from './Modal'
 import PencilIcon from './PencilIcon'
@@ -49,7 +51,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   const me = useStore((s) => s.settings.memberName)
   // 沒指定的作者一律中性色，交給 CSS 的預設值處理，這裡就不給 data-hue。
   const hues = useStore((s) => s.settings.reviewHues?.[trip.id])
-  const { today } = useNowClock()
+  const { today, minutes: nowMin } = useNowClock()
 
   const items = useMemo(
     () => allItems.filter((i) => i.planId === plan.id && !i.deleted),
@@ -83,7 +85,11 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   const hasContentOf = (itemId: string) =>
     Boolean(mineText(itemId).trim()) || othersOf(itemId).length > 0
 
-  const { activeDay, scrollRef, daystripRef, scrollProps, jumpTo } = useDayScroller(days, today)
+  const { activeDay, scrollRef, daystripRef, scrollProps, jumpTo, scrollToNow } = useDayScroller(days, today)
+  const currentItemId = useMemo(
+    () => (days.includes(today) ? pickCurrentItemId(byDay.get(today) ?? [], nowMin) : undefined),
+    [byDay, days, today, nowMin],
+  )
   // 只有正在編輯的那幾則會進 drafts；沒動過的不佔位子，dirty 才好算。
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -313,6 +319,8 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                       className="row review-row"
                       role="button"
                       tabIndex={0}
+                      data-item-id={item.id}
+                      data-now={item.id === currentItemId}
                       aria-expanded={editing || !hasContent ? undefined : expanded}
                       aria-label={
                         editing
@@ -410,6 +418,21 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
           )
         })}
       </div>
+
+      {/*
+        * 編輯中就收掉：fab 固定在導航列上方 30px，正好是按鈕列的位置，兩者會疊在一起。
+        * 而且那個當下你在寫字，不是在導航。
+        */}
+      {days.includes(today) && !hasEditing && (
+        <button
+          className="now-fab"
+          onClick={() => scrollToNow(today, currentItemId)}
+          title="回到現在的行程"
+          aria-label="回到現在的行程"
+        >
+          <ClockIcon size={15} />now
+        </button>
+      )}
 
       {hasEditing && (
         <div className="editor-actions">

@@ -93,11 +93,34 @@ export const useDayScroller = (days: string[], today: string) => {
     [focusDay],
   )
 
+  /**
+   * 捲到「現在」。今天沒有正在進行的那一筆時（沒行程，或行程全都沒填時間）
+   * 退回捲到今天那一段的開頭 —— 按鈕不該因為這樣就消失。
+   */
+  const scrollToNow = useCallback(
+    (today: string, currentItemId?: string) => {
+      const scroller = scrollRef.current
+      if (!scroller) return
+      const section = scroller.querySelector<HTMLElement>(`[data-day-section="${today}"]`)
+      const row = currentItemId
+        ? scroller.querySelector<HTMLElement>(`[data-item-id="${currentItemId}"]`)
+        : null
+      const target = row ?? section
+      if (!target) return
+      focusDay(today)
+      // sticky 的 .dayhead 會蓋住捲到頂端的那一列，讓開它實際量到的高度；
+      // 捲到日期區塊本身時它就是頂端，不用讓。
+      const head = section?.querySelector<HTMLElement>('.dayhead')
+      scrollToElement(scroller, target, row ? (head?.getBoundingClientRect().height ?? 0) : 0)
+    },
+    [focusDay],
+  )
+
   const scrollProps = {
     onScroll: trackScroll,
     onTouchStart: beginManualScroll,
     onWheel: beginManualScroll,
   }
 
-  return { activeDay, scrollRef, daystripRef, scrollProps, jumpTo, focusDay }
+  return { activeDay, scrollRef, daystripRef, scrollProps, jumpTo, focusDay, scrollToNow }
 }

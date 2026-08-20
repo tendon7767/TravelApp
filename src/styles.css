@@ -1160,18 +1160,20 @@ a { color: var(--accent); }
   --tag-ink: var(--text-3);
   --bubble-bg: var(--surface-2);
 }
-.review-hue[data-hue='0'] { --tag-bg: #ede9fe; --tag-ink: #6d28d9; --bubble-bg: #f3f0fe; }
-.review-hue[data-hue='1'] { --tag-bg: #dbeafe; --tag-ink: #1d4ed8; --bubble-bg: #e8f1fd; }
-.review-hue[data-hue='2'] { --tag-bg: #ccfbf1; --tag-ink: #0f766e; --bubble-bg: #e0f7f1; }
-.review-hue[data-hue='3'] { --tag-bg: #fef3c7; --tag-ink: #b45309; --bubble-bg: #fdf4dd; }
-.review-hue[data-hue='4'] { --tag-bg: #ffe4e6; --tag-ink: #be123c; --bubble-bg: #fdeaec; }
+/* 霧面大地色：藕紫、霧藍、草綠、沙、陶土。大地色本身就是低彩度的，
+   不是把鮮豔色調淡 —— 調淡的飽和色進到深色底會混成濁的。 */
+.review-hue[data-hue='0'] { --tag-bg: #e8dfe8; --tag-ink: #6b5570; --bubble-bg: #f3eef3; }
+.review-hue[data-hue='1'] { --tag-bg: #dde5ee; --tag-ink: #4a6180; --bubble-bg: #eef2f7; }
+.review-hue[data-hue='2'] { --tag-bg: #dfe7dd; --tag-ink: #4a6350; --bubble-bg: #eef2ed; }
+.review-hue[data-hue='3'] { --tag-bg: #f0e8d5; --tag-ink: #7d6634; --bubble-bg: #f7f3e9; }
+.review-hue[data-hue='4'] { --tag-bg: #f0e0d8; --tag-ink: #8a5a45; --bubble-bg: #f7efea; }
 
 @media (prefers-color-scheme: dark) {
-  .review-hue[data-hue='0'] { --tag-bg: #3a2a4d; --tag-ink: #d8b4fe; --bubble-bg: #2b2440; }
-  .review-hue[data-hue='1'] { --tag-bg: #19365e; --tag-ink: #93c5fd; --bubble-bg: #1e2f4d; }
-  .review-hue[data-hue='2'] { --tag-bg: #123c31; --tag-ink: #6ee7b7; --bubble-bg: #1a3330; }
-  .review-hue[data-hue='3'] { --tag-bg: #493711; --tag-ink: #fcd34d; --bubble-bg: #33301f; }
-  .review-hue[data-hue='4'] { --tag-bg: #4b1f2a; --tag-ink: #fda4af; --bubble-bg: #37232d; }
+  .review-hue[data-hue='0'] { --tag-bg: #363040; --tag-ink: #c0aecb; --bubble-bg: #2a2632; }
+  .review-hue[data-hue='1'] { --tag-bg: #2a3644; --tag-ink: #a3bcd6; --bubble-bg: #232c37; }
+  .review-hue[data-hue='2'] { --tag-bg: #2c3a34; --tag-ink: #a8c4b0; --bubble-bg: #232f2c; }
+  .review-hue[data-hue='3'] { --tag-bg: #3a3428; --tag-ink: #d4c48d; --bubble-bg: #2c2a23; }
+  .review-hue[data-hue='4'] { --tag-bg: #3d2f28; --tag-ink: #d4a68d; --bubble-bg: #2e2724; }
 }
 
 /* 旅程設定頁的配色選擇。色票直接長成名牌的樣子，選了是什麼就看到什麼。 */
