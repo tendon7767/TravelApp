@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { ITINERARY_CATEGORIES, type ItineraryCategory, type Item, type Plan, type Trip } from '../types'
 import { eachDay, shortDate, timeSortKey } from '../lib/date'
+import { scrollToElement, useDayScroller } from '../lib/useDayScroller'
 import { useNowClock } from '../lib/useNowClock'
 import { pickCurrentItemId } from '../lib/items'
 import { flightStatusUrl, hasFlightStatus } from '../lib/flight'
@@ -9,21 +10,12 @@ import { applyTemplate, needsSecondLevel, quickItemsFor, soleQuickItem, type Qui
 import { formatMoney, formatTotals, isUncategorized, itemTotals, mergeTotals, toHome } from '../lib/money'
 import CategoryIcon from './CategoryIcon'
 import ClockIcon from './ClockIcon'
+import DayStrip from './DayStrip'
 import MapPinIcon from './MapPinIcon'
 import LinkIcon from './LinkIcon'
 import PhotoIcon from './PhotoIcon'
 import PlaneIcon from './PlaneIcon'
 import ReceiptIcon from './ReceiptIcon'
-
-/**
- * .itinerary-scroll 與它的祖先都是 position:static，section.offsetTop 是相對 body 量的，
- * 會多算導航列與日期橫條的高度。改用兩個 rect 相減，排版怎麼變都成立。
- */
-const scrollToElement = (scroller: HTMLElement, el: HTMLElement, offset = 0) => {
-  const top =
-    scroller.scrollTop + el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - offset
-  scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
-}
 
 interface Props {
   trip: Trip
@@ -75,11 +67,7 @@ export default function ItineraryTab({
   // 新增項目只走快選：先點類型，子項多於一個才展開第二層。
   const [addingOn, setAddingOn] = useState<string | null>(null)
   const [pickedCategory, setPickedCategory] = useState<ItineraryCategory | null>(null)
-  const [activeDay, setActiveDay] = useState(() => (days.includes(today) ? today : (days[0] ?? '')))
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const daystripRef = useRef<HTMLDivElement>(null)
-  const scrollFrame = useRef<number | undefined>(undefined)
-  const programmaticDay = useRef<string | undefined>(undefined)
+  const { activeDay, scrollRef, daystripRef, scrollProps, jumpTo, focusDay } = useDayScroller(days, today)
 
   const byDay = useMemo(() => {
     const map = new Map<string, Item[]>()
@@ -103,76 +91,14 @@ export default function ItineraryTab({
     return acc
   }
 
-  useEffect(() => {
-    setActiveDay((current) => (days.includes(current) ? current : (days.includes(today) ? today : (days[0] ?? ''))))
-  }, [days, today])
-
-  const updateActiveDay = useCallback(() => {
-    const scroller = scrollRef.current
-    if (!scroller || !days.length) return
-
-    let next = days[0]
-    if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2) {
-      next = days[days.length - 1]
-    } else {
-      const focusLine = scroller.getBoundingClientRect().top + Math.min(scroller.clientHeight * 0.22, 96)
-      for (const day of days) {
-        const section = scroller.querySelector<HTMLElement>(`[data-day-section="${day}"]`)
-        if (!section || section.getBoundingClientRect().top > focusLine) break
-        next = day
-      }
-    }
-    setActiveDay((current) => (current === next ? current : next))
-  }, [days])
-
-  const trackScroll = useCallback(() => {
-    if (programmaticDay.current) return
-    if (scrollFrame.current !== undefined) return
-    scrollFrame.current = window.requestAnimationFrame(() => {
-      scrollFrame.current = undefined
-      updateActiveDay()
-    })
-  }, [updateActiveDay])
-
-  useEffect(() => {
-    updateActiveDay()
-    return () => {
-      if (scrollFrame.current !== undefined) window.cancelAnimationFrame(scrollFrame.current)
-    }
-  }, [updateActiveDay])
-
-  useEffect(() => {
-    const strip = daystripRef.current
-    // 用屬性找而不是 children[index]：前面多一顆 now 鈕時位置就全錯了。
-    const pill = strip?.querySelector<HTMLElement>(`[data-day-pill="${activeDay}"]`)
-    if (!strip || !pill) return
-    strip.scrollTo({
-      left: pill.offsetLeft - (strip.clientWidth - pill.offsetWidth) / 2,
-      behavior: 'smooth',
-    })
-  }, [activeDay, days])
-
-  const jumpTo = (day: string) => {
-    const scroller = scrollRef.current
-    const section = scroller?.querySelector<HTMLElement>(`[data-day-section="${day}"]`)
-    programmaticDay.current = day
-    setActiveDay(day)
-    if (scroller && section) scrollToElement(scroller, section)
-  }
-
   const scrollToCurrent = () => {
     const scroller = scrollRef.current
     const row = scroller?.querySelector<HTMLElement>(`[data-item-id="${currentItemId}"]`)
     if (!scroller || !row) return
     // sticky 的 .dayhead 會蓋住捲到頂端的那一列，讓開它實際量到的高度。
     const head = scroller.querySelector<HTMLElement>(`[data-day-section="${today}"] .dayhead`)
-    programmaticDay.current = today
-    setActiveDay(today)
+    focusDay(today)
     scrollToElement(scroller, row, head?.getBoundingClientRect().height ?? 0)
-  }
-
-  const beginManualScroll = () => {
-    programmaticDay.current = undefined
   }
 
   const closeAdd = () => {
@@ -205,21 +131,7 @@ export default function ItineraryTab({
 
   return (
     <div className="itinerary-view">
-      <div className="daystrip" ref={daystripRef}>
-        {days.map((day, i) => (
-          <button
-            key={day}
-            className="daypill"
-            data-day-pill={day}
-            data-on={day === activeDay}
-            data-today={day === today}
-            onClick={() => jumpTo(day)}
-            aria-current={day === activeDay ? 'date' : undefined}
-          >
-            D{i + 1}
-          </button>
-        ))}
-      </div>
+      <DayStrip days={days} activeDay={activeDay} today={today} stripRef={daystripRef} onPick={jumpTo} />
 
       {copiedItem && (
         <div className="itinerary-copybar" role="status">
@@ -228,13 +140,7 @@ export default function ItineraryTab({
         </div>
       )}
 
-      <div
-        ref={scrollRef}
-        className="itinerary-scroll"
-        onScroll={trackScroll}
-        onTouchStart={beginManualScroll}
-        onWheel={beginManualScroll}
-      >
+      <div ref={scrollRef} className="itinerary-scroll" {...scrollProps}>
       {days.map((day, i) => {
         const rows = byDay.get(day) ?? []
         const totals = dayTotals(day)
