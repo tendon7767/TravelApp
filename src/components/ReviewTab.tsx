@@ -17,6 +17,17 @@ interface Props {
 }
 
 /**
+ * 輸入框跟著內容長高。心得長短差很多，寫死 rows 的話短的浪費半個畫面、
+ * 長的要在小框裡捲，兩邊都難讀。上限交給 CSS 的 max-height 收。
+ * 掛在 ref 上負責掛載時（含還原草稿）的初始高度，onInput 負責打字途中。
+ */
+const autoGrow = (el: HTMLTextAreaElement | null) => {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+
+/**
  * 心得模式：整趟的心得攤在同一頁，由上而下讀得完，要補寫就在原地展開輸入框。
  *
  * 點擊語意刻意只有兩種，而且不重疊：**列＝開合、心得區＝編輯**。
@@ -78,6 +89,21 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     onDirtyChange(dirty)
     return () => onDirtyChange(false)
   }, [dirty, onDirtyChange])
+
+  /*
+   * 行程列要釘在日期橫條下方，就得知道那條有多高 —— 而它會隨字型與縮放變動，
+   * 所以照 TripPage 量 --topbar-h 的做法量出來，不在 CSS 裡寫死數字。
+   */
+  useEffect(() => {
+    const head = scrollRef.current?.querySelector<HTMLElement>('.dayhead')
+    if (!head) return
+    const sync = () =>
+      document.documentElement.style.setProperty('--dayhead-h', `${head.offsetHeight}px`)
+    sync()
+    const ro = new ResizeObserver(sync)
+    ro.observe(head)
+    return () => ro.disconnect()
+  }, [scrollRef, days.length])
 
   useEffect(() => {
     let cancelled = false
@@ -242,31 +268,35 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                       >
                         {others.map((review) => (
                           <div key={review.id} className="detail-review">
-                            <span className="detail-key">{review.author}</span>
-                            <p>{review.text}</p>
+                            <p>
+                              <span className="detail-key">{review.author}：</span>
+                              {review.text}
+                            </p>
                           </div>
                         ))}
                         {editing ? (
                           <div className="detail-review">
-                            <span className="detail-key">{me}</span>
+                            <span className="detail-key">{me}：</span>
                             <textarea
                               className="field"
-                              rows={4}
+                              ref={autoGrow}
                               placeholder="實際去了之後的感想"
                               value={drafts[item.id]}
                               autoFocus={focusId === item.id}
+                              onInput={(event) => autoGrow(event.currentTarget)}
                               onChange={(event) =>
                                 setDrafts((current) => ({ ...current, [item.id]: event.target.value }))
                               }
                             />
                           </div>
-                        ) : mine.trim() ? (
-                          <div className="detail-review">
-                            <span className="detail-key">{me}</span>
-                            <p>{mine}</p>
-                          </div>
                         ) : (
-                          <p className="dim detail-empty-copy">-</p>
+                          /* 還沒寫過的就是同一個氣泡、名字後面沒字，不另做一種空狀態的樣子。 */
+                          <div className="detail-review">
+                            <p>
+                              <span className="detail-key">{me}：</span>
+                              {mine}
+                            </p>
+                          </div>
                         )}
                       </div>
                     )}

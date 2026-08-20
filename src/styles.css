@@ -1039,7 +1039,14 @@ a { color: var(--accent); }
   outline-offset: -2px;
 }
 
-.review-row { align-items: center; }
+/* 讀長心得時要一直知道自己在讀哪一項，所以行程列釘在日期橫條下方。
+   sticky 容器是 .review-entry，所以只停到自己那則心得捲完為止。 */
+.review-row {
+  align-items: center;
+  position: sticky;
+  top: var(--dayhead-h, 36px);
+  z-index: 17; /* .dayhead 是 18，要壓在它下面 */
+}
 
 /* 收合與展開要一眼分得出來，尤其是只有一行的心得。 */
 .review-caret {
@@ -1053,10 +1060,22 @@ a { color: var(--accent); }
 .review-entry { background: var(--surface); border-bottom: 0.5px solid var(--border); }
 .review-entry .row { border-bottom: 0; }
 
-/* 縮排對齊 .rowtitle，視覺上隸屬於上面那一列。 */
-.review-body { padding: 0 14px 12px calc(14px + 9px + 38px + 9px); }
+/* 左緣對齊 .rowtime（列的 14px 內距 + 18px 類型圖示 + 9px gap），
+   留一點白表示隸屬於上面那一列，其餘橫向空間全給文字。 */
+.review-body { padding: 0 14px 12px calc(14px + 18px + 9px); }
 .review-body .detail-review:first-child { margin-top: 0; }
-.review-body textarea { margin-top: 2px; }
+
+/* 作者名改成內文開頭的前綴，不再獨占一行。 */
+.review-body .detail-key { display: inline; margin: 0; }
+
+.review-body textarea {
+  display: block;
+  margin-top: 2px;
+  min-height: 2.6em;
+  max-height: 15rem;
+  overflow-y: auto;
+  resize: none;
+}
 
 .review-blank { padding: 10px 14px; font-size: 13px; background: var(--surface); }
 
