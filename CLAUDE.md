@@ -74,6 +74,17 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - 縮圖靠 service worker 的 CacheFirst 規則（見 [vite.config.ts](vite.config.ts)）離線可看，刪除照片時要一併清快取。
 - 後端能力靠 `ping` 回傳的 `capabilities.photos` 判斷。舊後端會靜默忽略 `photos` 集合，所以偵測到不支援時要保留 `lastPushedAt` 不前進，重新部署後才補得回來。
 
+## 版面與互動的雷區
+
+這幾條都踩過，共同點是「本機看起來正常、真機才炸」或「當下沒事、之後某次改動才引爆」。
+
+- **捲動層一律要擋掉橫向。** `overflow-y: auto` 會讓沒指定的 `overflow-x` 從 `visible` 被算成 `auto`，內容只要寬出去一點點，整個版面就能左右拖動並回彈，看起來像壞掉。新增捲動容器時照抄 `.scroll / .page-scroll / .pane-scroll / .itinerary-scroll` 那組的 `overflow-x: hidden` + `touch-action: pan-y`。唯一該橫捲的 `.daystrip` 是它們的兄弟不是子孫，不受影響。
+- **量到的高度寫成 CSS 變數，不要在 CSS 裡硬寫數字。** `--topbar-h` / `--tabbar-h`（`TripPage`）、`--dayhead-h` / `--reviewrow-h`（`ReviewTab`）都是量出來的，因為它們隨字型、縮放與內容換行而變。
+- **量高度要先同步寫一次，再交給 `ResizeObserver` 管後續變化。** 它的回呼掛在瀏覽器的算繪步驟上，**分頁在背景時不會送達** —— 只靠它的話初值永遠停在 fallback，而且是靜默的，畫面只是位置怪怪的不會報錯。
+- **iOS 鍵盤升起時版面視窗不會縮，只有可視視窗縮。** 畫面底部那段被鍵盤蓋住，在流內的底部按鈕列就消失了。`--kb`（[src/lib/keyboard.ts](src/lib/keyboard.ts)）量的就是這段：蓋板用它調 `inset`（`.pane-detail`），流內版面用它加 `padding-bottom`（`.review-view`）。Android 的版面視窗會跟著縮，`--kb` 算出來是 0，同一條規則自動失效，不用寫兩套。
+- **使用者輸入的文字都要 `overflow-wrap: anywhere`。** 沒有空白的長字串（英文店名、訂位代號、貼上來的網址）預設不斷行；`min-width: 0` 只讓它縮不讓它斷，照樣頂破版面。
+- **巢狀點擊區要 `stopPropagation()`。** 整列是 `role="button"` 而列裡又有按鈕或連結時（`.row-flight`、`.review-write-hint`）不擋冒泡會兩層一起觸發。小圖示的點擊區用 `::after` 撐開而不是把元素本身放大，版面才不受影響 —— 但別撐出容器右緣，那就變成上面第一條的橫向拖動。
+
 ## 其他值得知道的
 
 - **回饋計算只認 `kind === 'actual'` 的版本**（[src/lib/rewards.ts](src/lib/rewards.ts)）。一張卡可有多組同時累積的規則；消費上限不獨立儲存，它恆等於 `rewardCap / rate`。
@@ -82,7 +93,8 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - 啟動時呼叫 `navigator.storage.persist()`（[src/lib/storage.ts](src/lib/storage.ts)）。Android Chrome 拿到後就豁免容量淘汰；iOS Safari 沒有實作這個 API，分頁模式下七天沒互動仍會被清，只有加到主畫面的 PWA 不受影響。
 - **中文輸入法**：所有「按 Enter 送出」的地方都要用 [src/lib/keys.ts](src/lib/keys.ts) 的 `isSubmitEnter`。注音選字階段的 Enter 是確認選字，不是送出。
 - **樣式集中在單一檔案** [src/styles.css](src/styles.css)，沒有 CSS-in-JS 或模組化。
-- 導航列高度由 `TripPage` 量測後寫進 `--topbar-h` / `--tabbar-h` CSS 變數，不要在 CSS 裡硬寫數字。
+- **心得有兩個介面，共用同一批 `Review` 記錄**：詳細行程頁的心得區塊，以及行程列表的心得模式（[ReviewTab.tsx](src/components/ReviewTab.tsx)，網址參數 `mode=review`，只在實際版出現）。日期橫條與捲動連動由 `useDayScroller` / `DayStrip` 共用 —— 那段對 sticky 與 rect 相減很敏感，要用就共用，不要複製。
+- **純本機的偏好放 `settings`，不要為了它動同步層。** `settings` 從不上傳，加 optional 欄位連遷移都不用寫（舊資料讀進來就是 `undefined`）。心得配色 `reviewHues` 就是這樣做的：為了顏色進同步層，就得處理「兩個人同時改配色」這種毫無價值的衝突。
 
 ## 部署
 
