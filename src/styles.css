@@ -50,8 +50,73 @@
   --actual-ink: #1d4ed8;
 }
 
+/*
+ * 亮色系：照 iOS 系統設定頁那套 —— 淺灰底 (--bg) 放白色的列與卡片 (--surface)。
+ * 深色是「往上疊一層＝變亮」，亮色必須反過來，不然卡片看起來像凹陷的髒污。
+ * 實際版維持藍綠色系，跟規劃版的系統藍分得開。深色系一個值都沒動。
+ */
+:root[data-theme='light'] {
+  --bg: #f2f2f7;
+  --surface: #ffffff;
+  --surface-2: #e7e7ee;
+  --text: #1c1c1e;
+  --text-2: #4b4b50;
+  --text-3: #8a8a8e;
+  /* 邊框帶一點底色的色相，純黑半透明會讓所有線條看起來灰濁。 */
+  --border: rgba(60, 60, 67, 0.16);
+  --border-2: rgba(60, 60, 67, 0.3);
+  --accent: #007aff;
+  --accent-bg: #e3f0ff;
+  --accent-contrast: #ffffff;
+  --danger: #d70015;
+  --danger-bg: #ffe5e5;
+  --ok: #248a3d;
+  --ok-bg: #dcf5e3;
+  --note-bg: #fff4d6;
+  --note-ink: #7a5300;
+  --note-border: #ffb300;
+
+  /* 原本那組是為深底挑的中高明度色，放到白底上對比不足會發淡，整批調深一階。 */
+  --cat-景點: #d70015;
+  --cat-交通: #0062cc;
+  --cat-餐飲: #b35c00;
+  --cat-住宿: #8944ab;
+  --cat-活動: #1d8a3f;
+  --cat-購物: #b8003c;
+  --cat-其他: #6c6c70;
+
+  --actual-bg: #eaf4f3;
+  --actual-surface: #ffffff;
+  --actual-surface-2: #daebe8;
+  --actual-text: #0f2f2b;
+  --actual-text-2: #3f5f5a;
+  --actual-text-3: #6d8b86;
+  --actual-border: rgba(6, 84, 76, 0.15);
+  --actual-border-2: rgba(6, 84, 76, 0.28);
+  --actual-accent: #00857a;
+  --actual-accent-bg: #d2efeb;
+  --actual-accent-contrast: #ffffff;
+  --actual-danger: #d70015;
+  --actual-danger-bg: #ffe5e5;
+  --actual-ok: #1c7d4d;
+  --actual-ok-bg: #d6f0e2;
+  --actual-note-bg: #fff2cf;
+  --actual-note-ink: #6f4d00;
+  --actual-note-border: #f0a500;
+  --actual-chip: #c2e9e3;
+  --actual-ink: #046b62;
+}
+
+/*
+ * 深色靠亮邊框就分得出層次，亮色不行 —— 頂列與分頁列要一道很淡的陰影
+ * 才浮得起來，否則跟底下的內容糊成一片。
+ */
+:root[data-theme='light'] .topbar { box-shadow: 0 1px 3px rgba(60, 60, 67, 0.07); }
+:root[data-theme='light'] .tabbar { box-shadow: 0 -1px 3px rgba(60, 60, 67, 0.07); }
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  /* 選成亮色的裝置不受系統深色影響，否則實際版會突然變深。 */
+  :root:not([data-theme='light']) {
     --actual-bg: #101827;
     --actual-surface: #172238;
     --actual-surface-2: #22314d;
@@ -150,6 +215,11 @@ a { color: var(--accent); }
 }
 .btn-danger { background: var(--danger); color: #fff; border-color: transparent; }
 .btn-sm { padding: 4px 9px; font-size: 13px; }
+/* 二選一的按鈕組（例如配色）：選中的那顆要一眼看得出來。 */
+.btn[aria-pressed='true'] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+
+/* 設定頁的說明文字。行高壓一點，一整頁排下來省下來的高度很可觀。 */
+.settings-hint { color: var(--text-3); font-size: 12px; line-height: 1.45; margin: 8px 0 0; }
 
 /*
  * 導覽列的圖示按鈕：圓角正方形，內容一律是 SVG 圖示。
@@ -1177,11 +1247,12 @@ a { color: var(--accent); }
 .review-hue[data-hue='4'] { --tag-bg: #f0e0d8; --tag-ink: #8a5a45; --bubble-bg: #f7efea; }
 
 @media (prefers-color-scheme: dark) {
-  .review-hue[data-hue='0'] { --tag-bg: #363040; --tag-ink: #c0aecb; --bubble-bg: #2a2632; }
-  .review-hue[data-hue='1'] { --tag-bg: #2a3644; --tag-ink: #a3bcd6; --bubble-bg: #232c37; }
-  .review-hue[data-hue='2'] { --tag-bg: #2c3a34; --tag-ink: #a8c4b0; --bubble-bg: #232f2c; }
-  .review-hue[data-hue='3'] { --tag-bg: #3a3428; --tag-ink: #d4c48d; --bubble-bg: #2c2a23; }
-  .review-hue[data-hue='4'] { --tag-bg: #3d2f28; --tag-ink: #d4a68d; --bubble-bg: #2e2724; }
+  /* 同上：亮色主題下心得氣泡要維持淺色。 */
+  :root:not([data-theme='light']) .review-hue[data-hue='0'] { --tag-bg: #363040; --tag-ink: #c0aecb; --bubble-bg: #2a2632; }
+  :root:not([data-theme='light']) .review-hue[data-hue='1'] { --tag-bg: #2a3644; --tag-ink: #a3bcd6; --bubble-bg: #232c37; }
+  :root:not([data-theme='light']) .review-hue[data-hue='2'] { --tag-bg: #2c3a34; --tag-ink: #a8c4b0; --bubble-bg: #232f2c; }
+  :root:not([data-theme='light']) .review-hue[data-hue='3'] { --tag-bg: #3a3428; --tag-ink: #d4c48d; --bubble-bg: #2c2a23; }
+  :root:not([data-theme='light']) .review-hue[data-hue='4'] { --tag-bg: #3d2f28; --tag-ink: #d4a68d; --bubble-bg: #2e2724; }
 }
 
 /* 旅程設定頁的配色選擇。色票直接長成名牌的樣子，選了是什麼就看到什麼。 */

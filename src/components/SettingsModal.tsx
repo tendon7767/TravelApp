@@ -3,6 +3,12 @@ import { useStore } from '../store/useStore'
 import Modal from './Modal'
 import { checkForUpdate } from '../lib/update'
 
+/** 配色只有兩種，不做「跟隨系統」——多一個狀態要處理，但這是單人裝置的偏好。 */
+const THEMES = [
+  ['dark', '深色'],
+  ['light', '亮色'],
+] as const
+
 /**
  * 暱稱是這台裝置的身分：心得掛在誰名下、之後同步時誰改了什麼，都看它。
  * 不做登入，同一個人在多台裝置上設一樣的名字就會被當成同一人。
@@ -20,6 +26,8 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const [folderDraft, setFolderDraft] = useState(driveFolderId)
   const [folderStatus, setFolderStatus] = useState('')
   const [updateStatus, setUpdateStatus] = useState('')
+  const theme = useStore((s) => s.settings.theme ?? 'dark')
+  const setTheme = useStore((s) => s.setTheme)
   const dirty =
     draft.trim() !== memberName ||
     urlDraft.trim() !== gasUrl ||
@@ -93,10 +101,26 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           placeholder="阿嘎"
           onChange={(e) => setDraft(e.target.value)}
         />
-        <p className="dim" style={{ fontSize: 12, marginTop: 8 }}>
-          用來標示心得是誰寫的。同一個人在手機和電腦上要設成同樣的名字；
-          同行者在自己的裝置上設自己的名字。改名後，你先前寫的心得會一起換上新名字。
+        <p className="settings-hint">
+          心得的署名。同一人在各裝置要用同一個名字；改名後舊心得會一起更新。
         </p>
+      </div>
+
+      <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 14 }}>
+        <span className="label">配色</span>
+        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+          {THEMES.map(([value, label]) => (
+            <button
+              key={value}
+              className="btn btn-sm"
+              aria-pressed={theme === value}
+              onClick={() => setTheme(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="settings-hint">只影響這台裝置，不會同步。</p>
       </div>
 
       <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 14 }}>
@@ -112,9 +136,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           <button className="btn btn-sm" onClick={() => void connect()}>測試並儲存</button>
           {status && <span className="dim" style={{ fontSize: 12 }}>{status}</span>}
         </div>
-        <p className="dim" style={{ fontSize: 12, marginTop: 8 }}>
-          只需設定一次，所有旅程共用。設定步驟見專案裡的 SETUP.md。
-        </p>
+        <p className="settings-hint">設定一次，所有旅程共用。步驟見 SETUP.md。</p>
 
         <label className="label" style={{ marginTop: 14 }} htmlFor="s-folder">
           旅程資料夾的存放位置
@@ -130,10 +152,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           <button className="btn btn-sm" onClick={() => void checkFolder()}>確認並儲存</button>
           {folderStatus && <span className="dim" style={{ fontSize: 12 }}>{folderStatus}</span>}
         </div>
-        <p className="dim" style={{ fontSize: 12, marginTop: 8 }}>
-          每趟旅程會在這個位置底下開一個以旅程名稱命名的資料夾，試算表放在裡面。
-          留空的話用根目錄的「旅遊資料」。
-        </p>
+        <p className="settings-hint">每趟旅程在這底下開專屬資料夾。留空則用「旅遊資料」。</p>
       </div>
 
       <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 14 }}>
@@ -145,9 +164,8 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           <button className="btn btn-sm" onClick={() => void update()}>檢查更新</button>
           {updateStatus && <span className="dim" style={{ fontSize: 12 }}>{updateStatus}</span>}
         </div>
-        <p className="dim" style={{ fontSize: 12, marginTop: 8 }}>
-          有新版會直接下載並重新載入。加到主畫面的 App 平常要冷啟動兩次才會換版，
-          用這顆按鈕可以省掉等待。剛部署完的十分鐘內可能還是拿到舊版，過一下再按一次。
+        <p className="settings-hint">
+          有新版就下載並重新載入。剛部署完可能還拿到舊版，過一下再按一次。
         </p>
       </div>
     </Modal>

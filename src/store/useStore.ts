@@ -76,6 +76,8 @@ interface State {
   setMemberName: (name: string) => void
   /** 心得配色；hue 傳 undefined 就是回到中性色。 */
   setReviewHue: (tripId: string, author: string, hue?: number) => void
+  /** 介面配色；跟 reviewHues 一樣是這台裝置自己的偏好，不上傳。 */
+  setTheme: (theme: 'dark' | 'light') => void
   setActive: (tripId?: string, planId?: string) => void
 
   createTrip: (input: Omit<Trip, keyof SyncFields>) => { trip: Trip; plan: Plan }
@@ -218,6 +220,12 @@ export const useStore = create<State>((setState, getState) => {
       if (hue === undefined) delete forTrip[author]
       else forTrip[author] = hue
       const settings = { ...getState().settings, reviewHues: { ...current, [tripId]: forTrip } }
+      setState({ settings })
+      void saveSettings(settings)
+    },
+
+    setTheme: (theme) => {
+      const settings = { ...getState().settings, theme }
       setState({ settings })
       void saveSettings(settings)
     },

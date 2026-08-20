@@ -25,6 +25,8 @@ export interface Settings {
    * 為了顏色去動同步層，就得處理「兩個人同時改配色」這種毫無價值的衝突。
    */
   reviewHues?: Record<string, Record<string, number>>
+  /** 介面配色。undefined 等同 'dark'，所以舊資料不必遷移。 */
+  theme?: 'dark' | 'light'
   /** 資料格式修復版本；升版時可讓既有裝置安全地完整重拉一次。 */
   syncRepairVersion?: number
   /** 後端宣告的照片 API 版本；未支援時介面會提示重新部署 Apps Script。 */
