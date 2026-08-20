@@ -13,6 +13,7 @@ import NotesTab from '../components/NotesTab'
 import Modal from '../components/Modal'
 import type { Item } from '../types'
 import { copyItemSnapshot } from '../lib/items'
+import { useSwipeBack } from '../lib/useSwipeBack'
 import AlbumView from '../components/AlbumView'
 import BackIcon from '../components/BackIcon'
 import SearchIcon from '../components/SearchIcon'
@@ -163,6 +164,17 @@ export default function TripPage() {
     if (!trip) navigate('/', { replace: true })
   }, [trip, navigate])
 
+  /* 詳細頁在 860px 以上是右側欄不是覆蓋層，那裡不吃關閉手勢。 */
+  const [overlayDetail, setOverlayDetail] = useState(
+    () => !window.matchMedia('(min-width: 860px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 860px)')
+    const onChange = () => setOverlayDetail(!mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
   const setParam = (key: string, value?: string) => {
     const next = new URLSearchParams(params)
     if (value) next.set(key, value)
@@ -180,6 +192,21 @@ export default function TripPage() {
 
   const navigateParam = (key: string, value?: string) =>
     requestNavigation(() => setParam(key, value))
+
+  /*
+   * 往右拖曳退回上一層，跟左上角那顆返回鍵走同一條路（會攔未儲存的修改）。
+   * 詳細頁蓋在旅程頁上面，兩層都掛，靠內層吃掉 touchstart 決定誰接手。
+   * 日期列本來就要橫捲，起點落在它上面時放行。
+   */
+  const tripSwipe = useSwipeBack<HTMLDivElement>({
+    onDismiss: () => requestNavigation(() => navigate('/')),
+    ignoreWithin: '.daystrip',
+  })
+  const detailSwipe = useSwipeBack<HTMLDivElement>({
+    onDismiss: () => requestNavigation(() => setParam('sel')),
+    disabled: !overlayDetail,
+    stopPropagation: true,
+  })
 
   if (!trip) {
     return (
@@ -204,7 +231,7 @@ export default function TripPage() {
           : '尚未同步'
 
   return (
-    <div className="app" data-actual={plan?.kind === 'actual'}>
+    <div className="app" ref={tripSwipe} data-actual={plan?.kind === 'actual'}>
       {pendingNavigation && (
         <Modal
           title="尚未儲存變更"
@@ -354,7 +381,7 @@ export default function TripPage() {
         </div>
 
         {selectedId && plan && (
-          <div className="pane-detail">
+          <div className="pane-detail" ref={detailSwipe}>
             <ItemDetail
               key={selectedId}
               trip={trip}
