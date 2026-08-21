@@ -39,13 +39,6 @@ interface Props {
  * 長的要在小框裡捲，兩邊都難讀。上限交給 CSS 的 max-height 收。
  * 掛在 ref 上負責掛載時（含還原草稿）的初始高度，onInput 負責打字途中。
  */
-/** 讀一個掛在 <html> 上、值是純數字 px 的 CSS 變數（--kb 與 --tabbar-h 都是量出來寫進去的）。 */
-const cssPx = (name: string): number =>
-  parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0
-
-/** 平滑捲動；不支援的瀏覽器退回直接跳過去。 */
-const SMOOTH = 'scrollBehavior' in document.documentElement.style
-
 const autoGrow = (el: HTMLTextAreaElement | null) => {
   if (!el) return
   el.style.height = 'auto'
@@ -211,17 +204,12 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
    * 切換後把捲動位置補回去，視線就留在原地。
    */
   const anchorRef = useRef<{ itemId: string; top: number } | null>(null)
-  /*
-   * 捲動區尾端補上的空白，兩個來源加起來：
-   * anchor 是「內容變矮、捲不回去」補的那一截；kb 是鍵盤蓋掉的那一截（最後一則
-   * 要能被推到鍵盤上方）。兩邊各寫各的會互相蓋掉，所以集中算一次。
-   */
-  const padRef = useRef({ anchor: 0, kb: 0 })
+  /* 內容變矮、捲不回去時，在捲動區尾端補上剛好足夠的空白。 */
+  const anchorPadRef = useRef(0)
   const applyPad = useCallback(() => {
     const scroller = scrollRef.current
     if (!scroller) return
-    const total = padRef.current.anchor + padRef.current.kb
-    scroller.style.paddingBottom = total > 0 ? `${total}px` : ''
+    scroller.style.paddingBottom = anchorPadRef.current > 0 ? `${anchorPadRef.current}px` : ''
   }, [scrollRef])
 
   const anchorRow = (itemId: string) => {
@@ -245,15 +233,15 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
      */
     const rest = row.getBoundingClientRect().top - anchor.top
     if (rest <= 1) return
-    padRef.current.anchor += rest
+    anchorPadRef.current += rest
     applyPad()
     scroller.scrollTop += rest
   }, [drafts, scrollRef, applyPad])
 
-  /* 尾端那兩段補償都只在編輯期間存在。 */
+  /* 尾端補償只在編輯期間存在。 */
   useEffect(() => {
     if (hasEditing) return
-    padRef.current = { anchor: 0, kb: 0 }
+    anchorPadRef.current = 0
     applyPad()
   }, [hasEditing, applyPad])
 
@@ -261,96 +249,8 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
    * 進編輯時把游標放進那一則。不能用 autoFocus：瀏覽器為了讓焦點元素露出來，
    * 會去捲「每一個」可捲的祖先 —— html / body / #root 雖然都是 overflow: hidden，
    * 那只是不給使用者捲，程式與焦點照樣捲得動，整個 App 會被推上去、底下露出背景。
-   * 改成 preventScroll，再自己把該捲的那一條捲到剛好看得見就好。
+   * 改成 preventScroll，再交給全域鍵盤協調器只捲最近的內層容器。
    */
-  /**
-   * 把正在編輯的那一組（輸入框連同它底下的取消／儲存）帶進可視範圍。
-   * 對象是整組不是輸入框 —— 鍵盤升起時看得到自己在打什麼還不夠，
-   * 那兩顆按鈕也要看得到，不然又回到「要送出得先捲畫面」。
-   * 捲的只有 .itinerary-scroll 這一條，捲最小的距離。
-   */
-  const revealEditing = useCallback(
-    (expectKb = 0) => {
-      const scroller = scrollRef.current
-      const active = document.activeElement
-      if (!scroller || !(active instanceof HTMLTextAreaElement)) return
-      const group = active.closest<HTMLElement>('.review-editing')
-      if (!group) return
-      const box = scroller.getBoundingClientRect()
-      const rect = group.getBoundingClientRect()
-      const margin = 8
-      /*
-       * expectKb 是「鍵盤等一下會有多高」。鍵盤升起時 .review-view 會加上
-       * max(0, --kb - --tabbar-h) 的下內距，捲動區就矮那一截 —— 這裡先自己扣掉，
-       * 就能在鍵盤還沒上來時算出它上來之後的可視底緣。已經升起時傳 0 就好，
-       * 那時量到的 box 本來就是縮過的。
-       */
-      const bottom = box.bottom - Math.max(0, expectKb - cssPx('--tabbar-h'))
-      let delta = 0
-      if (rect.bottom > bottom - margin) delta = rect.bottom - bottom + margin
-      else if (rect.top < box.top + margin) delta = rect.top - box.top - margin
-      // 一兩 px 的差不值得動：預測準的時候，鍵盤停穩後的那次校正就該是靜悄悄的。
-      if (Math.abs(delta) < 2) return
-      // 平滑捲動途中的中間值不該把日期膠囊搶走。
-      holdDay()
-      scroller.scrollTo({ top: scroller.scrollTop + delta, behavior: SMOOTH ? 'smooth' : 'auto' })
-    },
-    [scrollRef, holdDay],
-  )
-
-  /** 排程中的那一次帶進可視範圍。兩條路線共用，後排的取代先排的，所以只會捲一次。 */
-  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const followRef = useRef<number | undefined>(undefined)
-
-  /**
-   * 讓內容被鍵盤「推」上去，而不是等它停穩再跳一次。
-   *
-   * 每一幀讀 visualViewport 算出鍵盤現在吃掉多少高度，內容的位移就是
-   * `鍵盤佔掉的 - 內容下緣原本剩的餘裕`：餘裕還沒被吃完時這個值是 0，畫面完全不動；
-   * 被頂到之後就一比一跟著鍵盤走，兩者看起來是同一個動作。
-   *
-   * 位移一律從進場時記下的基準算，不用每幀重量 rect —— 自己捲完再量會累積誤差。
-   * 尾端同時補上鍵盤蓋掉的高度，否則最後一則根本沒有空間可以被推上去。
-   */
-  const followKeyboard = useCallback(() => {
-    const scroller = scrollRef.current
-    const active = document.activeElement
-    const vv = window.visualViewport
-    if (!scroller || !vv || !(active instanceof HTMLTextAreaElement)) return
-    const group = active.closest<HTMLElement>('.review-editing')
-    if (!group) return
-    const tabbar = cssPx('--tabbar-h')
-    const margin = 8
-    const baseTop = scroller.scrollTop
-    const slack = scroller.getBoundingClientRect().bottom - group.getBoundingClientRect().bottom - margin
-    const startedAt = performance.now()
-    let last = -1
-    let stable = 0
-
-    const step = () => {
-      const kb = Math.max(0, Math.round(window.innerHeight - vv.height))
-      const occluded = Math.max(0, kb - tabbar)
-      padRef.current.kb = occluded
-      applyPad()
-      // 這是程式發動的捲動，途中的中間值不該把日期膠囊搶走；鎖只有 450ms，要一直補。
-      holdDay()
-      scroller.scrollTop = baseTop + Math.max(0, occluded - slack)
-      stable = kb === last ? stable + 1 : 0
-      last = kb
-      // 停穩（連續幾幀不再變）或超時就收工，最後再校正一次（通常是靜悄悄的）。
-      if ((kb > 0 && stable > 5) || performance.now() - startedAt > 1400) {
-        followRef.current = undefined
-        revealEditing()
-        return
-      }
-      followRef.current = requestAnimationFrame(step)
-    }
-    cancelAnimationFrame(followRef.current ?? 0)
-    followRef.current = requestAnimationFrame(step)
-  }, [scrollRef, holdDay, applyPad, revealEditing])
-
-  useEffect(() => () => cancelAnimationFrame(followRef.current ?? 0), [])
-
   useEffect(() => {
     if (!focusId) return
     const scroller = scrollRef.current
@@ -358,24 +258,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     setFocusId(null)
     if (!scroller || !el) return
     el.focus({ preventScroll: true })
-    /*
-     * 鍵盤還沒升起時直接捲是白捲的：量到的可視範圍是「沒有鍵盤」的那個，
-     * 等一下鍵盤上來還得再捲一次 —— 那就是上推兩下。所以那種情況交給 followKeyboard，
-     * 讓內容被鍵盤推上去。已經有鍵盤（換一則編輯）或本來就沒有軟鍵盤（滑鼠裝置）
-     * 就沒有這個問題，立刻捲到位才對。
-     */
-    const softKeyboard =
-      Boolean(window.visualViewport) && !window.matchMedia('(hover: hover) and (pointer: fine)').matches
-    if (cssPx('--kb') > 0 || !softKeyboard) {
-      revealEditing()
-      return
-    }
-    // 鍵盤還沒升起：跟著它走，被頂到才動。
-    followKeyboard()
-    // 保底：接了實體鍵盤的觸控裝置鍵盤永遠不會來，跟隨迴圈只會空轉到超時。
-    clearTimeout(revealTimerRef.current)
-    revealTimerRef.current = setTimeout(() => revealEditing(), 900)
-  }, [focusId, scrollRef, revealEditing, followKeyboard])
+  }, [focusId, scrollRef])
 
   /*
    * 離開編輯有三個觸發點，全都指向同一個 finishEdit，而它是冪等的
@@ -406,25 +289,6 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
       document.removeEventListener('visibilitychange', onHide)
     }
   })
-
-  /*
-   * 鍵盤是動畫升起的，focus 當下量到的可視範圍還是沒鍵盤時的。
-   * 可視視窗一縮就再帶一次；350ms 是等它停穩，跟 keyboard.ts 用的是同一個數字。
-   */
-  useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
-    const onResize = () => {
-      // 蓋掉上面排的保底：鍵盤真的來了，就以它停穩之後的尺寸為準捲那唯一的一次。
-      clearTimeout(revealTimerRef.current)
-      revealTimerRef.current = setTimeout(() => revealEditing(), 350)
-    }
-    vv.addEventListener('resize', onResize)
-    return () => {
-      clearTimeout(revealTimerRef.current)
-      vv.removeEventListener('resize', onResize)
-    }
-  }, [revealEditing])
 
   const beginEdit = (itemId: string) => {
     if (itemId in drafts) return
@@ -502,8 +366,6 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   const finishEdit = (itemId: string) => {
     const next = drafts[itemId]
     if (next === undefined) return
-    cancelAnimationFrame(followRef.current ?? 0)
-    followRef.current = undefined
     const before = mineText(itemId)
     justFinishedRef.current = { itemId, at: Date.now() }
     anchorRow(itemId)
@@ -629,7 +491,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                         {editing ? (
                           /* 編輯時照樣掛名牌，樣子還是一顆氣泡 —— 只是底色淺一階、多一圈框，
                              一眼看得出「這則正在改」，而不是換成一個跟四周無關的表單欄位。 */
-                          <div className="review-editing" data-self-reveal>
+                          <div className="review-editing">
                             {/* 名牌是 sticky 的，活動範圍是它的容器 —— 按鈕列不能放進來，
                                 不然名牌會一路滑到按鈕那一段，尖角就指到空氣。 */}
                             <div

@@ -1605,7 +1605,8 @@ body[data-actual='true'] {
  * ——「取消／完成編輯」就在那裡。詳細頁沒這問題是因為它是 position: fixed 的蓋板；
  * 心得模式在流內，改成讓外層讓開，捲動區自己吸收，按鈕列就升到鍵盤上緣。
  * 扣掉 --tabbar-h 是因為底部導航列已經佔掉那一段，不扣會抬過頭。
- * Android 的版面視窗會跟著縮，--kb 算出來是 0，這條自動失效，不用寫兩套。
+ * 本 App 明確採 resizes-visual；現代 Android Chrome 與 iOS 都由可視視窗回報遮蔽高度。
+ * 扣掉底部導航列，是避免它原本已佔的高度被重複補償。
  */
 .review-view { padding-bottom: max(0px, calc(var(--kb, 0px) - var(--tabbar-h))); }
 
