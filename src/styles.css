@@ -697,6 +697,18 @@ body[data-actual='true'] {
 }
 
 /*
+ * 右滑返回時墊在底下的下一層畫面。只在拖曳中存在，純粹是背景，不吃任何操作。
+ * .app 一旦有 transform 就自成堆疊脈絡，會蓋在這層上面，不必另外指定 z-index。
+ */
+.swipe-behind {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/*
  * 旅程清單頁的版本列。.page-scroll 是 flex: 1，所以這條放在它後面就自動釘在底部，
  * 不必用 position: fixed —— 版面本來就是固定高度、文件不捲動。
  */

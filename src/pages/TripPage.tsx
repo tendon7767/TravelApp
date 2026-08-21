@@ -15,6 +15,7 @@ import type { Item } from '../types'
 import { copyItemSnapshot } from '../lib/items'
 import { useSwipeBack } from '../lib/useSwipeBack'
 import AlbumView from '../components/AlbumView'
+import TripsPage from './TripsPage'
 import BackIcon from '../components/BackIcon'
 import SearchIcon from '../components/SearchIcon'
 import CloseIcon from '../components/CloseIcon'
@@ -164,6 +165,9 @@ export default function TripPage() {
     if (!trip) navigate('/', { replace: true })
   }, [trip, navigate])
 
+  /** 拖曳中才把旅程列表墊在底下：滑開的時候要看得到自己正要回到哪裡。 */
+  const [swipingBack, setSwipingBack] = useState(false)
+
   /* 詳細頁在 860px 以上是右側欄不是覆蓋層，那裡不吃關閉手勢。 */
   const [overlayDetail, setOverlayDetail] = useState(
     () => !window.matchMedia('(min-width: 860px)').matches,
@@ -201,6 +205,7 @@ export default function TripPage() {
   const tripSwipe = useSwipeBack<HTMLDivElement>({
     onDismiss: () => requestNavigation(() => navigate('/')),
     ignoreWithin: '.daystrip',
+    onDrag: setSwipingBack,
   })
   const detailSwipe = useSwipeBack<HTMLDivElement>({
     onDismiss: () => requestNavigation(() => setParam('sel')),
@@ -231,6 +236,12 @@ export default function TripPage() {
           : '尚未同步'
 
   return (
+    <>
+    {swipingBack && (
+      <div className="swipe-behind" aria-hidden="true" inert>
+        <TripsPage />
+      </div>
+    )}
     <div className="app" ref={tripSwipe} data-actual={plan?.kind === 'actual'}>
       {pendingNavigation && (
         <Modal
@@ -423,5 +434,6 @@ export default function TripPage() {
       </div>
 
     </div>
+    </>
   )
 }
