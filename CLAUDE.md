@@ -101,7 +101,33 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 | 心得模式 | 行程列表的另一種樣子，網址 `mode=review`（[ReviewTab.tsx](src/components/ReviewTab.tsx)），只有實際版有 |
 | 規劃版／實際版 | `plan.kind`。配色與回饋計算都看它 |
 | 彈窗、蓋板 | `Modal` 與它的 `.backdrop`。彈窗有 sheet（底部升起）與 picker（置中選一個）兩種 |
-| 取消／完成 | 彈窗底部那一排。**取消編輯／完成編輯**是另一組，指詳細頁與心得那一對 |
+| 取消／儲存 | 彈窗底部那一排（`.sheetactions`）。**取消編輯／完成編輯**是另一組，指詳細頁與心得那一對 |
+
+## 彈窗的共通規則
+
+六個編輯型彈窗（設定、新增旅程、加入旅程、編輯旅程、支付方式、筆記）共用 [Modal.tsx](src/components/Modal.tsx)，
+下面每一條都是六個一起適用的。**只改其中一個就是把它們拆開，不要這樣做。**
+
+- **高度上限是「上緣切齊頂列的下緣」**：`calc(100% - var(--topbar-h) - var(--kb))`。背後永遠看得到完整一條頂列，
+  那條就是點了會關掉的地方。`--topbar-h` 是量出來的，`TripPage` 與 `TripsPage` **各自都要量**——
+  只有一頁量的話，從另一頁開的彈窗會用到上次留下的舊值。picker 例外，維持置中與七成高。
+- **點蓋板等於按取消**，有未儲存的修改就跳確認，不會默默丟掉。關閉的 ✕ 一律留在標題列。
+- **底部按鈕列住在 `.sheetbody` 這個捲動區裡**，靠 `position: sticky; bottom: 0` 假裝釘在底部；
+  鍵盤升起時（`:root[data-kb]`，旗標在 [keyboard.ts](src/lib/keyboard.ts) 跟著 `--kb` 一起寫）改成 `static`，
+  它就跟著內容捲走，要按到「儲存」得先捲到最底——誤按的那一下不會發生在鍵盤上緣。
+  切換只動 `position`，DOM 不搬，鍵盤動畫途中不會閃幀。
+  - **按鈕列與內容之間的留白只能給按鈕列自己的 `margin-top`。** 還給 `.sheetbody` 的 `padding-bottom`
+    會把釘住的位置往上推，就不貼底了；而按鈕列的負 `margin-bottom` 也抵消不掉父層的 `padding-bottom`
+    ——負外距只縮內容的高度，父層的內距照樣留在下面。兩種寫法都試過，都不對。
+- **Enter 一律只收鍵盤，不送出。** `Modal` 統一處理，並在掛載時替欄位蓋上 `enterkeyhint="done"`。
+  欄位自己要用 Enter 做別的事（筆記的「開下一行」）就 `preventDefault()` 退出這條規則。
+- **完成鍵的字**：標題帶「新增」的用「新增」、帶「加入」的用「加入」，其餘一律「儲存」。
+- **該填的沒填、或什麼都沒改就 disable**，不要按了沒反應。新增看必要欄位有沒有填，編輯看 `dirty`。
+  **但格式錯誤不要 disable**——加入旅程貼了半條連結的人只會看到按鈕壞掉，那種要留給錯誤訊息說。
+  必填標記刻意不加（影響版面），所以 disable 的理由必須是畫面上看得出來的（空欄位本身、日期那行的紅字）。
+- **內容上緣的留白在 `.sheetbody`**，不要每個彈窗各自寫 inline style。
+- **還沒統一的一件事**：「哪些進草稿、哪些點下去就生效」四個彈窗各一套（設定的配色即時、編輯旅程的刪除即時、
+  筆記全部草稿）。使用者按取消時無法預期什麼會被還原。知道，還沒解。
 
 ## 版面與互動的雷區
 
@@ -110,7 +136,7 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - **捲動層一律要擋掉橫向。** `overflow-y: auto` 會讓沒指定的 `overflow-x` 從 `visible` 被算成 `auto`，內容只要寬出去一點點，整個版面就能左右拖動並回彈，看起來像壞掉。新增捲動容器時照抄 `.scroll / .page-scroll / .pane-scroll / .itinerary-scroll` 那組的 `overflow-x: hidden` + `touch-action: pan-y`。唯一該橫捲的 `.daystrip` 是它們的兄弟不是子孫，不受影響。
 - **量到的高度寫成 CSS 變數，不要在 CSS 裡硬寫數字。** `--topbar-h` / `--tabbar-h`（`TripPage`）、`--dayhead-h` / `--reviewrow-h`（`ReviewTab`）都是量出來的，因為它們隨字型、縮放與內容換行而變。
 - **量高度要先同步寫一次，再交給 `ResizeObserver` 管後續變化。** 它的回呼掛在瀏覽器的算繪步驟上，**分頁在背景時不會送達** —— 只靠它的話初值永遠停在 fallback，而且是靜默的，畫面只是位置怪怪的不會報錯。
-- **iOS 鍵盤升起時版面視窗不會縮，只有可視視窗縮。** 畫面底部那段被鍵盤蓋住，在流內的底部按鈕列就消失了。`--kb`（[src/lib/keyboard.ts](src/lib/keyboard.ts)）量的就是這段：蓋板用它調 `inset`（`.pane-detail`），流內版面用它加 `padding-bottom`（`.review-view`）。Android 的版面視窗會跟著縮，`--kb` 算出來是 0，同一條規則自動失效，不用寫兩套。
+- **iOS 鍵盤升起時版面視窗不會縮，只有可視視窗縮。** 畫面底部那段被鍵盤蓋住，在流內的底部按鈕列就消失了。`--kb`（[src/lib/keyboard.ts](src/lib/keyboard.ts)）量的就是這段：蓋板用它調 `inset`（`.pane-detail`），流內版面用它加 `padding-bottom`（`.review-view`），彈窗則是整張往上讓、按鈕列改成跟著內容捲（見上面「彈窗的共通規則」）。同一支檔案還會寫一個 `data-kb` 旗標到 `<html>` 上，因為 CSS 沒辦法拿長度當條件。Android 的版面視窗會跟著縮，`--kb` 算出來是 0，同一條規則自動失效，不用寫兩套。
 - **使用者輸入的文字都要 `overflow-wrap: anywhere`。** 沒有空白的長字串（英文店名、訂位代號、貼上來的網址）預設不斷行；`min-width: 0` 只讓它縮不讓它斷，照樣頂破版面。
 - **彈窗不能寫在可點元素的 JSX 裡面。** `Modal` 是 `createPortal` 到 `body` 的，但 **React 的合成事件沿的是 React 樹不是 DOM 樹** —— 掛在可點卡片裡面的話，點背景關掉的那一個點擊會接著冒泡到卡片的 `onClick`，當場又把它打開，看起來就是「點外面沒反應」。把 `<Modal>` 放到那個元素外面（用 Fragment 包），不要靠 `stopPropagation` 治症狀。
 - **只有兩個選項就不要用 `<select>`。** iOS 會彈出整頁滾輪，為了兩個選項太重，而且選完才知道自己選了什麼。攤開成 `.seg` 那組二選一按鈕。選項多到攤不開時（例如選支付方式）改用 `variant="picker"` 的彈窗，不要退回原生選單。

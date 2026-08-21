@@ -19,7 +19,7 @@
 │   │              ├── 基本資訊（名稱、日期、外幣、匯率）
 │   │              ├── 版本切換（二選一）              PlanSwitcher.tsx / .seg
 │   │              ├── 心得配色 ／ 雲端同步 ／ 刪除
-│   │              └── 取消／完成                     .sheetactions
+│   │              └── 取消／儲存                     .sheetactions
 │   ├── 匯率 · 同步狀態（點了立刻同步）                .topbar-sync
 │   ├── 心得模式鍵（只有實際版有）
 │   └── 搜尋                                         SearchPanel.tsx
@@ -54,11 +54,14 @@
 └── 導航列：首頁 ／ 行程 ／ 回饋 ／ 筆記                .tabbar / TabBar.tsx
 
 彈窗                                                 Modal.tsx
-├── 蓋板（點它關掉）                                  .backdrop
+├── 蓋板（點它關掉＝取消）                             .backdrop
+├── 標題列（右邊的 ✕ 一律在，關閉＝取消）               .sheethead / .icon-btn
 ├── sheet：底部升起，有內容要編輯                      .sheet
+│      └── 上緣切齊頂列的下緣，背後看得到完整一條頂列
 ├── picker：置中，點一個就關（選支付方式、消費明細）     .sheet[data-variant=picker]
-├── 取消／完成（管整個彈窗，固定在頁底）                .sheetactions
-└── 取消編輯／完成編輯（鍵盤升起時浮在鍵盤上緣）         .kb-actions
+└── 取消／儲存（管整個彈窗）                           .sheetactions
+       ├── 沒鍵盤：sticky 貼在彈窗底
+       └── 鍵盤升起：跟著內容捲，要捲到最底才按得到      :root[data-kb]
 ```
 
 ## 分不出來時補一個限定詞
