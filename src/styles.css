@@ -1951,7 +1951,8 @@ body[data-actual='true'] {
    不然手勢會捲到背後的行程，捲動軸自己在跑但內容不動。 */
 @media (max-width: 859px) {
   body.detail-open { overflow: hidden; }
-  .pane-detail { inset: 0 0 var(--kb, 0px) 0; z-index: 40; }
+  /* 外殼留在全螢幕遮住背後頁面；只縮內部 flex 空間，把按鈕列推到鍵盤上緣。 */
+  .pane-detail { inset: 0; padding-bottom: var(--kb, 0px); z-index: 40; }
   .pane-detail .editor-actions {
     padding: 12px 18px max(18px, calc(12px + env(safe-area-inset-bottom) - var(--kb, 0px)));
   }
