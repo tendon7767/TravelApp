@@ -261,6 +261,9 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     else if (rect.top < box.top + margin) scroller.scrollTop -= box.top - rect.top + margin
   }, [scrollRef])
 
+  /** 排程中的那一次帶進可視範圍。兩條路線共用，後排的取代先排的，所以只會捲一次。 */
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
   useEffect(() => {
     if (!focusId) return
     const scroller = scrollRef.current
@@ -268,7 +271,21 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     setFocusId(null)
     if (!scroller || !el) return
     el.focus({ preventScroll: true })
-    revealEditing()
+    /*
+     * 鍵盤還沒升起時捲是白捲的：量到的可視範圍是「沒有鍵盤」的那個，等一下鍵盤一上來
+     * 還得再捲一次 —— 那就是兩次上推。所以軟鍵盤的裝置先不捲，等可視視窗被壓小再一次到位。
+     * 已經有鍵盤（換一則編輯）或本來就沒有軟鍵盤（滑鼠裝置）的話，立刻捲才對。
+     */
+    const kb = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb')) || 0
+    const softKeyboard =
+      Boolean(window.visualViewport) && !window.matchMedia('(hover: hover) and (pointer: fine)').matches
+    if (kb > 0 || !softKeyboard) {
+      revealEditing()
+      return
+    }
+    // 保底：接了實體鍵盤的觸控裝置不會有 resize，那就不能一直等下去。
+    clearTimeout(revealTimerRef.current)
+    revealTimerRef.current = setTimeout(revealEditing, 600)
   }, [focusId, scrollRef, revealEditing])
 
   /*
@@ -308,14 +325,14 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
-    let timer: ReturnType<typeof setTimeout> | undefined
     const onResize = () => {
-      clearTimeout(timer)
-      timer = setTimeout(revealEditing, 350)
+      // 蓋掉上面排的保底：鍵盤真的來了，就以它停穩之後的尺寸為準捲那唯一的一次。
+      clearTimeout(revealTimerRef.current)
+      revealTimerRef.current = setTimeout(revealEditing, 350)
     }
     vv.addEventListener('resize', onResize)
     return () => {
-      clearTimeout(timer)
+      clearTimeout(revealTimerRef.current)
       vv.removeEventListener('resize', onResize)
     }
   }, [revealEditing])
@@ -521,7 +538,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                         {editing ? (
                           /* 編輯時照樣掛名牌，樣子還是一顆氣泡 —— 只是底色淺一階、多一圈框，
                              一眼看得出「這則正在改」，而不是換成一個跟四周無關的表單欄位。 */
-                          <div className="review-editing">
+                          <div className="review-editing" data-self-reveal>
                             {/* 名牌是 sticky 的，活動範圍是它的容器 —— 按鈕列不能放進來，
                                 不然名牌會一路滑到按鈕那一段，尖角就指到空氣。 */}
                             <div

@@ -49,11 +49,17 @@ export const watchKeyboard = () => {
     })
   }
 
-  /** 取消平移之後，改用捲動內層容器的方式把焦點欄位帶回可視範圍。 */
+  /**
+   * 取消平移之後，改用捲動內層容器的方式把焦點欄位帶回可視範圍。
+   * 這是全 App 的保底，只認得「焦點元素」本身 —— 自己會算的區塊（例如心得模式要連
+   * 底下的按鈕一起帶進來）掛 data-self-reveal 退出，否則兩邊會各捲一次，看起來就是
+   * 上推兩下。
+   */
   const revealFocused = () => {
     const active = document.activeElement
     if (!(active instanceof HTMLElement)) return
     if (!active.matches('input, textarea, select, [contenteditable]')) return
+    if (active.closest('[data-self-reveal]')) return
     active.scrollIntoView({ block: 'nearest' })
   }
 
