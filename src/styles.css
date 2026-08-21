@@ -477,15 +477,12 @@ input[type='search']::-webkit-search-decoration {
 }
 
 /*
- * 日期欄位右邊那顆 picker indicator，手機版藏起來：Android Chrome 畫的是一顆 ▾，
- * 位置歪、也看不出來是「叫出系統日曆」的意思，而點欄位本體本來就會叫出選單。
- * 電腦版（860px 以上，就是雙欄那個斷點）留著 —— 那裡畫的是日曆圖示，看得懂，
- * 而且桌機 Chrome 點文字只會進到年／月／日的格子裡打字，日曆浮層只有那顆叫得出來。
+ * 日期欄位右邊那顆 picker indicator 一律藏掉：位置歪、也看不出來是「叫出系統日曆」，
+ * 而點欄位本體本來就會叫出選單。桌機因此少一個入口（那裡點文字只會進到年／月／日的
+ * 格子裡打字，日曆浮層要 focus 後按 Alt+↓），刻意接受 —— 這是手機優先的 App，
+ * 分成兩套反而要多維護一個斷點。
  */
 input[type='date']::-webkit-calendar-picker-indicator { display: none; }
-@media (min-width: 860px) {
-  input[type='date']::-webkit-calendar-picker-indicator { display: initial; }
-}
 
 .label {
   display: block;
