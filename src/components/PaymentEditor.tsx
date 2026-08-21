@@ -41,6 +41,8 @@ export default function PaymentEditor({
           <label className="label">名稱</label>
           <input
             className="field"
+            type="search"
+            enterKeyHint="done"
             autoComplete="off"
             placeholder="卡片或電子支付名稱"
             value={method.name}
@@ -52,6 +54,8 @@ export default function PaymentEditor({
           <label className="label">持有人</label>
           <input
             className="field"
+            type="search"
+            enterKeyHint="done"
             autoComplete="off"
             placeholder="誰的"
             value={method.owner ?? ''}
@@ -103,6 +107,8 @@ export default function PaymentEditor({
               <label className="label">規則名稱</label>
               <input
                 className="field"
+                type="search"
+                enterKeyHint="done"
                 autoComplete="off"
                 placeholder="例如國外消費"
                 value={r.name}

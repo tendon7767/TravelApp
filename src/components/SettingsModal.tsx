@@ -128,8 +128,6 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         <input
           id="s-member"
           className="field"
-          /* 實驗：Chrome 刻意忽略 autocomplete="off"，改用 type="search" 讓它的
-             自動填入直接跳過這一格；id 也避開 name 這個字。 */
           type="search"
           autoComplete="off"
           value={draft}
@@ -180,6 +178,8 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           <input
             id="s-gas"
             className="field"
+            type="search"
+            enterKeyHint="done"
             autoComplete="off"
             inputMode="url"
             autoCapitalize="off"
@@ -214,6 +214,8 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           <input
             id="s-folder"
             className="field"
+            type="search"
+            enterKeyHint="done"
             autoComplete="off"
             inputMode="url"
             autoCapitalize="off"

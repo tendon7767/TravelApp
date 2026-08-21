@@ -636,6 +636,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               <input
                 id="d-title"
                 className="field"
+                type="search"
+                enterKeyHint="done"
                 autoComplete="off"
                 style={{ fontSize: 16 }}
                 value={item.title}
@@ -662,6 +664,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   <input
                     id="d-start"
                     className="field mono"
+                    type="search"
+                    enterKeyHint="done"
                     autoComplete="off"
                     inputMode="numeric"
                     placeholder="09:10"
@@ -780,6 +784,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   <span className="detail-note-bullet" aria-hidden="true">•</span>
                   <input
                     className="field"
+                    type="search"
+                    enterKeyHint="done"
                     autoComplete="off"
                     value={note.text}
                     onChange={(event) =>
@@ -816,6 +822,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               <div className="link-add-row">
                 <input
                   className="field"
+                  type="search"
+                  enterKeyHint="done"
                   autoComplete="off"
                   value={noteDraft}
                   placeholder="新增提醒或補充"
@@ -868,6 +876,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   <div className="costline-head">
                     <input
                       className="field cl-label"
+                      type="search"
+                      enterKeyHint="done"
                       autoComplete="off"
                       placeholder="項目"
                       value={cost.label}
@@ -980,6 +990,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                 <div key={link.id} className="link-edit-row">
                   <input
                     className="field"
+                    type="search"
+                    enterKeyHint="done"
                     autoComplete="off"
                     style={{ flex: 1, minWidth: 0 }}
                     value={link.label}
@@ -1009,6 +1021,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                 <div className="link-add-row">
                   <input
                     className="field"
+                    type="search"
+                    enterKeyHint="done"
                     autoComplete="off"
                     inputMode="url"
                     autoCapitalize="off"
@@ -1076,6 +1090,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                 <div key={link.id} className="link-edit-row">
                   <input
                     className="field"
+                    type="search"
+                    enterKeyHint="done"
                     autoComplete="off"
                     style={{ flex: 1, minWidth: 0 }}
                     value={link.label}
@@ -1103,6 +1119,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               <div className="link-add-row">
                 <input
                   className="field"
+                  type="search"
+                  enterKeyHint="done"
                   autoComplete="off"
                   inputMode="url"
                   autoCapitalize="off"

@@ -465,6 +465,16 @@ a { color: var(--accent); }
   font-size: 15px;
 }
 .field:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+/*
+ * 文字欄位一律用 type="search"。這不是因為它們是搜尋框，而是 Chrome 刻意忽略
+ * autocomplete="off"（太多網站拿它把自動填入整個關掉），只有「這是搜尋欄」這個
+ * 訊號還擋得住那條聯絡人／地址的建議列。代價是桌機會多一顆清除的 ✕，關掉它。
+ */
+input[type='search']::-webkit-search-cancel-button,
+input[type='search']::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
 
 .label {
   display: block;

@@ -50,6 +50,7 @@ export default function SearchPanel({ plan, onPick, onClose }: Props) {
       <div className="sec" style={{ display: 'flex', gap: 8 }}>
         <input
           className="field"
+          type="search"
           style={{ flex: 1, minWidth: 0 }}
           placeholder="搜尋行程、備註、連結、費用項目"
           autoComplete="off"

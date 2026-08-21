@@ -287,6 +287,8 @@ function NoteEditorModal({
         <input
           id="note-title"
           className="field"
+          type="search"
+          enterKeyHint="done"
           autoComplete="off"
           style={{ fontSize: 15, fontWeight: 600 }}
           value={draft.title}
@@ -310,6 +312,8 @@ function NoteEditorModal({
               </button>
               <input
                 className="field"
+                type="search"
+                enterKeyHint="done"
                 autoComplete="off"
                 style={{
                   flex: 1,
@@ -367,6 +371,8 @@ function NoteEditorModal({
                 </span>
                 <input
                   className="field"
+                  type="search"
+                  enterKeyHint="done"
                   autoComplete="off"
                   style={{ flex: 1, minWidth: 0 }}
                   value={l.label}
@@ -391,6 +397,8 @@ function NoteEditorModal({
             <div style={{ display: 'flex', gap: 6 }}>
               <input
                 className="field"
+                type="search"
+                enterKeyHint="done"
                 autoComplete="off"
                 inputMode="url"
                 autoCapitalize="off"

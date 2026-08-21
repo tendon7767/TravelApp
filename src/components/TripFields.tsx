@@ -22,7 +22,6 @@ export default function TripFields({
         <input
           id={`${idPrefix}-name`}
           className="field"
-          /* 實驗：只換 type，id 故意維持 -name，好跟設定頁那格對照。 */
           type="search"
           autoComplete="off"
           value={form.name}
@@ -62,6 +61,8 @@ export default function TripFields({
           <input
             id={`${idPrefix}-cur`}
             className="field"
+            type="search"
+            enterKeyHint="done"
             autoComplete="off"
             value={form.foreignCurrency}
             onChange={(e) => onChange({ foreignCurrency: e.target.value.toUpperCase() })}

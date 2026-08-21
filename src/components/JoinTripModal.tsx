@@ -61,6 +61,8 @@ export default function JoinTripModal({ onClose }: { onClose: () => void }) {
         <input
           id="join-invite"
           className="field"
+          type="search"
+          enterKeyHint="done"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="https://…/#/join?u=…&s=…&k=…"
