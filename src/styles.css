@@ -145,9 +145,10 @@
  * （真的調到比外框算出來的 #c4c4c7 更淡會低於 3:1，小圖示就糊了。）
  * 認的是「裡面只有一個圖示」而不是 .btn-glyph 這個 class ——
  * 回饋與筆記的編輯鉛筆沒掛那個 class，但問題完全一樣。
- * 選中狀態與刪除鍵各有自己的顏色，排除掉。
+ * 選中狀態與刪除鍵各有自己的顏色，排除掉（選中有兩種寫法：data-on 與 aria-pressed）。
  */
-:root[data-theme='light'] .btn:has(> svg:only-child):not([data-on='true']):not(.delete-icon-btn) {
+:root[data-theme='light']
+  .btn:has(> svg:only-child):not([data-on='true']):not([aria-pressed='true']):not(.delete-icon-btn) {
   color: var(--text-3);
 }
 /* 選中的切換鈕（心得模式、設定裡的配色）本來就寫著強調色，一樣要從 .btn 那條手上搶回來。 */
@@ -313,6 +314,46 @@ a { color: var(--accent); }
 /* 設定頁的說明文字。行高壓一點，一整頁排下來省下來的高度很可觀。 */
 .settings-hint { color: var(--text-3); font-size: 12px; line-height: 1.45; margin: 8px 0 0; }
 
+/* 欄位標題與它的 ⓘ。.label 自己帶 4px 下距，這一列把它抵掉，圖示才跟文字同一條基線。 */
+.setting-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.setting-label .label { margin-bottom: 0; }
+
+/*
+ * 說明的開關。沒有外框，所以點擊區照既有做法用 ::after 撐開 ——
+ * 它在標題右邊、離容器右緣還很遠，撐出去不會變成可以左右拖動的橫向溢出。
+ */
+.hint-btn {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-3);
+}
+.hint-btn::after { content: ''; position: absolute; inset: -9px; }
+.hint-btn[aria-expanded='true'] { color: var(--accent); }
+.hint-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/*
+ * 配色的兩顆：只有圖示，沒有文字，高度要跟旁邊那些 .field 切齊。
+ * 上下內距與字級照抄 .field（8px / 15px），然後**刻意不用 flex** ——
+ * 行內排版下這顆的高度由行高（strut）決定，跟輸入框是同一個算法，
+ * 字級或行高之後再變也還是一樣高。用 flex 的話高度改由圖示決定，就得寫死數字去追。
+ */
+.theme-btn {
+  padding: 8px 18px;
+  font-size: 15px;
+}
+/* 圖示高度就是一個行高：這顆是 flex（只裝一個 svg 的 .btn 都是），高度由圖示決定，
+   拿行高當圖示尺寸，算出來就跟同樣是「行高 + 8px 內距」的 .field 一樣高。 */
+.theme-btn .inline-icon { width: 1.5em; height: 1.5em; }
+
 /*
  * 導覽列的圖示按鈕：圓角正方形，內容一律是 SVG 圖示。
  * 早期用 ‹ ⌕ ⚙ 這類符號字元，但它們的墨跡位置隨 fallback 字體而異，
@@ -350,7 +391,7 @@ a { color: var(--accent); }
 /*
  * 只裝一個圖示、沒有 .btn-glyph 的按鈕（回饋與筆記的編輯鉛筆）也要置中：
  * SVG 是行內元素，會坐在文字基線上、底下留著降部的空間，看起來就是偏上。
- * 這是版面不是配色，兩個主題都要。
+ * 這是版面不是配色，兩個主題都要。（設定頁的配色兩顆也吃這條 —— 它們同樣只有一個圖示。）
  */
 .btn:has(> svg:only-child) {
   display: inline-flex;
