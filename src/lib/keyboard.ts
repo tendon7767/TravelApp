@@ -82,11 +82,13 @@ export const watchKeyboard = () => {
     if (metrics.height === 0 && !withoutKeyboard) return
     const active = focusedEditable()
     if (!active) return
-    const scroller = scrollParentOf(active)
+    // 有附屬操作的輸入區可以宣告整組都要可見；沒有標記時仍只揭露焦點欄位。
+    const target = active.closest<HTMLElement>('[data-keyboard-reveal]') ?? active
+    const scroller = scrollParentOf(target)
     if (!scroller) return
 
     const box = scroller.getBoundingClientRect()
-    const rect = active.getBoundingClientRect()
+    const rect = target.getBoundingClientRect()
     const top = Math.max(box.top, metrics.visibleTop) + REVEAL_MARGIN_PX
     const bottom = Math.min(box.bottom, metrics.visibleBottom) - REVEAL_MARGIN_PX
     if (bottom <= top) return
@@ -174,6 +176,16 @@ export const watchKeyboard = () => {
     apply()
   }
 
+  const onEditableInput = (event: Event) => {
+    if (!(event.target instanceof HTMLElement) || !event.target.matches(EDITABLE)) return
+    // React 先完成條件按鈕與 textarea 高度更新，下一幀再用新的整組尺寸校正。
+    if (followFrame !== undefined) return
+    followFrame = requestAnimationFrame(() => {
+      followFrame = undefined
+      revealFocused(apply())
+    })
+  }
+
   const cancelPendingReveal = () => {
     cancelFollow()
     clearTimeout(focusFallbackTimer)
@@ -191,6 +203,7 @@ export const watchKeyboard = () => {
   vv.addEventListener('scroll', onViewportChange)
   window.addEventListener('focusin', onFocusIn)
   window.addEventListener('focusout', onFocusOut)
+  window.addEventListener('input', onEditableInput)
   window.addEventListener('orientationchange', onOrientationChange)
   window.addEventListener('pointerdown', cancelPendingReveal, true)
   window.addEventListener('wheel', cancelPendingReveal, true)

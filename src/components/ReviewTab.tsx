@@ -491,7 +491,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                         {editing ? (
                           /* 編輯時照樣掛名牌，樣子還是一顆氣泡 —— 只是底色淺一階、多一圈框，
                              一眼看得出「這則正在改」，而不是換成一個跟四周無關的表單欄位。 */
-                          <div className="review-editing">
+                          <div className="review-editing" data-keyboard-reveal="">
                             {/* 名牌是 sticky 的，活動範圍是它的容器 —— 按鈕列不能放進來，
                                 不然名牌會一路滑到按鈕那一段，尖角就指到空氣。 */}
                             <div
