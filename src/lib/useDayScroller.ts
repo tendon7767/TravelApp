@@ -17,12 +17,16 @@ export const scrollToElement = (scroller: HTMLElement, el: HTMLElement, offset =
  * 內容層要掛 scrollRef 與 scrollProps，每一天的區塊要有 data-day-section，
  * 橫條要掛 daystripRef，每顆 pill 要有 data-day-pill。
  */
+/** 平滑捲動大致要跑這麼久；這段時間內不把捲動事件當成使用者手動捲。 */
+const PROGRAMMATIC_MS = 450
+
 export const useDayScroller = (days: string[], today: string) => {
   const [activeDay, setActiveDay] = useState(() => (days.includes(today) ? today : (days[0] ?? '')))
   const scrollRef = useRef<HTMLDivElement>(null)
   const daystripRef = useRef<HTMLDivElement>(null)
   const scrollFrame = useRef<number | undefined>(undefined)
-  const programmaticDay = useRef<string | undefined>(undefined)
+  /** 為 true 表示現在的捲動是程式發動的，途中的中間值不該把 pill 搶走。 */
+  const programmatic = useRef(false)
 
   useEffect(() => {
     setActiveDay((current) => (days.includes(current) ? current : (days.includes(today) ? today : (days[0] ?? ''))))
@@ -47,7 +51,7 @@ export const useDayScroller = (days: string[], today: string) => {
   }, [days])
 
   const trackScroll = useCallback(() => {
-    if (programmaticDay.current) return
+    if (programmatic.current) return
     if (scrollFrame.current !== undefined) return
     scrollFrame.current = window.requestAnimationFrame(() => {
       scrollFrame.current = undefined
@@ -73,14 +77,28 @@ export const useDayScroller = (days: string[], today: string) => {
     })
   }, [activeDay, days])
 
+  /*
+   * 手指一碰就解鎖會出事：平滑捲動還在跑的時候放手指下去（連續左右撥就是這樣），
+   * 鎖被清掉，途中的中間值就開始把 pill 搶走 —— 手還在螢幕上，膠囊自己在跳。
+   * 所以程式捲動剛發出的那段時間內不接受解鎖，那段時間本來也不會有人想手動捲。
+   */
+  const lockUntil = useRef(0)
   const beginManualScroll = useCallback(() => {
-    programmaticDay.current = undefined
+    if (Date.now() < lockUntil.current) return
+    programmatic.current = false
   }, [])
 
   /** 由程式決定要停在哪一天：先鎖住捲動追蹤，免得捲動途中的中間值把 pill 搶走。 */
   const focusDay = useCallback((day: string) => {
-    programmaticDay.current = day
+    programmatic.current = true
+    lockUntil.current = Date.now() + PROGRAMMATIC_MS
     setActiveDay(day)
+  }, [])
+
+  /** 手勢判定成橫向之後把鎖補回去 —— 那一下的 touchstart 已經先解鎖了。 */
+  const holdDay = useCallback(() => {
+    programmatic.current = true
+    lockUntil.current = Math.max(lockUntil.current, Date.now() + PROGRAMMATIC_MS)
   }, [])
 
   const jumpTo = useCallback(
@@ -122,5 +140,5 @@ export const useDayScroller = (days: string[], today: string) => {
     onWheel: beginManualScroll,
   }
 
-  return { activeDay, scrollRef, daystripRef, scrollProps, jumpTo, focusDay, scrollToNow }
+  return { activeDay, scrollRef, daystripRef, scrollProps, jumpTo, focusDay, holdDay, scrollToNow }
 }

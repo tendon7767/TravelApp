@@ -96,7 +96,7 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - **使用者輸入的文字都要 `overflow-wrap: anywhere`。** 沒有空白的長字串（英文店名、訂位代號、貼上來的網址）預設不斷行；`min-width: 0` 只讓它縮不讓它斷，照樣頂破版面。
 - **彈窗不能寫在可點元素的 JSX 裡面。** `Modal` 是 `createPortal` 到 `body` 的，但 **React 的合成事件沿的是 React 樹不是 DOM 樹** —— 掛在可點卡片裡面的話，點背景關掉的那一個點擊會接著冒泡到卡片的 `onClick`，當場又把它打開，看起來就是「點外面沒反應」。把 `<Modal>` 放到那個元素外面（用 Fragment 包），不要靠 `stopPropagation` 治症狀。
 - **只有兩個選項就不要用 `<select>`。** iOS 會彈出整頁滾輪，為了兩個選項太重，而且選完才知道自己選了什麼。攤開成 `.seg` 那組二選一按鈕。選項多到攤不開時（例如選支付方式）改用 `variant="picker"` 的彈窗，不要退回原生選單。
-- **墊在底下的那一層要用負的 `z-index`。** `.app` 只有在有 `transform` 的時候才是自己的堆疊脈絡；位移一歸零它就變回一般的流內區塊，而**定位元素會蓋在非定位內容上面** —— `z-index: 0` 的底層會在那一瞬間整個跳到前面閃一幀（右滑返回踩過）。負值讓它排在流內內容之後、頁面底色之前，兩種狀態都在下面，缺口處仍然看得到。順帶一提，`inert` 的子樹不接受命中測試，`elementFromPoint` 探不到它，要驗堆疊順序得另外做一組不含 `inert` 的複製結構。
+- **收尾寫在 `useLayoutEffect`，不要寫在動畫結束的 `setTimeout` 裡。** 在同一個 `setTimeout` 裡「一邊把位移清掉、一邊 `setState`」，DOM 的寫入立刻生效，React 的重繪卻不保證在同一幀 —— 中間會繪出「位置已經歸位、內容還是舊的」那一幀。做法是：計時器只負責把狀態往前推（`onIndex` / `jumpTo`），位移與旗標留在原地，收尾放進以那個狀態為依賴的 `useLayoutEffect`，它保證跑在瀏覽器繪之前（[SwipePager.tsx](src/components/SwipePager.tsx)、[ItineraryTab.tsx](src/components/ItineraryTab.tsx)）。**這一類「閃一幀舊畫面」踩過三次**：右滑返回墊在底下那層的 `z-index`（定位元素會蓋在非定位內容上面，`z-index: 0` 在位移歸零那一瞬整個跳到最前，要用負值）、分頁左右撥的軌道歸位、膠囊底彈回舊的那一顆。看到「切換的瞬間閃一下」先想這條。
 - **條件算繪的元素要用 callback ref。** 物件 ref 配 `useEffect(..., [])` 的話，效果跑的時候 `current` 還是 `null`，之後元素出現也不會再跑一次 —— 監聽永遠掛不上，而且完全靜默。詳細頁的右滑手勢踩過這個，症狀是「內層沒反應、反而外層被拖走」。
 - **巢狀點擊區要 `stopPropagation()`。** 整列是 `role="button"` 而列裡又有按鈕或連結時（`.row-action`、`.review-write-hint`）不擋冒泡會兩層一起觸發。小圖示的點擊區用 `::after` 撐開而不是把元素本身放大，版面才不受影響 —— 但別撐出容器右緣，那就變成上面第一條的橫向拖動。
 
@@ -105,13 +105,16 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - **回饋計算只認 `kind === 'actual'` 的版本**（[src/lib/rewards.ts](src/lib/rewards.ts)）。一張卡可有多組同時累積的規則；消費上限不獨立儲存，它恆等於 `rewardCap / rate`。
 - **「還可刷」看哪一條規則由 `focusedRule()` 決定**（[src/lib/rewards.ts](src/lib/rewards.ts)），回饋頁與選擇支付方式的選單共用它，否則同一張卡在兩個畫面會報出不同的數字。預設擇優挑回饋率最高的那條，使用者點過某條規則就存進 `settings.rewardRuleFocus`。「停用與否」問的是另一件事（這張還有沒有任何回饋可拿），跟看哪條規則無關。
 - **現金與其他借 `paymentMethodId` 存保留字** `'cash'` / `'other'`。它們不是支付方式記錄（沒有規則、不該出現在回饋頁），但仍要能標在花費上。`computeMethod` 是用 id 比對挑出自己的花費，保留字永遠比不中 = 沒有回饋，正好是要的行為，所以資料結構與同步層都不必為它們改。
-- **返回靠右滑手勢**（[src/lib/useSwipeBack.ts](src/lib/useSwipeBack.ts)）：旅程頁往右滑回旅程列表，詳細頁往右滑回行程列表。兩層都掛，內層吃掉 `touchstart` 決定誰接手。關閉一律走 `requestNavigation()`，未儲存的修改才攔得到。最左緣 24px 讓給 iOS 自己的返回手勢 —— 這個 App 的網址參數都用 `replace` 寫入，歷史不累積，系統手勢會直接離開整個旅程頁。桌機沒有手勢（`.pane-detail` 在 860px 以上是側欄，刻意不吃），所以返回與離開兩顆按鈕用 `.wide-only` 留在那裡，手機不算繪。
+- **橫向手勢在旅程頁裡是「換一格」，不是返回。** 判定與門檻集中在 [useHorizontalSwipe.ts](src/lib/useHorizontalSwipe.ts)，上面長出兩個用法：`useSwipeBack`（只有詳細頁還在用，往右滑關閉）與 `useSwipeSteps`（行程換日、回饋換持有人、筆記換筆記）。離開一趟旅程改走導航列的「首頁」那一格；`.tabbar` 由旅程頁與旅程列表共用（[TabBar.tsx](src/components/TabBar.tsx)），在列表頁時另外三格指向 `settings.activeTripId` 那一趟。最左緣 24px 仍讓給 iOS 自己的返回手勢 —— 這個 App 的網址參數都用 `replace` 寫入，歷史不累積，系統手勢會直接離開整個旅程頁。關閉一律走 `requestNavigation()`，未儲存的修改才攔得到。
+- **換日的手勢與 `useDayScroller` 的鎖是綁在一起的。** 平滑捲動還在跑的時候手指再放下去（連續左右撥就是這樣），`scrollProps` 的 `onTouchStart` 會把鎖清掉，途中的中間值就開始把選中的日子改掉 —— 手還在螢幕上、膠囊自己在跳，而且那一撥算出來的目的地是跳動中的某一天。所以 `focusDay` 之後有一段 `PROGRAMMATIC_MS` 不接受解鎖，`useDaySwipe` 判定成橫向時再呼叫 `holdDay()` 補一次。換日一律走 [useDaySwipe.ts](src/lib/useDaySwipe.ts)，行程列表與心得模式共用。
+- **左右撥的時候不要搬整個畫面。** 行程頁的「日」是同一條長捲動裡的位置不是一頁，所以那裡只讓膠囊底（`.daypill[data-on]::before`，位移 `--pill-shift`、寬度 `--pill-w`）滑向目的地，落地才觸發捲動；回饋與筆記是真的分頁，用 [SwipePager.tsx](src/components/SwipePager.tsx) 的三格軌道（上一格／這一格／下一格），內容跟著手指進出。膠囊底的位移與寬度要一起算，膠囊字數不同寬，只搬位移的話落地會突然抽寬。旁邊那兩格會記住各自上次的捲動位置，撥進來才不會跳。
 - **介面文字講「消費」不講「刷卡」。** 支付方式包含電子支付，「刷卡明細」「已刷 N 筆」對悠遊付、LINE Pay 這類根本不成立。同理，泛稱時用「支付方式」而不是「卡片」。
 - **邀請連結就是通行證**：`#/join?u=<後端網址>&s=<試算表 ID>&k=<密鑰>`。密鑰存在試算表的 `_meta` 分頁，撤銷方式是去改那一列。
 - **本機儲存隨時可能被清空，所以邀請連結要備份到雲端。** `tripLinks`（試算表 ID + 密鑰）跟旅程資料在同一個 IndexedDB，瀏覽器清除是整個 origin 一起清，鑰匙會跟資料一起消失。因此同步時會呼叫後端 `saveInvite`，把連結寫進該趟試算表的「邀請連結」分頁 —— 使用者手上唯一還在的線索就是雲端硬碟裡那份試算表。連結字串由前端算（後端不知道前端網域），存進 `tripLinks[].inviteBackupUrl` 避免每次同步重送；能力由 `ping` 的 `capabilities.invite` 判斷。
 - 啟動時呼叫 `navigator.storage.persist()`（[src/lib/storage.ts](src/lib/storage.ts)）。Android Chrome 拿到後就豁免容量淘汰；iOS Safari 沒有實作這個 API，分頁模式下七天沒互動仍會被清，只有加到主畫面的 PWA 不受影響。
 - **中文輸入法**：所有「按 Enter 送出」的地方都要用 [src/lib/keys.ts](src/lib/keys.ts) 的 `isSubmitEnter`。注音選字階段的 Enter 是確認選字，不是送出。
 - **樣式集中在單一檔案** [src/styles.css](src/styles.css)，沒有 CSS-in-JS 或模組化。
+- **對話裡的「膠囊底」** 指的就是橫條上選中那顆膠囊的底色層。實色是落定、淡色（`--accent-bg`）是拖曳中。
 - **心得有兩個介面，共用同一批 `Review` 記錄**：詳細行程頁的心得區塊，以及行程列表的心得模式（[ReviewTab.tsx](src/components/ReviewTab.tsx)，網址參數 `mode=review`，只在實際版出現）。日期橫條與捲動連動由 `useDayScroller` / `DayStrip` 共用 —— 那段對 sticky 與 rect 相減很敏感，要用就共用，不要複製。
 - **純本機的偏好放 `settings`，不要為了它動同步層。** `settings` 從不上傳，加 optional 欄位連遷移都不用寫（舊資料讀進來就是 `undefined`）。心得配色 `reviewHues` 就是這樣做的：為了顏色進同步層，就得處理「兩個人同時改配色」這種毫無價值的衝突。
 

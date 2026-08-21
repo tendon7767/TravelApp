@@ -3,8 +3,7 @@ import { useStore } from '../store/useStore'
 import type { Item, Plan, Review, Trip } from '../types'
 import { eachDay, shortDate, timeSortKey } from '../lib/date'
 import { useDayScroller } from '../lib/useDayScroller'
-import { useSwipeSteps } from '../lib/useSwipeSteps'
-import { pillGap, SETTLE_MS, setAnimating, setDragging, setPillShift } from '../lib/stripIndicator'
+import { useDaySwipe } from '../lib/useDaySwipe'
 import { useNowClock } from '../lib/useNowClock'
 import { pickCurrentItemId } from '../lib/items'
 import { clearReviewDrafts, loadReviewDrafts, saveReviewDrafts } from '../store/drafts'
@@ -87,9 +86,8 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   const hasContentOf = (itemId: string) =>
     Boolean(mineText(itemId).trim()) || othersOf(itemId).length > 0
 
-  const { activeDay, scrollRef, daystripRef, scrollProps, jumpTo, scrollToNow } = useDayScroller(days, today)
-  /* 跟行程列表同一套左右撥換日；編輯中不吃，那時的橫向拖曳多半是在選字。 */
-  const dayIndex = days.indexOf(activeDay)
+  const { activeDay, scrollRef, daystripRef, scrollProps, jumpTo, holdDay, scrollToNow } =
+    useDayScroller(days, today)
   const currentItemId = useMemo(
     () => (days.includes(today) ? pickCurrentItemId(byDay.get(today) ?? [], nowMin) : undefined),
     [byDay, days, today, nowMin],
@@ -103,29 +101,16 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
 
   const editingIds = Object.keys(drafts)
   const hasEditing = editingIds.length > 0
-  const stepDays = useSwipeSteps<HTMLDivElement>({
-    canPrev: dayIndex > 0,
-    canNext: dayIndex >= 0 && dayIndex < days.length - 1,
+  /* 跟行程列表同一套左右撥換日；編輯中不吃，那時的橫向拖曳多半是在選字。 */
+  const stepDays = useDaySwipe<HTMLDivElement>({
+    days,
+    activeDay,
+    stripRef: daystripRef,
+    jumpTo,
+    holdDay,
     disabled: hasEditing,
-    ignoreWithin: '.daystrip',
-    onShift: ({ dx, progress }) => {
-      const strip = daystripRef.current
-      setDragging(strip, true)
-      setAnimating(strip, false)
-      setPillShift(strip, pillGap(strip, dayIndex, dx < 0 ? dayIndex + 1 : dayIndex - 1) * progress)
-    },
-    onRelease: (step) => {
-      const strip = daystripRef.current
-      setAnimating(strip, true)
-      setPillShift(strip, step ? pillGap(strip, dayIndex, dayIndex + step) : 0)
-      window.setTimeout(() => {
-        setAnimating(strip, false)
-        setDragging(strip, false)
-        setPillShift(strip, 0)
-        if (step) jumpTo(days[dayIndex + step])
-      }, SETTLE_MS)
-    },
   })
+
   const dirty = editingIds.some((id) => drafts[id] !== mineText(id))
 
   useEffect(() => {

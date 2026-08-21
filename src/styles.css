@@ -512,15 +512,19 @@ body[data-actual='true'] {
   position: absolute;
   /* .daystrip 有 z-index，自成堆疊脈絡，負值只會排到膠囊文字後面，不會掉到橫條底色之下。 */
   z-index: -1;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  /* 膠囊的字數不一樣寬，所以寬度也要跟著滑 —— 只搬位移的話，落地那一刻會突然抽寬或縮窄。
+     100% 是「跟著自己那顆」，拖曳中才由 --pill-w 指定實際像素。 */
+  width: var(--pill-w, 100%);
   border-radius: var(--radius);
   background: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
   transform: translateX(var(--pill-shift, 0px));
 }
 /* 放開之後那一小段滑到定位要有動畫；拖曳中不能有，會跟不上手指。 */
 .daystrip[data-animating="true"] .daypill[data-on="true"]::before {
-  transition: transform 0.18s ease-out;
+  transition: transform 0.18s ease-out, width 0.18s ease-out;
 }
 /*
  * 拖曳中底色轉成淡的：它會滑到別顆膠囊的文字上面，實色會把字整個蓋掉。
@@ -529,7 +533,6 @@ body[data-actual='true'] {
 .daystrip[data-dragging="true"] .daypill[data-on="true"] { color: var(--accent); }
 .daystrip[data-dragging="true"] .daypill[data-on="true"]::before {
   background: var(--accent-bg);
-  box-shadow: 0 0 0 1px var(--border-2);
 }
 .daypill[data-today="true"]:not([data-on="true"]) {
   color: var(--accent);
@@ -837,6 +840,10 @@ body[data-actual='true'] {
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
+/* 橫著拖的時候不要同時看到垂直捲軸 —— 只藏捲軸，不動 overflow，
+   改 overflow 會讓捲動位置被夾回去。 */
+.pager-view[data-swiping="true"] .pager-pane { scrollbar-width: none; }
+.pager-view[data-swiping="true"] .pager-pane::-webkit-scrollbar { display: none; }
 
 .itinerary-view {
   display: flex;
