@@ -1729,6 +1729,26 @@ body[data-actual='true'] {
  */
 .detail-review.detail-review-edit {
   --bubble-bg: color-mix(in srgb, var(--tag-bg) 25%, var(--surface));
+  --review-edit-line: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/*
+ * 編輯中的尖角也要被框線包住。用 border 疊兩個三角形做不到乾淨的接縫
+ * （斜邊要靠一大一小對齊，不同縮放比例下會露出半像素），改用旋轉 45° 的方塊：
+ * 只有朝外的那兩條邊帶框線（旋轉後 border-left 朝左上、border-bottom 朝左下），
+ * 另外兩邊沒有框線的那一角插進輸入框裡，方塊自己的底色就把左緣那一段框線蓋掉 ——
+ * 接縫是被蓋掉的，不是對齊出來的，所以不會有破綻。
+ */
+.detail-review-edit .review-tag::after {
+  top: 10px;
+  left: calc(100% + 1.7px);
+  width: 8px;
+  height: 8px;
+  border: 0;
+  border-left: 1.5px solid var(--review-edit-line);
+  border-bottom: 1.5px solid var(--review-edit-line);
+  background: var(--bubble-bg);
+  transform: rotate(45deg);
 }
 .review-edit {
   flex: 1;
@@ -1740,7 +1760,7 @@ body[data-actual='true'] {
   width: 100%;
   margin: 0;
   padding: 9px 11px;
-  border: 1px solid color-mix(in srgb, var(--text-3) 34%, transparent);
+  border: 1.5px solid var(--review-edit-line);
   /* 左上角收窄，尖角才接得上去，其餘三角維持 8px —— 跟氣泡同一組值。 */
   border-radius: 4px 8px 8px 8px;
   background: var(--bubble-bg);
@@ -1748,7 +1768,8 @@ body[data-actual='true'] {
   font-size: 14px;
   line-height: 1.65;
 }
-.review-edit-box:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+/* 框線本來就是編輯狀態的顏色，聚焦與否長一樣；鍵盤操作另外給一圈看得見的焦點。 */
+.review-edit-box:focus { outline: none; }
 .review-edit-box:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 /* 按鈕靠右，跟輸入框的右緣切齊；小一號就好，這裡不該搶走內容的空間。 */
 .review-edit-actions {

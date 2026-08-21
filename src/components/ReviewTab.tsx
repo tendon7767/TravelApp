@@ -14,12 +14,17 @@ import { useDayScroller } from '../lib/useDayScroller'
 import { useDaySwipe } from '../lib/useDaySwipe'
 import { useNowClock } from '../lib/useNowClock'
 import { pickCurrentItemId } from '../lib/items'
-import { clearReviewDrafts, loadReviewDrafts, saveReviewDrafts } from '../store/drafts'
+import {
+  clearReviewDrafts,
+  loadReviewDrafts,
+  loadReviewHistory,
+  saveReviewDrafts,
+  saveReviewHistory,
+} from '../store/drafts'
 import { tagCharOf } from '../lib/reviewHues'
 import CategoryIcon from './CategoryIcon'
 import ClockIcon from './ClockIcon'
 import DayStrip from './DayStrip'
-import Modal from './Modal'
 import PencilIcon from './PencilIcon'
 import ReviewIcon from './ReviewIcon'
 
@@ -39,9 +44,6 @@ const autoGrow = (el: HTMLTextAreaElement | null) => {
   el.style.height = 'auto'
   el.style.height = `${el.scrollHeight}px`
 }
-
-/** 要放棄修改的那一則。心得是一則一則編的，沒有「整批取消」這回事。 */
-type CancelTarget = { itemId: string }
 
 /**
  * 心得模式：整趟的心得攤在同一頁，由上而下讀得完，要補寫就在原地展開輸入框。
@@ -104,8 +106,14 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [focusId, setFocusId] = useState<string | null>(null)
-  const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null)
   const [hydrated, setHydrated] = useState(false)
+  /** 每則上一次被蓋掉的內容。自動存沒有取消可按，這是救援路線。 */
+  const [history, setHistory] = useState<Record<string, string>>({})
+  /*
+   * 剛因為「點到畫面其他地方」而收掉的那一則。同一個點擊會先被這裡吃掉（capture），
+   * 再冒泡到被點的元素上 —— 點的若正好是自己那一列，不擋的話會當場又展開一次。
+   */
+  const swallowRef = useRef<string | null>(null)
 
   const editingIds = Object.keys(drafts)
   const hasEditing = editingIds.length > 0
@@ -165,9 +173,10 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
 
   useEffect(() => {
     let cancelled = false
-    void loadReviewDrafts(plan.id).then((saved) => {
+    void Promise.all([loadReviewDrafts(plan.id), loadReviewHistory(plan.id)]).then(([saved, past]) => {
       if (cancelled) return
       if (saved) setDrafts(saved.texts)
+      if (past) setHistory(past.texts)
       setHydrated(true)
     })
     return () => {
@@ -256,6 +265,30 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   }, [focusId, scrollRef, revealEditing])
 
   /*
+   * 點畫面其他地方就把正在編輯的那一則收掉。
+   * 用 click 不用 pointerdown：觸控要捲動畫面時第一下就是 pointerdown，
+   * 拿它判定的話「捲一下」等於結束編輯；拖曳捲動不會產生 click。
+   * capture 是為了搶在被點的元素之前跑完 —— 點的若是另一則，收完這則才輪到它展開。
+   */
+  useEffect(() => {
+    const editingId = editingIds[0]
+    if (!editingId) return
+    const onClick = (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof HTMLElement)) return
+      // 編輯組自己（輸入框、儲存、還原）與任何彈窗上的點擊都不算「點外面」。
+      if (target.closest('.detail-review-edit') || target.closest('.backdrop')) return
+      swallowRef.current = editingId
+      setTimeout(() => {
+        swallowRef.current = null
+      }, 0)
+      finishEdit(editingId)
+    }
+    document.addEventListener('click', onClick, true)
+    return () => document.removeEventListener('click', onClick, true)
+  })
+
+  /*
    * 鍵盤是動畫升起的，focus 當下量到的可視範圍還是沒鍵盤時的。
    * 可視視窗一縮就再帶一次；350ms 是等它停穩，跟 keyboard.ts 用的是同一個數字。
    */
@@ -300,28 +333,14 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     }
   }
 
-  /** 丟棄單獨一列的草稿，其他列正在編輯的內容不受影響。 */
-  const discardRow = (itemId: string) => {
-    anchorRow(itemId)
-    setDrafts((current) => {
-      const next = { ...current }
-      delete next[itemId]
-      return next
-    })
-    setFocusId((current) => (current === itemId ? null : current))
-    setCancelTarget(null)
-  }
-
   /**
    * 點行程列的意思固定是「處理這則的心得」，做什麼由它現在的狀態決定。
-   * 收合永遠不會把編輯中的草稿藏起來 —— 編輯中的那列，點列是取消編輯，
-   * 動過的會先問一次。
+   * 編輯中的那一列不必特別處理 —— 那個點擊已經先被外面那層吃掉、存起來了，
+   * 這裡只要別讓同一個點擊接著又把它展開或收合。
    */
   const openRow = (itemId: string, hasContent: boolean) => {
-    if (itemId in drafts) {
-      requestRowCancel(itemId)
-      return
-    }
+    if (swallowRef.current === itemId) return
+    if (itemId in drafts) return
     // 沒東西可讀就沒有「展開」這個狀態可言，直接進編輯，中間不經過一個空框。
     if (!hasContent) {
       beginEdit(itemId)
@@ -353,44 +372,34 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   }
 
   /**
-   * 只寫這一則就收起來。心得是一則一則寫的 —— 底部那排「一次存全部」的按鈕
-   * 逼著使用者把它捲出來，而且它管的東西跟當下在打的那一則根本不是同一件事。
+   * 收掉這一則的編輯：有改動就存起來，順便把被蓋掉的那一版留在本機。
+   * 沒有取消可按是刻意的 —— 心得是寫給自己的，一人一則，整筆覆蓋不會蓋到別人，
+   * 所以「點畫面其他地方就存起來」比「每次都要決定要不要留」順得多。
+   * 存錯了走「還原上一版」，那顆只把文字放回輸入框、不直接寫入，還原本身也可以反悔。
    */
-  const saveRow = (itemId: string) => {
+  const finishEdit = (itemId: string) => {
+    const next = drafts[itemId]
+    if (next === undefined) return
+    const before = mineText(itemId)
     anchorRow(itemId)
-    if (drafts[itemId] !== mineText(itemId)) setReview(itemId, drafts[itemId])
+    if (next !== before) {
+      setHistory((current) => {
+        const merged = { ...current, [itemId]: before }
+        void saveReviewHistory(plan.id, merged)
+        return merged
+      })
+      setReview(itemId, next)
+    }
     setDrafts((current) => {
-      const next = { ...current }
-      delete next[itemId]
-      return next
+      const rest = { ...current }
+      delete rest[itemId]
+      return rest
     })
     setFocusId((current) => (current === itemId ? null : current))
-    setCancelTarget(null)
-  }
-
-  /** 動過的先問一次再丟。點列取消與那顆取消鍵走同一段。 */
-  const requestRowCancel = (itemId: string) => {
-    if (drafts[itemId] !== mineText(itemId)) setCancelTarget({ itemId })
-    else discardRow(itemId)
   }
 
   return (
     <div className="itinerary-view review-view" ref={stepDays}>
-      {cancelTarget && (
-        <Modal
-          title="尚未儲存變更"
-          onCancel={() => setCancelTarget(null)}
-          onComplete={() => discardRow(cancelTarget.itemId)}
-          cancelLabel="繼續編輯"
-          completeLabel="放棄變更"
-          completeDanger
-        >
-          <p style={{ margin: 0 }}>
-            確定要放棄這則心得的修改嗎？其他正在編輯的不受影響。
-          </p>
-        </Modal>
-      )}
-
       <DayStrip days={days} activeDay={activeDay} today={today} stripRef={daystripRef} onPick={jumpTo} />
 
       <div ref={scrollRef} className="itinerary-scroll" {...scrollProps}>
@@ -517,18 +526,31 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                                   setDrafts((current) => ({ ...current, [item.id]: event.target.value }))
                                 }
                               />
-                              {/* 按鈕就在剛打完字的手指旁邊，不必為了送出去捲畫面。 */}
+                              {/*
+                                * 按鈕就在剛打完字的手指旁邊，不必為了送出去捲畫面。
+                                * 沒有取消：點畫面其他地方就會存起來，這顆是「存好了，收起來」，
+                                * 所以沒改動也不灰掉 —— 它同時是收合的出口。
+                                */}
                               <div className="review-edit-actions">
-                                <button
-                                  className="btn btn-sm"
-                                  onClick={() => requestRowCancel(item.id)}
-                                >
-                                  取消
-                                </button>
+                                {/* 上一版是空的就不給這顆：那不是還原，是把剛寫好的清掉。 */}
+                                {history[item.id]?.trim() &&
+                                  history[item.id] !== drafts[item.id] && (
+                                    <button
+                                      className="btn btn-sm"
+                                      title="把上一次被蓋掉的內容放回輸入框"
+                                      onClick={() =>
+                                        setDrafts((current) => ({
+                                          ...current,
+                                          [item.id]: history[item.id],
+                                        }))
+                                      }
+                                    >
+                                      還原上一版
+                                    </button>
+                                  )}
                                 <button
                                   className="btn btn-sm btn-primary"
-                                  onClick={() => saveRow(item.id)}
-                                  disabled={drafts[item.id] === mine}
+                                  onClick={() => finishEdit(item.id)}
                                 >
                                   儲存
                                 </button>

@@ -69,3 +69,23 @@ export const clearReviewDrafts = (planId: string): Promise<void> => {
   clearTimeout(reviewTimer)
   return del(reviewKey(planId))
 }
+
+/**
+ * 存檔時被蓋掉的那一版心得，每則只留最近一版，永遠不同步。
+ * 心得改成「點畫面其他地方就自動存」之後沒有取消可按，這是唯一的救援路線；
+ * 進同一則的編輯狀態時會給一顆「還原上一版」。
+ * 不進同步層：兩台裝置各自的上一版要怎麼合併，是個沒有價值的衝突題。
+ */
+export interface ReviewHistory {
+  /** itemId → 上一次被覆蓋掉的內容。 */
+  texts: Record<string, string>
+  savedAt: number
+}
+
+const historyKey = (planId: string) => `travelapp:review-history:${planId}`
+
+export const loadReviewHistory = (planId: string): Promise<ReviewHistory | undefined> =>
+  get<ReviewHistory>(historyKey(planId))
+
+export const saveReviewHistory = (planId: string, texts: Record<string, string>): Promise<void> =>
+  set(historyKey(planId), { texts, savedAt: Date.now() } satisfies ReviewHistory)
