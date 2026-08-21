@@ -268,7 +268,7 @@ export default function TripPage() {
           >
             {trip.name}
           </button>
-          <div className="dim" style={{ fontSize: 11 }}>
+          <div className="dim topbar-sub">
             {trip.foreignCurrency} 匯率 {trip.rate}
             {linked && (
               <>

@@ -434,10 +434,16 @@ a { color: var(--accent); }
   text-align: left;
   font-size: 15px;
   font-weight: 500;
+  /* 全域那個 1.5 是給整段內文的。這裡是單行標題，而且底下的副行跟它是同一件事的
+     主副關係，不是兩段內文 —— 壓緊一點，兩行才像一組。 */
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* 頂列的副行：匯率與同步狀態。 */
+.topbar-sub { font-size: 11px; line-height: 1.25; }
 
 .topbar-sync {
   font-size: inherit;
@@ -481,16 +487,19 @@ a { color: var(--accent); }
   background: var(--surface);
   border-bottom: 0.5px solid var(--border);
   /* index.html 開了 viewport-fit=cover，畫面會延伸到瀏海底下，頂列自己讓開。 */
-  padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+  padding: calc(8px + env(safe-area-inset-top)) 14px 8px;
   display: flex;
   align-items: center;
   gap: 10px;
   /*
    * 行程頁的標題是兩行（旅程名 + 匯率與同步狀態），旅程列表頁只有一行，
-   * 放著不管兩頁的頂列會差 9px。用固定的最小高度讓兩邊對齊，
+   * 放著不管兩頁的頂列會差幾 px。用固定的最小高度讓兩邊對齊，
    * 而不是靠內容自己撐 —— 之後任一頁的內容再變也不會又跑掉。
+   *
+   * 52 = 圖示鍵的 36 + 上下各 8。天花板是那顆圖示鍵，不是文字：
+   * 兩行文字壓緊之後是 32，比它還矮。所以要再更矮就只能動圖示或內距。
    */
-  min-height: calc(66px + env(safe-area-inset-top));
+  min-height: calc(52px + env(safe-area-inset-top));
 }
 
 .chip {
