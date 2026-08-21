@@ -13,7 +13,6 @@ import { eachDay, shortDate, timeSortKey } from '../lib/date'
 import { useDayScroller } from '../lib/useDayScroller'
 import { useDaySwipe } from '../lib/useDaySwipe'
 import { useNowClock } from '../lib/useNowClock'
-import { expectedKeyboardHeight } from '../lib/keyboard'
 import { pickCurrentItemId } from '../lib/items'
 import {
   clearReviewDrafts,
@@ -212,6 +211,19 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
    * 切換後把捲動位置補回去，視線就留在原地。
    */
   const anchorRef = useRef<{ itemId: string; top: number } | null>(null)
+  /*
+   * 捲動區尾端補上的空白，兩個來源加起來：
+   * anchor 是「內容變矮、捲不回去」補的那一截；kb 是鍵盤蓋掉的那一截（最後一則
+   * 要能被推到鍵盤上方）。兩邊各寫各的會互相蓋掉，所以集中算一次。
+   */
+  const padRef = useRef({ anchor: 0, kb: 0 })
+  const applyPad = useCallback(() => {
+    const scroller = scrollRef.current
+    if (!scroller) return
+    const total = padRef.current.anchor + padRef.current.kb
+    scroller.style.paddingBottom = total > 0 ? `${total}px` : ''
+  }, [scrollRef])
+
   const anchorRow = (itemId: string) => {
     const row = scrollRef.current?.querySelector<HTMLElement>(`[data-item-id="${itemId}"]`)
     anchorRef.current = row ? { itemId, top: row.getBoundingClientRect().top } : null
@@ -233,16 +245,17 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
      */
     const rest = row.getBoundingClientRect().top - anchor.top
     if (rest <= 1) return
-    scroller.style.paddingBottom = `${parseFloat(scroller.style.paddingBottom || '0') + rest}px`
+    padRef.current.anchor += rest
+    applyPad()
     scroller.scrollTop += rest
-  }, [drafts, scrollRef])
+  }, [drafts, scrollRef, applyPad])
 
-  /* 尾端那段補償只在編輯期間存在。 */
+  /* 尾端那兩段補償都只在編輯期間存在。 */
   useEffect(() => {
     if (hasEditing) return
-    const scroller = scrollRef.current
-    if (scroller) scroller.style.paddingBottom = ''
-  }, [hasEditing, scrollRef])
+    padRef.current = { anchor: 0, kb: 0 }
+    applyPad()
+  }, [hasEditing, applyPad])
 
   /*
    * 進編輯時把游標放進那一則。不能用 autoFocus：瀏覽器為了讓焦點元素露出來，
@@ -287,6 +300,56 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
 
   /** 排程中的那一次帶進可視範圍。兩條路線共用，後排的取代先排的，所以只會捲一次。 */
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const followRef = useRef<number | undefined>(undefined)
+
+  /**
+   * 讓內容被鍵盤「推」上去，而不是等它停穩再跳一次。
+   *
+   * 每一幀讀 visualViewport 算出鍵盤現在吃掉多少高度，內容的位移就是
+   * `鍵盤佔掉的 - 內容下緣原本剩的餘裕`：餘裕還沒被吃完時這個值是 0，畫面完全不動；
+   * 被頂到之後就一比一跟著鍵盤走，兩者看起來是同一個動作。
+   *
+   * 位移一律從進場時記下的基準算，不用每幀重量 rect —— 自己捲完再量會累積誤差。
+   * 尾端同時補上鍵盤蓋掉的高度，否則最後一則根本沒有空間可以被推上去。
+   */
+  const followKeyboard = useCallback(() => {
+    const scroller = scrollRef.current
+    const active = document.activeElement
+    const vv = window.visualViewport
+    if (!scroller || !vv || !(active instanceof HTMLTextAreaElement)) return
+    const group = active.closest<HTMLElement>('.review-editing')
+    if (!group) return
+    const tabbar = cssPx('--tabbar-h')
+    const margin = 8
+    const baseTop = scroller.scrollTop
+    const slack = scroller.getBoundingClientRect().bottom - group.getBoundingClientRect().bottom - margin
+    const startedAt = performance.now()
+    let last = -1
+    let stable = 0
+
+    const step = () => {
+      const kb = Math.max(0, Math.round(window.innerHeight - vv.height))
+      const occluded = Math.max(0, kb - tabbar)
+      padRef.current.kb = occluded
+      applyPad()
+      // 這是程式發動的捲動，途中的中間值不該把日期膠囊搶走；鎖只有 450ms，要一直補。
+      holdDay()
+      scroller.scrollTop = baseTop + Math.max(0, occluded - slack)
+      stable = kb === last ? stable + 1 : 0
+      last = kb
+      // 停穩（連續幾幀不再變）或超時就收工，最後再校正一次（通常是靜悄悄的）。
+      if ((kb > 0 && stable > 5) || performance.now() - startedAt > 1400) {
+        followRef.current = undefined
+        revealEditing()
+        return
+      }
+      followRef.current = requestAnimationFrame(step)
+    }
+    cancelAnimationFrame(followRef.current ?? 0)
+    followRef.current = requestAnimationFrame(step)
+  }, [scrollRef, holdDay, applyPad, revealEditing])
+
+  useEffect(() => () => cancelAnimationFrame(followRef.current ?? 0), [])
 
   useEffect(() => {
     if (!focusId) return
@@ -296,9 +359,10 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     if (!scroller || !el) return
     el.focus({ preventScroll: true })
     /*
-     * 鍵盤還沒升起時捲是白捲的：量到的可視範圍是「沒有鍵盤」的那個，等一下鍵盤一上來
-     * 還得再捲一次 —— 那就是兩次上推。所以軟鍵盤的裝置先不捲，等可視視窗被壓小再一次到位。
-     * 已經有鍵盤（換一則編輯）或本來就沒有軟鍵盤（滑鼠裝置）的話，立刻捲才對。
+     * 鍵盤還沒升起時直接捲是白捲的：量到的可視範圍是「沒有鍵盤」的那個，
+     * 等一下鍵盤上來還得再捲一次 —— 那就是上推兩下。所以那種情況交給 followKeyboard，
+     * 讓內容被鍵盤推上去。已經有鍵盤（換一則編輯）或本來就沒有軟鍵盤（滑鼠裝置）
+     * 就沒有這個問題，立刻捲到位才對。
      */
     const softKeyboard =
       Boolean(window.visualViewport) && !window.matchMedia('(hover: hover) and (pointer: fine)').matches
@@ -306,16 +370,12 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
       revealEditing()
       return
     }
-    /*
-     * 鍵盤還沒升起，但它有多高是已知的（上次量過）—— 直接用預測值算好目的地就開始滑，
-     * 跟鍵盤上升的動畫重疊，看起來是一個動作。沒量過（這台裝置第一次編輯）就只能等。
-     */
-    const expect = expectedKeyboardHeight()
-    if (expect > 0) revealEditing(expect)
-    // 保底兼校正：接了實體鍵盤的觸控裝置不會有 resize，那就不能一直等下去。
+    // 鍵盤還沒升起：跟著它走，被頂到才動。
+    followKeyboard()
+    // 保底：接了實體鍵盤的觸控裝置鍵盤永遠不會來，跟隨迴圈只會空轉到超時。
     clearTimeout(revealTimerRef.current)
-    revealTimerRef.current = setTimeout(() => revealEditing(), 600)
-  }, [focusId, scrollRef, revealEditing])
+    revealTimerRef.current = setTimeout(() => revealEditing(), 900)
+  }, [focusId, scrollRef, revealEditing, followKeyboard])
 
   /*
    * 離開編輯有三個觸發點，全都指向同一個 finishEdit，而它是冪等的
@@ -442,6 +502,8 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   const finishEdit = (itemId: string) => {
     const next = drafts[itemId]
     if (next === undefined) return
+    cancelAnimationFrame(followRef.current ?? 0)
+    followRef.current = undefined
     const before = mineText(itemId)
     justFinishedRef.current = { itemId, at: Date.now() }
     anchorRow(itemId)

@@ -11,32 +11,6 @@
  */
 let installed = false
 
-/*
- * 鍵盤停穩時的高度。同一台裝置、同一個方向下它是固定的，記起來就能在「還沒升起」
- * 的時候先算出版面等一下會變成多高 —— 需要讓開的人可以跟鍵盤同時開始動，
- * 而不是等它上來才捲一次。sessionStorage 是為了重新整理後第一次編輯也不必再學一次。
- */
-const KB_KEY = 'travelapp:kb-height'
-let expected = 0
-try {
-  expected = Number(sessionStorage.getItem(KB_KEY)) || 0
-} catch {
-  expected = 0
-}
-
-/** 上一次量到的鍵盤高度；沒量過就是 0（代表無從預測，照樣等它上來）。 */
-export const expectedKeyboardHeight = (): number => expected
-
-const remember = (px: number) => {
-  // 太小的多半是動畫中間值或工具列高度變化，不是鍵盤。
-  if (px < 120 || px === expected) return
-  expected = px
-  try {
-    sessionStorage.setItem(KB_KEY, String(px))
-  } catch {
-    // 隱私模式寫不進去就算了，記憶體裡那份還在。
-  }
-}
 
 export const watchKeyboard = () => {
   if (installed) return
@@ -101,7 +75,6 @@ export const watchKeyboard = () => {
     clearTimeout(settleTimer)
     settleTimer = setTimeout(() => {
       onViewportChange()
-      remember(Math.max(0, Math.round(window.innerHeight - vv.height)))
       revealFocused()
     }, 350)
   }
