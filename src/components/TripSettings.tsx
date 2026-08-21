@@ -85,22 +85,19 @@ export default function TripSettings({
   return (
     <div style={{ display: 'grid', gap: 10 }}>
         <div className="trip-summary">
-          <strong className="trip-summary-name">{trip.name}</strong>
-          {/* 日期與匯率兩列一組，編輯鍵對齊這一組的中線。 */}
-          <div className="trip-summary-row">
-            <div className="trip-summary-lines">
-              <span className="dim">
-                {shortDate(trip.startDate)} – {shortDate(trip.endDate)} ·{' '}
-                {dayCount(trip.startDate, trip.endDate)} 天
-              </span>
-              <span className="dim">
-                {trip.foreignCurrency} 匯率 {trip.rate}
-              </span>
-            </div>
-            <button className="btn btn-sm" onClick={() => setDraft(tripFormOf(trip))}>
-              編輯
-            </button>
+          <div className="trip-summary-lines">
+            <strong className="trip-summary-name">{trip.name}</strong>
+            <span className="dim">
+              {shortDate(trip.startDate)} – {shortDate(trip.endDate)} ·{' '}
+              {dayCount(trip.startDate, trip.endDate)} 天
+            </span>
+            <span className="dim">
+              {trip.foreignCurrency} 匯率 {trip.rate}
+            </span>
           </div>
+          <button className="btn btn-sm" onClick={() => setDraft(tripFormOf(trip))}>
+            編輯
+          </button>
         </div>
 
         {/* 彈窗放在按鈕外面：Modal 是 portal 到 body 的，但 React 的合成事件沿的是

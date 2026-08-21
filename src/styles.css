@@ -316,14 +316,6 @@ a { color: var(--accent); }
  * 框起來反而像是「其中一塊設定」。要改按右邊的編輯。
  */
 .trip-summary {
-  display: grid;
-  gap: 4px;
-  /* 旅程名可能是一長串沒有空白的字，不斷行會頂破彈窗。 */
-  overflow-wrap: anywhere;
-}
-.trip-summary-name { font-size: 15px; font-weight: 500; }
-/* 編輯鍵對齊日期與匯率那兩列的中線，所以是這一層置中，不是整塊。 */
-.trip-summary-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -334,7 +326,10 @@ a { color: var(--accent); }
   flex: 1;
   min-width: 0;
   font-size: 12px;
+  /* 旅程名可能是一長串沒有空白的字，不斷行會頂破彈窗。 */
+  overflow-wrap: anywhere;
 }
+.trip-summary-name { font-size: 15px; font-weight: 500; }
 
 /* 設定頁的說明文字。行高壓一點，一整頁排下來省下來的高度很可觀。 */
 .settings-hint { color: var(--text-3); font-size: 12px; line-height: 1.45; margin: 8px 0 0; }
@@ -2086,7 +2081,11 @@ body[data-actual='true'] {
   .editor-actions.wide-only { display: flex; }
 }
 
-.editor-actions .btn-primary:disabled {
+/*
+ * 任何 .btn 被 disable 都要看得出來。先前這條只寫在 .editor-actions 底下，
+ * 彈窗底部那顆「儲存／新增／加入」灰不掉 —— 看起來能按、點了沒反應。
+ */
+.btn:disabled {
   opacity: 0.42;
   cursor: default;
   box-shadow: none;
