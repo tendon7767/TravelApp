@@ -6,6 +6,7 @@ import { makeLink } from '../lib/maps'
 import { isSubmitEnter } from '../lib/keys'
 import ConfirmButton from './ConfirmButton'
 import Modal from './Modal'
+import KeyboardEditBar from './KeyboardEditBar'
 import { DEFAULT_PACKING } from '../store/db'
 import TrashIcon from './TrashIcon'
 import PencilIcon from './PencilIcon'
@@ -253,6 +254,7 @@ function NoteEditorModal({
       onComplete={complete}
       dirty={dirty}
     >
+      <KeyboardEditBar value={draft} onRestore={setDraft} />
       <div style={{ paddingTop: 12 }}>
         <label className="label" htmlFor="note-title">筆記標題</label>
         <input

@@ -6,6 +6,7 @@ import { formatMoney } from '../lib/money'
 import { dayCount, shortDate } from '../lib/date'
 import { methodLabel, OWNERLESS } from '../lib/owners'
 import PaymentEditor from './PaymentEditor'
+import KeyboardEditBar from './KeyboardEditBar'
 import PencilIcon from './PencilIcon'
 import CheckIcon from './CheckIcon'
 import Modal from './Modal'
@@ -182,6 +183,7 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
           onComplete={completeEditor}
           dirty={editorDirty}
         >
+          <KeyboardEditBar value={editingDraft} onRestore={setEditingDraft} />
           <PaymentEditor
             method={editingDraft}
             trip={trip}

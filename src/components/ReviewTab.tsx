@@ -11,6 +11,7 @@ import CategoryIcon from './CategoryIcon'
 import ClockIcon from './ClockIcon'
 import DayStrip from './DayStrip'
 import Modal from './Modal'
+import EditActions from './EditActions'
 import PencilIcon from './PencilIcon'
 import ReviewIcon from './ReviewIcon'
 
@@ -435,12 +436,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
       )}
 
       {hasEditing && (
-        <div className="editor-actions">
-          <button className="btn" onClick={requestCancel}>取消編輯</button>
-          <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>
-            完成編輯
-          </button>
-        </div>
+        <EditActions dirty={dirty} onCancel={requestCancel} onComplete={completeEditing} />
       )}
     </div>
   )

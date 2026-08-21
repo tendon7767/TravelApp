@@ -8,6 +8,7 @@ import Modal from '../components/Modal'
 import GearIcon from '../components/GearIcon'
 import TripFields from '../components/TripFields'
 import JoinTripModal from '../components/JoinTripModal'
+import KeyboardEditBar from '../components/KeyboardEditBar'
 import { tripFormValid } from '../lib/tripForm'
 
 export default function TripsPage() {
@@ -86,6 +87,7 @@ export default function TripsPage() {
           completeLabel="建立"
           dirty={newTripDirty}
         >
+          <KeyboardEditBar value={form} onRestore={setForm} />
           <div style={{ paddingTop: 12 }}>
             <TripFields
               form={form}

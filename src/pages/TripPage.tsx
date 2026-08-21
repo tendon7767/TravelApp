@@ -5,6 +5,7 @@ import ItineraryTab from '../components/ItineraryTab'
 import ReviewTab from '../components/ReviewTab'
 import ItemDetail from '../components/ItemDetail'
 import TripSettings from '../components/TripSettings'
+import KeyboardEditBar from '../components/KeyboardEditBar'
 import SearchPanel from '../components/SearchPanel'
 import ExpensesTab from '../components/ExpensesTab'
 import RewardsTab from '../components/RewardsTab'
@@ -288,6 +289,7 @@ export default function TripPage() {
           onComplete={completeTripEdit}
           dirty={tripDirty}
         >
+          <KeyboardEditBar value={tripDraft} onRestore={setTripDraft} />
           <TripSettings
             trip={trip}
             form={tripDraft}
