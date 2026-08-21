@@ -1773,9 +1773,16 @@ body[data-actual='true'] {
   font-size: 14px;
   line-height: 1.65;
 }
-/* 框線本來就是編輯狀態的顏色，聚焦與否長一樣；鍵盤操作另外給一圈看得見的焦點。 */
-.review-edit-box:focus { outline: none; }
-.review-edit-box:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+/*
+ * 不畫任何 focus 圈。進編輯本來就等於聚焦，狀態已經由底色與框線講完；
+ * 而且進編輯是程式呼叫 focus() 的，瀏覽器會把它判成 focus-visible，
+ * 那圈 outline 一定會出現、繞著整個圓角矩形壓過尖角接進來的地方 ——
+ * 看起來就是「框線變粗」加「尖角斷掉」。
+ */
+.review-edit-box:focus,
+.review-edit-box:focus-visible {
+  outline: none;
+}
 /* 按鈕靠右，跟輸入框的右緣切齊；小一號就好，這裡不該搶走內容的空間。 */
 .review-edit-actions {
   display: flex;
