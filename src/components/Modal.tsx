@@ -39,6 +39,8 @@ export default function Modal({
   children,
 }: Props) {
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+  /* picker 不長這條：它四邊留邊、蓋板本來就好點，而且高度上限只有七成，多一條會擠掉一排選項。 */
+  const closeBar = !onComplete && variant === 'sheet'
   const bodyRef = useRef<HTMLDivElement>(null)
   const requestCancel = useCallback(() => {
     if (dirty) setConfirmingCancel(true)
@@ -106,7 +108,7 @@ export default function Modal({
           </div>
           <div
             className="sheetbody"
-            data-actions={onComplete ? '' : undefined}
+            data-actions={onComplete || closeBar ? '' : undefined}
             ref={bodyRef}
             onKeyDown={onBodyKeyDown}
           >
@@ -127,6 +129,19 @@ export default function Modal({
                   {completeLabel}
                 </button>
               </div>
+            )}
+            {/*
+             * 沒有「要不要套用」的 sheet，底部改放一條關閉。✕ 在右上角，
+             * 單手拿手機時是最難按到的一個角，這條才在拇指的位置。
+             * 整條就是那顆按鈕（膠囊只是裡面的 span），所以點哪裡都關得掉，
+             * 不必外層再包一層 onClick —— 那會變成巢狀點擊區，得靠 stopPropagation 收尾。
+             * 前提是這條只有這一個動作，之後要在這排加第二顆就得整條重想。
+             */}
+            {closeBar && (
+              <button className="sheetactions sheet-close-wide" onClick={requestCancel}>
+                {/* 這裡寫「關閉」不寫「取消」：沒有要套用的東西，就沒有「取消」可言。 */}
+                <span className="btn">關閉</span>
+              </button>
             )}
           </div>
         </div>
