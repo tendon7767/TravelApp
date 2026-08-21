@@ -85,6 +85,24 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - **顏色用既有 token 組出來，不要寫死色值。** 例如淡一階的主題底色寫 `color-mix(in srgb, var(--accent-bg) 45%, var(--surface))` —— 實際版與深色都會自己跟著換，不必為每個情境各寫一條。
 - **`styles.css` 沒有任何型別保護。** class 從 CSS 裡消失、TSX 照樣輸出那個 class，`npm run build` 與 `npm run lint` 都不會報錯，只有看畫面才會發現。整段替換 CSS 時特別小心切到隔壁的區塊。
 
+## 詞彙表
+
+使用者用這些簡稱指介面元件，看到就直接對應，不要反問是哪一個。新的叫法談定了就補進這張表，並在 [UI-MAP.md](UI-MAP.md)（給人看的樹狀圖，他用 `cat UI-MAP.md` 叫出來回憶叫法）補上對應的一行。
+
+| 說法 | 是什麼 |
+| --- | --- |
+| 頂列 | `.topbar`。旅程頁是兩行（旅程名＋匯率／同步），點旅程名開編輯旅程彈窗 |
+| 導航列 | `.tabbar`（[TabBar.tsx](src/components/TabBar.tsx)）。首頁／行程／回饋／筆記，旅程頁與首頁共用 |
+| 首頁 | 旅程列表那一頁（[TripsPage.tsx](src/pages/TripsPage.tsx)） |
+| 橫條、膠囊 | `.daystrip` 與裡面的 `.daypill`。三種：日期、持有人、筆記 |
+| 膠囊底 | 選中那顆膠囊的底色層 `.daypill[data-on]::before`。**實**＝落定、**淡**＝拖曳中（[stripIndicator.ts](src/lib/stripIndicator.ts)） |
+| 三格、軌道 | 左右撥分頁的 `.pager-track`：上一格／這一格／下一格（[SwipePager.tsx](src/components/SwipePager.tsx)） |
+| 行程列 | 行程列表裡的一筆 `.row`；點開的是**詳細頁** `.pane-detail`（[ItemDetail.tsx](src/components/ItemDetail.tsx)） |
+| 心得模式 | 行程列表的另一種樣子，網址 `mode=review`（[ReviewTab.tsx](src/components/ReviewTab.tsx)），只有實際版有 |
+| 規劃版／實際版 | `plan.kind`。配色與回饋計算都看它 |
+| 彈窗、蓋板 | `Modal` 與它的 `.backdrop`。彈窗有 sheet（底部升起）與 picker（置中選一個）兩種 |
+| 取消／完成 | 彈窗底部那一排。**取消編輯／完成編輯**是另一組，指詳細頁與心得那一對 |
+
 ## 版面與互動的雷區
 
 這幾條都踩過，共同點是「本機看起來正常、真機才炸」或「當下沒事、之後某次改動才引爆」。
