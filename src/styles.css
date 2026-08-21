@@ -1606,7 +1606,13 @@ body[data-actual='true'] {
 
 /* 名牌左緣對齊行程列的類型圖示，層次由名牌本身撐出來，不再另外縮排。 */
 .review-body { padding: 0 14px 12px; }
-.review-body .detail-review:first-child { margin-top: 0; }
+/*
+ * 只有「這一區的第一則」不留上距。要用直接子代 —— 編輯中的那則多包了一層
+ * .review-editing，用後代選擇器的話它永遠是自己那層的 first-child，
+ * 一進編輯就把 8px 的上距吃掉，看起來是泡泡往上跳、跟上一則黏在一起。
+ */
+.review-body > .detail-review:first-child,
+.review-body > .review-editing:first-child > .detail-review { margin-top: 0; }
 
 /* 作者名做成氣泡左側的單字名牌，像聊天室。不佔高度，橫向只花 36px。 */
 .review-body .detail-review {
@@ -1750,8 +1756,8 @@ body[data-actual='true'] {
   width: 9px;
   height: 9px;
   border: 0;
-  border-left: 1px solid var(--review-edit-line);
-  border-bottom: 1px solid var(--review-edit-line);
+  border-left: 1.5px solid var(--review-edit-line);
+  border-bottom: 1.5px solid var(--review-edit-line);
   background: var(--bubble-bg);
   transform: rotate(45deg);
 }
@@ -1765,7 +1771,7 @@ body[data-actual='true'] {
   min-width: 0;
   margin: 0;
   padding: 9px 11px;
-  border: 1px solid var(--review-edit-line);
+  border: 1.5px solid var(--review-edit-line);
   /* 左上角收窄，尖角才接得上去，其餘三角維持 8px —— 跟氣泡同一組值。 */
   border-radius: 4px 8px 8px 8px;
   background: var(--bubble-bg);
