@@ -159,6 +159,8 @@
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 38%, transparent);
 }
+/* 無框就是無框：上面那條會把刪除鍵的框線染紅，這裡蓋回去。 */
+:root[data-theme='light'] .btn.btn-plain { border-color: transparent; }
 /* 照片燈箱永遠是黑底，不跟主題走。 */
 :root[data-theme='light'] .photo-lightbox .btn { color: #fff; border-color: #555; }
 :root[data-theme='light'] .photo-lightbox .btn-danger { color: #fff; border-color: transparent; }
@@ -835,6 +837,12 @@ body[data-actual='true'] {
 }
 
 .detail-head { z-index: 3; }
+/*
+ * 深色下功能列的四顆圖示統一用文字色。並排的無框細線圖示只要有一顆是紅的、
+ * 一顆是藍的，看起來就像三種不同的狀態而不是三個動作。
+ * 實際版的 --accent 是藍色不是近白，所以編輯鍵也得一起指定，不能只靠繼承。
+ */
+:root:not([data-theme='light']) .detail-head .btn { color: var(--text); }
 
 .detail-head-gap { flex: 1; }
 
