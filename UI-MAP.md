@@ -7,6 +7,8 @@
 首頁（旅程列表）                                      TripsPage.tsx
 ├── 頂列                                             .topbar
 │   └── ⚙ → 設定彈窗（名字、配色、後端網址）           SettingsModal.tsx
+│          ├── 每一格都是改了就生效，底部只有「關閉」
+│          └── 欄位說明藏在標題旁的 ⓘ，點一下就地展開
 ├── ＋新增旅程 ／ ＋加入旅程
 ├── 旅程列                                           .row
 │   └── 高亮的那一列 ＝ 導航列另外三格會進到的那趟      .row[data-on]
@@ -15,11 +17,12 @@
 
 旅程頁                                               TripPage.tsx
 ├── 頂列                                             .topbar
-│   ├── 旅程名 → 編輯旅程彈窗                         .topbar-title → TripSettings.tsx
-│   │              ├── 基本資訊（名稱、日期、外幣、匯率）
+│   ├── 旅程名 → 旅程設定彈窗                         .topbar-title → TripSettings.tsx
+│   │              ├── 摘要（名稱、日期、匯率）＋編輯   .trip-summary
+│   │              │      └── 編輯 → 編輯旅程彈窗      TripFields.tsx（唯一有草稿的一層）
 │   │              ├── 版本切換（二選一）              PlanSwitcher.tsx / .seg
 │   │              ├── 心得配色 ／ 雲端同步 ／ 刪除
-│   │              └── 取消／儲存                     .sheetactions
+│   │              └── 關閉（其餘全部即時生效）        .sheet-close-wide
 │   ├── 匯率 · 同步狀態（點了立刻同步）                .topbar-sync
 │   ├── 心得模式鍵（只有實際版有）
 │   └── 搜尋                                         SearchPanel.tsx
@@ -59,9 +62,11 @@
 ├── sheet：底部升起，有內容要編輯                      .sheet
 │      └── 上緣切齊頂列的下緣，背後看得到完整一條頂列
 ├── picker：置中，點一個就關（選支付方式、消費明細）     .sheet[data-variant=picker]
-└── 取消／儲存（管整個彈窗）                           .sheetactions
-       ├── 沒鍵盤：sticky 貼在彈窗底
-       └── 鍵盤升起：跟著內容捲，要捲到最底才按得到      :root[data-kb]
+├── 取消／儲存（編輯型：內容是草稿）                   .sheetactions
+│      ├── 沒鍵盤：sticky 貼在彈窗底
+│      └── 鍵盤升起：跟著內容捲，要捲到最底才按得到      :root[data-kb]
+└── 關閉（總覽型：每一格都即時生效）                    .sheet-close-wide
+       └── 整條都是那顆按鈕，點哪裡都關得掉
 ```
 
 ## 分不出來時補一個限定詞

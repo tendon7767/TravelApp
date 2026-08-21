@@ -246,7 +246,7 @@ export default function TripPage() {
         </Modal>
       )}
       {tripOpen && (
-        <Modal title="旅程" onCancel={() => setTripOpen(false)}>
+        <Modal title="旅程設定" onCancel={() => setTripOpen(false)}>
           <TripSettings
             trip={trip}
             activePlanId={plan?.id}
