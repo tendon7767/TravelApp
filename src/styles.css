@@ -312,22 +312,28 @@ a { color: var(--accent); }
 .btn[aria-pressed='true'] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
 
 /*
- * 旅程彈窗最上面那塊基本資訊的摘要。這裡只是顯示，要改要按底下的「編輯」——
- * 用 --surface-2 當底在深色是「浮起來的那一層」，亮色卻是最深的色塊（語意翻轉），
- * 所以亮色另外覆寫回 --surface，兩邊看起來都是「浮在彈窗上的一塊」。
+ * 旅程彈窗最上面那塊摘要。沒有外框也沒有標題 —— 它就是這個彈窗在講的東西本身，
+ * 框起來反而像是「其中一塊設定」。要改按右邊的編輯。
  */
 .trip-summary {
   display: grid;
-  gap: 2px;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  background: var(--surface-2);
+  gap: 4px;
   /* 旅程名可能是一長串沒有空白的字，不斷行會頂破彈窗。 */
   overflow-wrap: anywhere;
 }
-:root[data-theme='light'] .trip-summary {
-  background: var(--surface);
-  border: 1px solid var(--border);
+.trip-summary-name { font-size: 15px; font-weight: 500; }
+/* 編輯鍵對齊日期與匯率那兩列的中線，所以是這一層置中，不是整塊。 */
+.trip-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.trip-summary-lines {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
 }
 
 /* 設定頁的說明文字。行高壓一點，一整頁排下來省下來的高度很可觀。 */

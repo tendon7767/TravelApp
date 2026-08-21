@@ -84,19 +84,19 @@ export default function TripSettings({
 
   return (
     <div style={{ display: 'grid', gap: 10 }}>
-        <div>
-          <span className="label">基本資訊</span>
-          <div className="trip-summary">
-            <strong style={{ fontSize: 15, fontWeight: 500 }}>{trip.name}</strong>
-            <span className="dim" style={{ fontSize: 12 }}>
-              {shortDate(trip.startDate)} – {shortDate(trip.endDate)} ·{' '}
-              {dayCount(trip.startDate, trip.endDate)} 天
-            </span>
-            <span className="dim" style={{ fontSize: 12 }}>
-              {trip.foreignCurrency} 匯率 {trip.rate}
-            </span>
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+        <div className="trip-summary">
+          <strong className="trip-summary-name">{trip.name}</strong>
+          {/* 日期與匯率兩列一組，編輯鍵對齊這一組的中線。 */}
+          <div className="trip-summary-row">
+            <div className="trip-summary-lines">
+              <span className="dim">
+                {shortDate(trip.startDate)} – {shortDate(trip.endDate)} ·{' '}
+                {dayCount(trip.startDate, trip.endDate)} 天
+              </span>
+              <span className="dim">
+                {trip.foreignCurrency} 匯率 {trip.rate}
+              </span>
+            </div>
             <button className="btn btn-sm" onClick={() => setDraft(tripFormOf(trip))}>
               編輯
             </button>
