@@ -1626,6 +1626,12 @@ body[data-actual='true'] {
   background: var(--bubble-bg);
   /* 左上角收窄，尖角才接得上去，其餘三角維持 8px。 */
   border-radius: 4px 8px 8px 8px;
+  /*
+   * 跟編輯中的輸入框留一樣寬的框。全站是 border-box，框是往內吃的 ——
+   * 這裡不留的話，一進編輯文字就往右下各挪 1.5px、可換行的寬度也少 3px，
+   * 整段重排。底色會透到透明框底下，所以看起來只是大了一圈，不會有邊。
+   */
+  border: 1.5px solid transparent;
 }
 
 .review-tag {
@@ -1780,6 +1786,9 @@ body[data-actual='true'] {
   color: var(--text-2);
   font-size: 14px;
   line-height: 1.65;
+  /* 斷行規則也要跟氣泡一樣，否則沒有空白的長字串會斷在不同的位置。 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 /*
  * 不畫任何 focus 圈。進編輯本來就等於聚焦，狀態已經由底色與框線講完；
@@ -1810,6 +1819,14 @@ body[data-actual='true'] {
   max-height: calc(6 * 1.5em + 18px);
   overflow-y: auto;
   resize: none;
+  /*
+   * 捲軸不佔位。它一出現就把可換行的寬度縮掉一截，整段文字跟著重排 ——
+   * 而使用者只是點進來編輯，不該看到內容自己動。觸控與滾輪照樣捲得動。
+   */
+  scrollbar-width: none;
+}
+.review-body textarea::-webkit-scrollbar {
+  display: none;
 }
 
 .review-blank { padding: 10px 14px; font-size: 13px; background: var(--surface); }
