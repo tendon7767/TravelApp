@@ -175,7 +175,6 @@
   background: color-mix(in srgb, var(--accent) 92%, transparent);
   color: var(--accent-contrast);
   border-color: transparent;
-  box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -271,11 +270,12 @@ a { color: var(--accent); }
   flex: none;
 }
 .btn:active { transform: scale(0.98); }
+/* 沒有陰影也沒有光暈：填色與框線已經夠把它跟旁邊的次要按鈕分開，
+   多一層光暈只是讓它看起來浮在紙上。全站的按鈕都不帶陰影。 */
 .btn-primary {
   background: var(--accent);
   color: var(--accent-contrast);
   border-color: transparent;
-  box-shadow: 0 2px 7px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 .btn-danger { background: var(--danger); color: #fff; border-color: transparent; }
 /* 刪除類的無填色按鈕。深色維持中性框線（那裡染紅會過重），亮色另有一條把框線一起染。 */
@@ -1831,7 +1831,6 @@ body[data-actual='true'] {
   .pane-detail { inset: 0 0 var(--kb, 0px) 0; z-index: 40; }
   .pane-detail .editor-actions {
     padding: 12px 18px max(18px, calc(12px + env(safe-area-inset-bottom) - var(--kb, 0px)));
-    box-shadow: 0 -8px 24px rgba(21, 34, 56, 0.13);
   }
   .editor-actions .btn {
     flex: 1;
@@ -1864,7 +1863,6 @@ body[data-actual='true'] {
   line-height: 1;
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.24);
 }
 
 /* 電腦版整份行程一眼看得完，不需要捲回去，按鈕只是擋路。 */
@@ -2088,7 +2086,6 @@ body[data-actual='true'] {
 .btn:disabled {
   opacity: 0.42;
   cursor: default;
-  box-shadow: none;
 }
 
 body.modal-open { overflow: hidden; }
