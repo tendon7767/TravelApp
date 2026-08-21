@@ -1740,27 +1740,32 @@ body[data-actual='true'] {
  * 接縫是被蓋掉的，不是對齊出來的，所以不會有破綻。
  */
 .detail-review-edit .review-tag::after {
-  top: 10px;
-  left: calc(100% + 1.7px);
-  width: 8px;
-  height: 8px;
+  /*
+   * 上下兩角要正好落在輸入框的左框線上（再多 0.5px 疊進去），斜邊才接得進框線裡。
+   * 角收在框線左邊的話，中間那 2px 誰都沒畫到，看起來就是一道細縫。
+   * left = 名牌右緣 + 兩者的間距 8 - 邊長的一半 + 0.5 的疊合。
+   */
+  top: 9.5px;
+  left: calc(100% + 4px);
+  width: 9px;
+  height: 9px;
   border: 0;
-  border-left: 1.5px solid var(--review-edit-line);
-  border-bottom: 1.5px solid var(--review-edit-line);
+  border-left: 1px solid var(--review-edit-line);
+  border-bottom: 1px solid var(--review-edit-line);
   background: var(--bubble-bg);
   transform: rotate(45deg);
 }
-.review-edit {
-  flex: 1;
-  min-width: 0;
+/* 輸入框那一行與底下的按鈕列。按鈕列是名牌的兄弟不是子孫，理由見上面。 */
+.review-editing {
   display: grid;
   gap: 6px;
 }
 .review-edit-box {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   margin: 0;
   padding: 9px 11px;
-  border: 1.5px solid var(--review-edit-line);
+  border: 1px solid var(--review-edit-line);
   /* 左上角收窄，尖角才接得上去，其餘三角維持 8px —— 跟氣泡同一組值。 */
   border-radius: 4px 8px 8px 8px;
   background: var(--bubble-bg);
@@ -1776,6 +1781,8 @@ body[data-actual='true'] {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
+  /* 跟氣泡的左緣對齊：名牌 28 加上它與氣泡之間的 8。 */
+  padding-left: calc(28px + 8px);
 }
 
 .review-body textarea {

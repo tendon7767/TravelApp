@@ -110,10 +110,11 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   /** 每則上一次被蓋掉的內容。自動存沒有取消可按，這是救援路線。 */
   const [history, setHistory] = useState<Record<string, string>>({})
   /*
-   * 剛因為「點到畫面其他地方」而收掉的那一則。同一個點擊會先被這裡吃掉（capture），
-   * 再冒泡到被點的元素上 —— 點的若正好是自己那一列，不擋的話會當場又展開一次。
+   * 剛剛才收掉的那一則。點自己那一列會先讓輸入框失焦（存起來、收合），
+   * 手指放開後那一下 click 才送到列上 —— 不擋的話會當場又把它展開一次。
+   * 失焦與 click 是兩個獨立事件，中間隔著一次點放，所以用時間窗而不是旗標。
    */
-  const swallowRef = useRef<string | null>(null)
+  const justFinishedRef = useRef<{ itemId: string; at: number } | null>(null)
 
   const editingIds = Object.keys(drafts)
   const hasEditing = editingIds.length > 0
@@ -245,7 +246,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     const scroller = scrollRef.current
     const active = document.activeElement
     if (!scroller || !(active instanceof HTMLTextAreaElement)) return
-    const group = active.closest<HTMLElement>('.detail-review-edit')
+    const group = active.closest<HTMLElement>('.review-editing')
     if (!group) return
     const box = scroller.getBoundingClientRect()
     const rect = group.getBoundingClientRect()
@@ -265,10 +266,14 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
   }, [focusId, scrollRef, revealEditing])
 
   /*
-   * 點畫面其他地方就把正在編輯的那一則收掉。
-   * 用 click 不用 pointerdown：觸控要捲動畫面時第一下就是 pointerdown，
-   * 拿它判定的話「捲一下」等於結束編輯；拖曳捲動不會產生 click。
-   * capture 是為了搶在被點的元素之前跑完 —— 點的若是另一則，收完這則才輪到它展開。
+   * 離開編輯有三個觸發點，全都指向同一個 finishEdit，而它是冪等的
+   * （草稿已經收掉就直接 return），所以誰先到都一樣，不會存兩次：
+   *
+   * 1. 輸入框失焦 —— 主要的那個，寫在 textarea 的 onBlur。
+   * 2. 點到編輯區以外 —— iOS 收鍵盤的那一下未必會送出 blur，這是補網。
+   *    用 click 不用 pointerdown：觸控要捲動時第一下就是 pointerdown，
+   *    拿它判定的話捲一下畫面等於結束編輯；拖曳捲動不會產生 click。
+   * 3. 切出去（切 App、切分頁）—— 那時 blur 也不一定會送出。
    */
   useEffect(() => {
     const editingId = editingIds[0]
@@ -276,16 +281,18 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     const onClick = (event: MouseEvent) => {
       const target = event.target
       if (!(target instanceof HTMLElement)) return
-      // 編輯組自己（輸入框、儲存、還原）與任何彈窗上的點擊都不算「點外面」。
-      if (target.closest('.detail-review-edit') || target.closest('.backdrop')) return
-      swallowRef.current = editingId
-      setTimeout(() => {
-        swallowRef.current = null
-      }, 0)
+      if (target.closest('.review-editing') || target.closest('.backdrop')) return
       finishEdit(editingId)
     }
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') finishEdit(editingId)
+    }
     document.addEventListener('click', onClick, true)
-    return () => document.removeEventListener('click', onClick, true)
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      document.removeEventListener('click', onClick, true)
+      document.removeEventListener('visibilitychange', onHide)
+    }
   })
 
   /*
@@ -339,7 +346,8 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
    * 這裡只要別讓同一個點擊接著又把它展開或收合。
    */
   const openRow = (itemId: string, hasContent: boolean) => {
-    if (swallowRef.current === itemId) return
+    const just = justFinishedRef.current
+    if (just?.itemId === itemId && Date.now() - just.at < 400) return
     if (itemId in drafts) return
     // 沒東西可讀就沒有「展開」這個狀態可言，直接進編輯，中間不經過一個空框。
     if (!hasContent) {
@@ -373,14 +381,17 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
 
   /**
    * 收掉這一則的編輯：有改動就存起來，順便把被蓋掉的那一版留在本機。
-   * 沒有取消可按是刻意的 —— 心得是寫給自己的，一人一則，整筆覆蓋不會蓋到別人，
-   * 所以「點畫面其他地方就存起來」比「每次都要決定要不要留」順得多。
-   * 存錯了走「還原上一版」，那顆只把文字放回輸入框、不直接寫入，還原本身也可以反悔。
+   * 沒有儲存也沒有取消是刻意的 —— 心得是寫給自己的、一人一則，整筆覆蓋不會蓋到別人，
+   * 所以「離開輸入框就存起來」比「每次都要決定要不要留」順得多。
+   * 觸發點是失焦而不是「點到畫面別處」：iOS 收鍵盤的那一下未必會送出 click，
+   * 用 click 判定會出現「鍵盤都收了卻沒存到」。存錯了走「還原上一版」，
+   * 那顆只把文字放回輸入框、不直接寫入，所以還原本身也可以反悔。
    */
   const finishEdit = (itemId: string) => {
     const next = drafts[itemId]
     if (next === undefined) return
     const before = mineText(itemId)
+    justFinishedRef.current = { itemId, at: Date.now() }
     anchorRow(itemId)
     if (next !== before) {
       setHistory((current) => {
@@ -504,14 +515,16 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                         {editing ? (
                           /* 編輯時照樣掛名牌，樣子還是一顆氣泡 —— 只是底色淺一階、多一圈框，
                              一眼看得出「這則正在改」，而不是換成一個跟四周無關的表單欄位。 */
-                          <div
-                            className="detail-review detail-review-edit review-hue"
-                            data-hue={hues?.[me]}
-                          >
-                            <span className="review-tag" title={me}>
-                              {tagCharOf(me)}
-                            </span>
-                            <div className="review-edit">
+                          <div className="review-editing">
+                            {/* 名牌是 sticky 的，活動範圍是它的容器 —— 按鈕列不能放進來，
+                                不然名牌會一路滑到按鈕那一段，尖角就指到空氣。 */}
+                            <div
+                              className="detail-review detail-review-edit review-hue"
+                              data-hue={hues?.[me]}
+                            >
+                              <span className="review-tag" title={me}>
+                                {tagCharOf(me)}
+                              </span>
                               {/* rows={1}：textarea 預設兩行高，而 autoGrow 量的 scrollHeight
                                   至少等於當下的框高 —— 不寫死一行，空的心得就從兩行開始。 */}
                               <textarea
@@ -525,37 +538,32 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                                 onChange={(event) =>
                                   setDrafts((current) => ({ ...current, [item.id]: event.target.value }))
                                 }
+                                onBlur={() => finishEdit(item.id)}
                               />
-                              {/*
-                                * 按鈕就在剛打完字的手指旁邊，不必為了送出去捲畫面。
-                                * 沒有取消：點畫面其他地方就會存起來，這顆是「存好了，收起來」，
-                                * 所以沒改動也不灰掉 —— 它同時是收合的出口。
-                                */}
-                              <div className="review-edit-actions">
-                                {/* 上一版是空的就不給這顆：那不是還原，是把剛寫好的清掉。 */}
-                                {history[item.id]?.trim() &&
-                                  history[item.id] !== drafts[item.id] && (
-                                    <button
-                                      className="btn btn-sm"
-                                      title="把上一次被蓋掉的內容放回輸入框"
-                                      onClick={() =>
-                                        setDrafts((current) => ({
-                                          ...current,
-                                          [item.id]: history[item.id],
-                                        }))
-                                      }
-                                    >
-                                      還原上一版
-                                    </button>
-                                  )}
-                                <button
-                                  className="btn btn-sm btn-primary"
-                                  onClick={() => finishEdit(item.id)}
-                                >
-                                  儲存
-                                </button>
-                              </div>
                             </div>
+                            {/*
+                              * 沒有儲存也沒有取消：離開輸入框就存起來。上一版是空的就連這顆
+                              * 都不給 —— 那不是還原，是把剛寫好的清掉。
+                              */}
+                            {Boolean(history[item.id]?.trim()) &&
+                              history[item.id] !== drafts[item.id] && (
+                                <div className="review-edit-actions">
+                                  <button
+                                    className="btn btn-sm"
+                                    title="把上一次被蓋掉的內容放回輸入框"
+                                    /* 按它不能讓輸入框失焦 —— 失焦就是存檔並收起來，那一下點擊會落空。 */
+                                    onPointerDown={(event) => event.preventDefault()}
+                                    onClick={() =>
+                                      setDrafts((current) => ({
+                                        ...current,
+                                        [item.id]: history[item.id],
+                                      }))
+                                    }
+                                  >
+                                    還原上一版
+                                  </button>
+                                </div>
+                              )}
                           </div>
                         ) : (
                           /* 還沒寫的不畫任何東西 —— 空框沒有資訊量，列尾那支筆已經講完了。 */
