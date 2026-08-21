@@ -1734,8 +1734,10 @@ body[data-actual='true'] {
  * 那是循環參照，整條宣告會失效。名牌的尖角吃的也是 --bubble-bg，所以連它一起變淺。
  */
 .detail-review.detail-review-edit {
-  --bubble-bg: color-mix(in srgb, var(--tag-bg) 25%, var(--surface));
-  --review-edit-line: color-mix(in srgb, var(--accent) 55%, transparent);
+  /* 框線就用泡泡原本的顏色，同色系才協調 —— 所以這裡不能再去改 --bubble-bg
+     （同一個元素上改了，這條就會拿到改過的值），淡底另外給一個名字。 */
+  --review-edit-line: var(--bubble-bg);
+  --review-edit-fill: color-mix(in srgb, var(--tag-bg) 25%, var(--surface));
 }
 
 /*
@@ -1747,18 +1749,18 @@ body[data-actual='true'] {
  */
 .detail-review-edit .review-tag::after {
   /*
-   * 上下兩角要正好落在輸入框的左框線上（再多 0.5px 疊進去），斜邊才接得進框線裡。
-   * 角收在框線左邊的話，中間那 2px 誰都沒畫到，看起來就是一道細縫。
-   * left = 名牌右緣 + 兩者的間距 8 - 邊長的一半 + 0.5 的疊合。
+   * 上下兩角要正好落在輸入框左框線的外緣：收在左邊會留一道誰都沒畫到的細縫，
+   * 疊進去則會看到斜邊的尾巴凸進泡泡裡。所以是剛好對齊，不多不少。
+   * left = 名牌右緣 + 兩者的間距 8 - 邊長的一半。
    */
   top: 9.5px;
-  left: calc(100% + 4px);
+  left: calc(100% + 3.5px);
   width: 9px;
   height: 9px;
   border: 0;
   border-left: 1.5px solid var(--review-edit-line);
   border-bottom: 1.5px solid var(--review-edit-line);
-  background: var(--bubble-bg);
+  background: var(--review-edit-fill);
   transform: rotate(45deg);
 }
 /* 輸入框那一行與底下的按鈕列。按鈕列是名牌的兄弟不是子孫，理由見上面。 */
@@ -1774,7 +1776,7 @@ body[data-actual='true'] {
   border: 1.5px solid var(--review-edit-line);
   /* 左上角收窄，尖角才接得上去，其餘三角維持 8px —— 跟氣泡同一組值。 */
   border-radius: 4px 8px 8px 8px;
-  background: var(--bubble-bg);
+  background: var(--review-edit-fill);
   color: var(--text-2);
   font-size: 14px;
   line-height: 1.65;
