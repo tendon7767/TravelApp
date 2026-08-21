@@ -147,8 +147,9 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
             setCopyOpen(false)
           }}
           completeLabel="複製"
+          completeDisabled={!copyFrom}
         >
-          <div style={{ paddingTop: 12 }}>
+          <div>
             <p className="dim" style={{ fontSize: 12, margin: '0 0 10px' }}>
               只複製卡片設定，額度與回饋紀錄不會跟著過來。同名同持有人的卡片會自動略過，
               所以重複複製不會產生重複的卡片。
@@ -182,6 +183,9 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
           title={editingNew ? '新增支付方式' : '編輯支付方式'}
           onCancel={cancelEditor}
           onComplete={completeEditor}
+          completeLabel={editingNew ? '新增' : '儲存'}
+          /* 新增：沒名字的支付方式在選單裡認不出來。編輯：沒改就沒得存。 */
+          completeDisabled={editingNew ? !editingDraft.name.trim() : !editorDirty}
           dirty={editorDirty}
         >
           <PaymentEditor

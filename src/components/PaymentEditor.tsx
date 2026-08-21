@@ -35,7 +35,7 @@ export default function PaymentEditor({
     })
 
   return (
-    <div style={{ padding: '10px 0 0' }}>
+    <div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
         <div style={{ flex: 2, minWidth: 140 }}>
           <label className="label">名稱</label>

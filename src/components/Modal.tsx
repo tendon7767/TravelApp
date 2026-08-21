@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { isSubmitEnter } from '../lib/keys'
 import CloseIcon from './CloseIcon'
 
 interface Props {
@@ -10,6 +11,8 @@ interface Props {
   cancelLabel?: string
   completeLabel?: string
   completeDanger?: boolean
+  /** 該填的沒填、或什麼都沒改。灰掉比按了沒反應誠實。 */
+  completeDisabled?: boolean
   /**
    * 'picker' 是「點一個選項就關掉」的格式：四邊都留邊的置中彈窗，
    * 高度跟著選項長，不像 sheet 那樣貼著底部滿版。
@@ -28,20 +31,22 @@ export default function Modal({
   onCancel,
   onComplete,
   cancelLabel = '取消',
-  completeLabel = '完成',
+  completeLabel = '儲存',
   completeDanger = false,
+  completeDisabled = false,
   variant = 'sheet',
   dirty = false,
   children,
 }: Props) {
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const requestCancel = useCallback(() => {
     if (dirty) setConfirmingCancel(true)
     else onCancel()
   }, [dirty, onCancel])
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== 'Escape') return
       if (confirmingCancel) setConfirmingCancel(false)
       else requestCancel()
@@ -53,6 +58,33 @@ export default function Modal({
       document.body.classList.remove('modal-open')
     }
   }, [confirmingCancel, requestCancel])
+
+  /*
+   * 手機上收鍵盤的出口。鍵盤升起時取消／完成會從釘住變成跟著內容捲，
+   * 沒有這一手就只剩「戳畫面空白處」，而彈窗裡幾乎沒有空白處。
+   * 集中在這裡蓋章而不是每個欄位各寫一次：新加的欄位自動就有，
+   * 也不必要求每個彈窗記得寫。之後才長出來的欄位（例如筆記的下一行）
+   * 蓋不到，但那種地方的 Enter 本來就是「開下一行」，維持預設才對。
+   */
+  useEffect(() => {
+    const body = bodyRef.current
+    if (!body) return
+    body.querySelectorAll('input:not([enterkeyhint])').forEach((el) => {
+      if (!(el instanceof HTMLInputElement)) return
+      if (el.type === 'checkbox' || el.type === 'radio' || el.type === 'date') return
+      el.setAttribute('enterkeyhint', 'done')
+    })
+  }, [])
+
+  /** Enter 只收鍵盤，不送出 —— 送出的責任在底部那顆，這裡誤按不該關掉彈窗。 */
+  const onBodyKeyDown = (e: KeyboardEvent) => {
+    // 欄位自己處理掉的 Enter（筆記的「開下一行」）會 preventDefault，別搶。
+    if (e.defaultPrevented || !isSubmitEnter(e)) return
+    const target = e.target
+    if (!(target instanceof HTMLInputElement)) return
+    if (target.type === 'checkbox' || target.type === 'radio') return
+    target.blur()
+  }
 
   return createPortal(
     <>
@@ -67,22 +99,31 @@ export default function Modal({
         >
           <div className="sheethead">
             <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>{title}</strong>
-            {/* 沒有底部按鈕列時，關閉的出口要留在標題列，不能只靠點背景。 */}
-            {!onComplete && (
-              <button className="icon-btn" onClick={requestCancel} aria-label="關閉">
-                <CloseIcon />
-              </button>
+            {/* 關閉一律留在標題列：鍵盤升起時底部的取消會捲進內容裡，這顆離鍵盤最遠。 */}
+            <button className="icon-btn" onClick={requestCancel} aria-label="關閉">
+              <CloseIcon />
+            </button>
+          </div>
+          <div className="sheetbody" ref={bodyRef} onKeyDown={onBodyKeyDown}>
+            {children}
+            {/*
+             * 按鈕列寫在捲動區裡，用 sticky 假裝釘在底部；鍵盤升起時（:root[data-kb]）
+             * 改成 static，它就自然落到內容尾端，不再貼著鍵盤上緣讓人誤按。
+             * 切換只動一個 CSS 屬性、DOM 完全不搬，鍵盤動畫途中不會閃掉一幀。
+             */}
+            {onComplete && (
+              <div className="sheetactions">
+                <button className="btn" onClick={requestCancel}>{cancelLabel}</button>
+                <button
+                  className={completeDanger ? 'btn btn-danger' : 'btn btn-primary'}
+                  onClick={onComplete}
+                  disabled={completeDisabled}
+                >
+                  {completeLabel}
+                </button>
+              </div>
             )}
           </div>
-          <div className="sheetbody">{children}</div>
-          {onComplete && (
-            <div className="sheetactions">
-              <button className="btn" onClick={requestCancel}>{cancelLabel}</button>
-              <button className={completeDanger ? 'btn btn-danger' : 'btn btn-primary'} onClick={onComplete}>
-                {completeLabel}
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -99,11 +140,11 @@ export default function Modal({
               <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>尚未儲存變更</strong>
             </div>
             <div className="sheetbody">
-              <p style={{ margin: '12px 0 0' }}>確定要取消並放棄這次的修改嗎？</p>
-            </div>
-            <div className="sheetactions">
-              <button className="btn" onClick={() => setConfirmingCancel(false)}>繼續編輯</button>
-              <button className="btn btn-danger" onClick={onCancel}>放棄變更</button>
+              <p style={{ margin: 0 }}>確定要取消並放棄這次的修改嗎？</p>
+              <div className="sheetactions">
+                <button className="btn" onClick={() => setConfirmingCancel(false)}>繼續編輯</button>
+                <button className="btn btn-danger" onClick={onCancel}>放棄變更</button>
+              </div>
             </div>
           </div>
         </div>

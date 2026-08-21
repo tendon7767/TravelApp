@@ -25,6 +25,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const setDriveFolder = useStore((s) => s.setDriveFolder)
   const [folderDraft, setFolderDraft] = useState(driveFolderId)
   const [folderStatus, setFolderStatus] = useState('')
+  const [saving, setSaving] = useState(false)
   const theme = useStore((s) => s.settings.theme ?? 'dark')
   const setTheme = useStore((s) => s.setTheme)
   const dirty =
@@ -32,9 +33,39 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     urlDraft.trim() !== gasUrl ||
     folderDraft.trim() !== driveFolderId
 
-  const save = () => {
+  /*
+   * 底部的「儲存」要把三格都寫進去。先前只寫名字，網址與資料夾雖然算進 dirty
+   * 卻被靜默丟掉 —— 打完網址按儲存等於白打，按取消反而跳出「尚未儲存」警告，
+   * 兩邊剛好講反。後兩格的寫入要連線驗證，失敗就留在原地把錯誤說出來。
+   */
+  const save = async () => {
+    if (saving) return
     const next = draft.trim()
     if (next && next !== memberName) setMemberName(next)
+    setSaving(true)
+    // 錯誤要報在出事的那一格旁邊。不能事後拿 gasUrl 回頭判斷是哪一步 ——
+    // store 剛寫完，這個閉包裡的值還是舊的，永遠會判成第一步。
+    let step: 'url' | 'folder' = 'url'
+    try {
+      if (urlDraft.trim() !== gasUrl) {
+        setStatus('測試連線中…')
+        await setGasUrl(urlDraft)
+        setStatus('')
+      }
+      step = 'folder'
+      if (folderDraft.trim() !== driveFolderId) {
+        setFolderStatus('確認中…')
+        await setDriveFolder(folderDraft)
+        setFolderStatus('')
+      }
+    } catch (err) {
+      setSaving(false)
+      const message = err instanceof Error ? err.message : String(err)
+      if (step === 'url') setStatus(`連不上：${message}`)
+      else setFolderStatus(`找不到：${message}`)
+      return
+    }
+    setSaving(false)
     onClose()
   }
 
@@ -66,8 +97,15 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Modal title="設定" onCancel={onClose} onComplete={save} dirty={dirty}>
-      <div style={{ paddingTop: 12 }}>
+    <Modal
+      title="設定"
+      onCancel={onClose}
+      onComplete={() => void save()}
+      completeLabel={saving ? '儲存中…' : '儲存'}
+      completeDisabled={!dirty || saving}
+      dirty={dirty}
+    >
+      <div>
         <label className="label" htmlFor="s-name">你的名字</label>
         <input
           id="s-name"

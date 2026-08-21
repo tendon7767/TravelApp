@@ -27,6 +27,10 @@ export const watchKeyboard = () => {
     // 扣掉會讓越下面的欄位算出越小的鍵盤高度，版面就讓得不夠。
     const keyboard = Math.max(0, Math.round(window.innerHeight - vv.height))
     root.style.setProperty('--kb', `${keyboard}px`)
+    // 「鍵盤在不在」也要有旗標：CSS 沒辦法拿長度當條件，而彈窗的按鈕列
+    // 要在鍵盤升起時從 sticky 改成 static（見 .sheetactions）。
+    if (keyboard > 0) root.dataset.kb = 'on'
+    else delete root.dataset.kb
   }
 
   /**

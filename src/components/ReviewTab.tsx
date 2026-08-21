@@ -282,7 +282,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
           completeLabel="放棄變更"
           completeDanger
         >
-          <p style={{ margin: '12px 0 0' }}>
+          <p style={{ margin: 0 }}>
             {cancelTarget.kind === 'all'
               ? '確定要取消編輯並放棄這次的全部修改嗎？'
               : '確定要放棄這則心得的修改嗎？其他正在編輯的不受影響。'}

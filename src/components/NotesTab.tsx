@@ -268,6 +268,7 @@ function NoteEditorModal({
     onClose()
   }
 
+  const filled = Boolean(draft.title.trim()) || draft.blocks.some((b) => b.text.trim())
   const checks = draft.blocks.filter((b) => b.kind === 'check')
   const isPacking = draft.title.trim() === PACKING_TITLE
 
@@ -276,9 +277,12 @@ function NoteEditorModal({
       title={isNew ? '新增筆記' : '編輯筆記'}
       onCancel={cancel}
       onComplete={complete}
+      completeLabel={isNew ? '新增' : '儲存'}
+      /* 新增：什麼都沒填就沒東西可存。編輯：沒改就沒得存。 */
+      completeDisabled={isNew ? !filled : !dirty}
       dirty={dirty}
     >
-      <div style={{ paddingTop: 12 }}>
+      <div>
         <label className="label" htmlFor="note-title">筆記標題</label>
         <input
           id="note-title"
@@ -313,7 +317,13 @@ function NoteEditorModal({
                 }}
                 value={b.text}
                 onChange={(e) => patchBlock(b.id, { text: e.target.value })}
-                onKeyDown={(e) => isSubmitEnter(e) && addBlock(b.kind, b.id)}
+                onKeyDown={(e) => {
+                  if (!isSubmitEnter(e)) return
+                  // 這裡的 Enter 是「開下一行」，不是收鍵盤。擋掉預設，
+                  // 彈窗那層看到 defaultPrevented 就不會把焦點收走。
+                  e.preventDefault()
+                  addBlock(b.kind, b.id)
+                }}
                 aria-label="內容"
               />
               <button
@@ -380,7 +390,11 @@ function NoteEditorModal({
                 className="field"
                 value={linkDraft}
                 onChange={(e) => setLinkDraft(e.target.value)}
-                onKeyDown={(e) => isSubmitEnter(e) && void addLink()}
+                onKeyDown={(e) => {
+                  if (!isSubmitEnter(e)) return
+                  e.preventDefault()
+                  void addLink()
+                }}
                 aria-label="新增連結"
               />
               <button className="btn" disabled={resolvingLink} onClick={() => void addLink()}>

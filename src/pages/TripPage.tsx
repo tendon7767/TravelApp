@@ -253,7 +253,7 @@ export default function TripPage() {
           completeLabel="放棄變更"
           completeDanger
         >
-          <p style={{ margin: '12px 0 0' }}>
+          <p style={{ margin: 0 }}>
             {selectedId && detailDirty ? '詳細行程' : '心得'}有尚未儲存的修改，確定要離開嗎？
           </p>
         </Modal>
@@ -263,6 +263,7 @@ export default function TripPage() {
           title="編輯旅程"
           onCancel={() => setTripDraft(null)}
           onComplete={completeTripEdit}
+          completeDisabled={!tripDirty || !tripFormValid(tripDraft)}
           dirty={tripDirty}
         >
           <TripSettings

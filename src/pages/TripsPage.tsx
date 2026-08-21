@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { draftTrip, useStore } from '../store/useStore'
 import { dayCount, shortDate } from '../lib/date'
@@ -37,6 +37,25 @@ export default function TripsPage() {
   const [joinOpen, setJoinOpen] = useState(false)
   const newTripDirty = JSON.stringify(form) !== JSON.stringify(blankForm)
 
+  /*
+   * 彈窗的高度上限切齊頂列，所以頂列有多高得量出來 —— 兩頁的 .topbar 有同一條
+   * min-height，但字型放大或內容換行時還是會長高，硬寫數字必然對不準。
+   * 旅程頁自己也量一份（TripPage）；這裡不量的話，從首頁開的彈窗會用到上一次
+   * 離開旅程頁留下的舊值。
+   */
+  const topbarRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const topbar = topbarRef.current
+    if (!topbar) return
+    const sync = () => {
+      document.documentElement.style.setProperty('--topbar-h', `${topbar.offsetHeight}px`)
+    }
+    sync()
+    const ro = new ResizeObserver(sync)
+    ro.observe(topbar)
+    return () => ro.disconnect()
+  }, [])
+
   const closeNew = () => {
     setForm(draftTrip())
     setOpen(false)
@@ -51,7 +70,7 @@ export default function TripsPage() {
 
   return (
     <div className="app">
-      <div className="topbar">
+      <div className="topbar" ref={topbarRef}>
         <strong
           style={{
             flex: 1,
@@ -91,16 +110,15 @@ export default function TripsPage() {
           title="新增旅程"
           onCancel={closeNew}
           onComplete={submit}
-          completeLabel="建立"
+          completeLabel="新增"
+          completeDisabled={!tripFormValid(form)}
           dirty={newTripDirty}
         >
-          <div style={{ paddingTop: 12 }}>
-            <TripFields
-              form={form}
-              onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
-              idPrefix="t"
-            />
-          </div>
+          <TripFields
+            form={form}
+            onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
+            idPrefix="t"
+          />
         </Modal>
       )}
 

@@ -51,9 +51,12 @@ export default function JoinTripModal({ onClose }: { onClose: () => void }) {
       onCancel={onClose}
       onComplete={() => void submit()}
       completeLabel={busy ? '加入中…' : '加入'}
+      /* 空的才灰掉。格式不對不灰 —— 貼了半條連結的人只會看到按鈕壞掉，
+         不如讓他按下去，由 parseInviteLink 的錯誤訊息說出哪裡不對。 */
+      completeDisabled={!text.trim() || busy}
       dirty={text.trim().length > 0}
     >
-      <div style={{ paddingTop: 12 }}>
+      <div>
         <label className="label" htmlFor="join-invite">邀請連結</label>
         <input
           id="join-invite"

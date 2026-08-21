@@ -79,7 +79,7 @@ export default function TripSettings({
   }, [allPlans, allItems, allReviews, trip.id])
 
   return (
-    <div style={{ display: 'grid', gap: 10, paddingTop: 12 }}>
+    <div style={{ display: 'grid', gap: 10 }}>
         <TripFields form={form} onChange={onFormChange} idPrefix="e" />
 
         <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 4 }}>

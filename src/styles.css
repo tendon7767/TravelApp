@@ -1245,7 +1245,7 @@ body[data-actual='true'] {
  * picker 彈窗的內容：單頁、依持有者分區。
  * 沒有任何選中或使用中的狀態 —— 點下去彈窗就關了，沒有人看得到那個狀態。
  */
-.picker-body { display: grid; gap: 16px; padding: 12px 0 2px; }
+.picker-body { display: grid; gap: 16px; padding: 0 0 2px; }
 .picker-group { display: grid; gap: 8px; }
 .picker-group-head { font-size: 14px; font-weight: 600; }
 /* 卡片名稱都不長，一排放得下三四張才看得到全部的選擇。 */
@@ -1316,7 +1316,7 @@ body[data-actual='true'] {
  * 消費明細。摘要與每一列都是同一組欄、金額都在最後一欄靠右，
  * 所以右緣自然對齊，不必去湊數值。摘要釘在頂端，捲到一半也看得到總額。
  */
-.txn-table { display: grid; padding: 12px 0 2px; }
+.txn-table { display: grid; padding: 0 0 2px; }
 .txn-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1905,10 +1905,12 @@ body[data-actual='true'] {
 
 .sheet {
   width: 100%;
-  /* 鍵盤升起時整張往上讓，底部的取消／完成就浮在鍵盤上方。 */
+  /* 鍵盤升起時整張往上讓，內容才不會有一段被壓在鍵盤底下。
+     底部的按鈕列不再跟著浮在鍵盤上緣，改由 .sheetactions 自己處理。 */
   margin-bottom: var(--kb, 0px);
-  /* 留一條看得到蓋板的邊，點它可以關掉；其餘高度都給內容。 */
-  max-height: calc(100% - 24px - var(--kb, 0px));
+  /* 上緣切齊頂列的下緣：背後永遠看得到完整的一條頂列，
+     那條就是「點它可以關掉」的地方。--topbar-h 由頁面自己量（TripPage / TripsPage）。 */
+  max-height: calc(100% - var(--topbar-h) - var(--kb, 0px));
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -1922,6 +1924,9 @@ body[data-actual='true'] {
   gap: 10px;
   padding: 12px 14px;
   border-bottom: 0.5px solid var(--border);
+  /* 淡一階的主題色。實際版與亮色都會自己跟著換，不必為每個象限各寫一條。 */
+  background: color-mix(in srgb, var(--accent-bg) 45%, var(--surface));
+  border-radius: 14px 14px 0 0;
 }
 
 /*
@@ -1932,6 +1937,7 @@ body[data-actual='true'] {
 .backdrop[data-variant='picker'] { align-items: center; padding: 16px; }
 .sheet[data-variant='picker'] {
   max-width: 420px;
+  /* 選一個東西不需要那麼大的動作，維持七成，不吃上面那條切齊頂列的規則。 */
   max-height: 70%;
   border-radius: 14px;
   margin-bottom: 0;
@@ -1947,7 +1953,8 @@ body[data-actual='true'] {
   overscroll-behavior: contain;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
-  padding: 0 14px 14px;
+  /* 上緣的留白統一在這裡，不要每個彈窗各自寫一次 inline style。 */
+  padding: 12px 14px 14px;
 }
 
 .sheetactions,
@@ -1962,11 +1969,22 @@ body[data-actual='true'] {
   z-index: 2;
 }
 
-/* iOS 主畫面 App 的視窗四角是圓的，按鈕貼著左右下角會被切掉一塊。
-   底部的安全區在鍵盤升起時是多餘的，用 --kb 扣掉。 */
+/*
+ * 按鈕列住在 .sheetbody 這個捲動區裡，靠 sticky 假裝釘在底部。
+ * 鍵盤升起時改成 static，它就跟著內容捲走 —— 要按到「儲存」得先捲到最底，
+ * 誤按的那一下不會發生在鍵盤上緣。切換只動 position，DOM 不搬、不會閃幀。
+ * 負的左右外距是把 .sheetbody 的 14px 內距撐回去，底色與上緣那條線才貼齊兩側。
+ *
+ * iOS 主畫面 App 的視窗四角是圓的，按鈕貼著左右下角會被切掉一塊。
+ * 底部的安全區在鍵盤升起時是多餘的（那一段被鍵盤蓋著），用 --kb 扣掉。
+ */
 .sheetactions {
+  position: sticky;
+  bottom: 0;
+  margin: 0 -14px -14px;
   padding: 10px 18px max(16px, calc(10px + env(safe-area-inset-bottom) - var(--kb, 0px)));
 }
+:root[data-kb] .sheetactions { position: static; }
 .editor-actions { padding: 10px 18px; }
 
 .sheetactions .btn,
