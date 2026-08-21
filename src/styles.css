@@ -471,7 +471,6 @@ a { color: var(--accent); }
   background: var(--surface);
   border: 0.5px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(36, 65, 110, 0.07);
 }
 
 /* 頂端：旅程名稱、版本、匯率 */
@@ -1748,7 +1747,6 @@ body[data-actual='true'] {
   border: 1px solid var(--border-2);
   border-radius: 10px;
   background: var(--surface-2);
-  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.08);
 }
 
 .costline-head {
