@@ -12,6 +12,7 @@ import NotesTab from '../components/NotesTab'
 import Modal from '../components/Modal'
 import type { Item } from '../types'
 import { copyItemSnapshot } from '../lib/items'
+import { tripFormOf, tripFormValid, type TripForm } from '../lib/tripForm'
 import { useSwipeBack } from '../lib/useSwipeBack'
 import AlbumView from '../components/AlbumView'
 import BackIcon from '../components/BackIcon'
@@ -40,11 +41,11 @@ export default function TripPage() {
   const navigate = useNavigate()
   const [online, setOnline] = useState(() => navigator.onLine)
   const [detailDirty, setDetailDirty] = useState(false)
-  const [tripDirty, setTripDirty] = useState(false)
   const [reviewDirty, setReviewDirty] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
   const [copied, setCopied] = useState<{ tripId: string; item: Item } | null>(null)
-  const [tripOpen, setTripOpen] = useState(false)
+  /* 旅程基本資訊是草稿，按「完成」才寫回去；不是 null 就代表彈窗開著。 */
+  const [tripDraft, setTripDraft] = useState<TripForm | null>(null)
   const topbarRef = useRef<HTMLDivElement>(null)
 
   const trip = useStore((s) => s.data.trips.find((t) => t.id === tripId && !t.deleted))
@@ -54,6 +55,7 @@ export default function TripPage() {
   const syncTrip = useStore((s) => s.syncTrip)
   const localRev = useStore((s) => s.localRev)
   const dismissOverwritten = useStore((s) => s.dismissOverwritten)
+  const updateTrip = useStore((s) => s.updateTrip)
   const duplicateItem = useStore((s) => s.duplicateItem)
   const allPlans = useStore((s) => s.data.plans)
   const plans = useMemo(
@@ -191,8 +193,8 @@ export default function TripPage() {
     setParams(next, { replace: true })
   }
 
-  /** 詳細行程、心得與旅程設定都是「改完按儲存」，未存就離開一律走這裡攔。 */
-  const unsaved = (selectedId && detailDirty) || tripDirty || reviewDirty
+  /** 詳細行程與心得都是「改完按儲存」，未存就離開一律走這裡攔。 */
+  const unsaved = (selectedId && detailDirty) || reviewDirty
 
   const requestNavigation = (action: () => void) => {
     if (unsaved) setPendingNavigation(() => action)
@@ -226,6 +228,17 @@ export default function TripPage() {
     )
   }
 
+  const tripDirty =
+    tripDraft !== null && JSON.stringify(tripDraft) !== JSON.stringify(tripFormOf(trip))
+
+  /* 名稱空白或日期顛倒就先不收，讓彈窗留著給人改（日期的錯誤訊息就在欄位底下）。 */
+  const completeTripEdit = () => {
+    if (!tripDraft) return
+    if (!tripFormValid(tripDraft)) return
+    updateTrip(trip.id, { ...tripDraft, name: tripDraft.name.trim() })
+    setTripDraft(null)
+  }
+
   /*
    * 同步狀態接在匯率後面顯示，本身就是手動同步的按鈕。
    * 自動同步很頻繁，獨立的圖示鍵大半時間是 disabled，看起來像壞掉。
@@ -256,7 +269,6 @@ export default function TripPage() {
             const action = pendingNavigation
             setPendingNavigation(null)
             setDetailDirty(false)
-            setTripDirty(false)
             setReviewDirty(false)
             action()
           }}
@@ -265,25 +277,29 @@ export default function TripPage() {
           completeDanger
         >
           <p style={{ margin: '12px 0 0' }}>
-            {selectedId && detailDirty ? '詳細行程' : reviewDirty ? '心得' : '旅程設定'}有尚未儲存的修改，確定要離開嗎？
+            {selectedId && detailDirty ? '詳細行程' : '心得'}有尚未儲存的修改，確定要離開嗎？
           </p>
         </Modal>
       )}
-      {tripOpen && (
+      {tripDraft && (
         <Modal
           title="編輯旅程"
-          onCancel={() => setTripOpen(false)}
+          onCancel={() => setTripDraft(null)}
+          onComplete={completeTripEdit}
           dirty={tripDirty}
         >
           <TripSettings
             trip={trip}
+            form={tripDraft}
+            onFormChange={(patch) =>
+              setTripDraft((current) => (current ? { ...current, ...patch } : current))
+            }
             activePlanId={plan?.id}
             onPickPlan={(id) => setParam('plan', id)}
             onLeave={() => {
-              setTripOpen(false)
+              setTripDraft(null)
               navigate('/')
             }}
-            onDirtyChange={setTripDirty}
           />
         </Modal>
       )}
@@ -300,7 +316,7 @@ export default function TripPage() {
           {/* 旅程名稱就是旅程設定的入口。同步鍵在下一行，不能包進同一顆按鈕裡。 */}
           <button
             className="topbar-title"
-            onClick={() => setTripOpen(true)}
+            onClick={() => setTripDraft(tripFormOf(trip))}
             aria-haspopup="dialog"
           >
             {trip.name}

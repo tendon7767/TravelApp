@@ -1,5 +1,4 @@
 import NumberField from './NumberField'
-import { dayCount } from '../lib/date'
 import type { TripForm } from '../lib/tripForm'
 
 /**
@@ -76,11 +75,6 @@ export default function TripFields({
           />
         </div>
       </div>
-
-      <p className="dim" style={{ fontSize: 12, margin: 0 }}>
-        共 {form.endDate >= form.startDate ? dayCount(form.startDate, form.endDate) : 0} 天。
-        改匯率會讓所有台幣換算金額重算。
-      </p>
 
       {form.endDate < form.startDate && (
         <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>回程日不能早於出發日。</p>

@@ -7,7 +7,6 @@ import type { Trip } from '../types'
 export default function SyncSection({ trip }: { trip: Trip }) {
   const gasUrl = useStore((s) => s.settings.gasUrl)
   const link = useStore((s) => s.settings.tripLinks?.[trip.id])
-  const inviteApiVersion = useStore((s) => s.settings.inviteApiVersion)
   const sync = useStore((s) => s.sync)
   const connectTrip = useStore((s) => s.connectTrip)
   const syncTrip = useStore((s) => s.syncTrip)
@@ -44,14 +43,9 @@ export default function SyncSection({ trip }: { trip: Trip }) {
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       {!link ? (
-        <>
-          <button className="btn btn-sm" onClick={connect} disabled={busy}>
-            {busy ? '建立中…' : '在雲端硬碟建立這趟的試算表'}
-          </button>
-          <p className="dim" style={{ fontSize: 12, margin: 0 }}>
-            會在雲端硬碟的 TravelApp 資料夾裡建立一份試算表，並產生一組只有這趟用的密鑰。
-          </p>
-        </>
+        <button className="btn btn-sm" onClick={connect} disabled={busy}>
+          {busy ? '建立中…' : '在雲端硬碟建立這趟的試算表'}
+        </button>
       ) : (
         <>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -64,14 +58,6 @@ export default function SyncSection({ trip }: { trip: Trip }) {
           </div>
           <p className="dim" style={{ fontSize: 12, margin: 0 }}>
             {sync.lastAt ? `上次同步 ${new Date(sync.lastAt).toLocaleString('zh-TW')}` : '尚未同步過'}
-          </p>
-          <p className="dim" style={{ fontSize: 11, margin: 0 }}>
-            邀請連結含試算表與密鑰，拿到的人就能讀寫這趟 —— 只傳給同行的人。
-          </p>
-          <p className="dim" style={{ fontSize: 11, margin: 0 }}>
-            {(inviteApiVersion ?? 0) >= 1
-              ? '同步時會自動把這段連結存進試算表的「邀請連結」分頁。手機資料被瀏覽器清空時，從雲端硬碟打開這趟的試算表就能找回來。'
-              : '重新部署 Apps Script 後，這段連結會自動備份到試算表裡，手機資料被清空時才有辦法找回這趟。'}
           </p>
         </>
       )}

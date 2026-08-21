@@ -8,7 +8,11 @@ interface Props {
   onPick: (id: string) => void
 }
 
-/** 版本建立與切換集中在行程設定，不再占用行程頁頂端空間。 */
+/**
+ * 版本建立與切換集中在旅程設定，不再占用行程頁頂端空間。
+ * 只有規劃版與實際版兩個選項，攤開成二選一的按鈕組 ——
+ * 原生選單在 iOS 是整頁滾輪，為兩個選項太重，而且選完才知道自己選了什麼。
+ */
 export default function PlanSwitcher({ trip, plans, activeId, onPick }: Props) {
   const duplicatePlan = useStore((s) => s.duplicatePlan)
 
@@ -25,20 +29,18 @@ export default function PlanSwitcher({ trip, plans, activeId, onPick }: Props) {
 
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-      <select
-        className="field"
-        style={{ width: 150, fontWeight: 600 }}
-        value={activeId ?? ''}
-        onChange={(e) => onPick(e.target.value)}
-        aria-label={`${trip.name} 的行程版本`}
-        title={`目前：${active?.kind === 'actual' ? '實際版' : '規劃版'}`}
-      >
+      <div className="seg" role="group" aria-label={`${trip.name} 的行程版本`}>
         {plans.map((p) => (
-          <option key={p.id} value={p.id}>
+          <button
+            key={p.id}
+            className="seg-btn"
+            aria-pressed={p.id === activeId}
+            onClick={() => onPick(p.id)}
+          >
             {p.name}
-          </option>
+          </button>
         ))}
-      </select>
+      </div>
 
       {!actual && (
         <button className="btn btn-sm" onClick={createActual} title="從規劃版複製一份實際版">

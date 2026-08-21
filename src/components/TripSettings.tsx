@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useStore } from '../store/useStore'
 import type { Trip } from '../types'
 import TripFields from './TripFields'
-import { tripFormValid, type TripForm } from '../lib/tripForm'
+import type { TripForm } from '../lib/tripForm'
 import SyncSection from './SyncSection'
 import ConfirmButton from './ConfirmButton'
 import PlanSwitcher from './PlanSwitcher'
@@ -11,24 +11,26 @@ import { REVIEW_HUES, tagCharOf } from '../lib/reviewHues'
 /**
  * 旅程本身的設定，內容放在頂列旅程名稱點開的彈窗裡。
  * 縮短日期範圍會讓範圍外的項目變成看不到的孤兒，所以先數給使用者看。
- * 名稱與日期是「改完按儲存」，未存就關掉由彈窗的 dirty 攔下來 ——
- * 跟行程詳細頁走同一套判斷，不另外做一份。
+ * 基本資訊是草稿：按彈窗底部的「完成」才寫回去，比照編輯支付方式 ——
+ * 所以草稿由開彈窗的那一層持有，這裡只負責畫。
+ * 其餘的（版本、配色、同步、刪除）都是點下去就生效，不進草稿。
  */
 export default function TripSettings({
   trip,
+  form,
+  onFormChange,
   activePlanId,
   onPickPlan,
   onLeave,
-  onDirtyChange,
 }: {
   trip: Trip
+  form: TripForm
+  onFormChange: (patch: Partial<TripForm>) => void
   activePlanId?: string
   onPickPlan: (id: string) => void
   /** 旅程被移除後要離開這一頁。 */
   onLeave: () => void
-  onDirtyChange: (dirty: boolean) => void
 }) {
-  const updateTrip = useStore((s) => s.updateTrip)
   const removeTrip = useStore((s) => s.removeTrip)
   const removePlan = useStore((s) => s.removePlan)
   const allPlans = useStore((s) => s.data.plans)
@@ -37,20 +39,6 @@ export default function TripSettings({
   const allReviews = useStore((s) => s.data.reviews)
   const reviewHues = useStore((s) => s.settings.reviewHues?.[trip.id])
   const setReviewHue = useStore((s) => s.setReviewHue)
-  const [form, setForm] = useState<TripForm>({
-    name: trip.name,
-    startDate: trip.startDate,
-    endDate: trip.endDate,
-    foreignCurrency: trip.foreignCurrency,
-    rate: trip.rate,
-  })
-  const dirty =
-    form.name !== trip.name ||
-    form.startDate !== trip.startDate ||
-    form.endDate !== trip.endDate ||
-    form.foreignCurrency !== trip.foreignCurrency ||
-    form.rate !== trip.rate
-
   const stranded = useMemo(() => {
     const planIds = new Set(allPlans.filter((p) => p.tripId === trip.id && !p.deleted).map((p) => p.id))
     return allItems.filter(
@@ -90,33 +78,9 @@ export default function TripSettings({
     return [...names].sort((a, b) => a.localeCompare(b))
   }, [allPlans, allItems, allReviews, trip.id])
 
-  useEffect(() => {
-    onDirtyChange(dirty)
-    return () => onDirtyChange(false)
-  }, [dirty, onDirtyChange])
-
-  const save = () => {
-    if (!tripFormValid(form)) return
-    updateTrip(trip.id, { ...form, name: form.name.trim() })
-  }
-
   return (
     <div style={{ display: 'grid', gap: 10, paddingTop: 12 }}>
-        <TripFields
-          form={form}
-          onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
-          idPrefix="e"
-        />
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            className="btn btn-primary"
-            onClick={save}
-            disabled={!dirty || !tripFormValid(form)}
-          >
-            儲存
-          </button>
-        </div>
+        <TripFields form={form} onChange={onFormChange} idPrefix="e" />
 
         <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
           <span className="label">目前檢視版本</span>
@@ -126,9 +90,6 @@ export default function TripSettings({
             activeId={activePlanId}
             onPick={onPickPlan}
           />
-          <p className="dim" style={{ fontSize: 11, margin: '7px 0 0' }}>
-            切換後立即生效；旅程名稱與日期仍需按「儲存」。
-          </p>
         </div>
 
         {reviewAuthors.length > 0 && (
@@ -174,7 +135,7 @@ export default function TripSettings({
 
         {stranded > 0 && (
           <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>
-            有 {stranded} 筆行程落在新的日期範圍外，儲存後會看不到（資料還在，把日期改回來就會出現）。
+            有 {stranded} 筆行程落在新的日期範圍外，完成後會看不到（資料還在，把日期改回來就會出現）。
           </p>
         )}
 
@@ -197,10 +158,6 @@ export default function TripSettings({
 
         <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
           <span className="label">本機資料</span>
-          <p className="dim" style={{ fontSize: 12, margin: '0 0 8px' }}>
-            只會從這台裝置移除，雲端資料會保留；之後重新開啟邀請連結即可加入相同旅程。
-            {pendingPhotoCount > 0 && ` 另有 ${pendingPhotoCount} 張尚未上傳的照片會從此裝置刪除。`}
-          </p>
           <ConfirmButton
             label="從本機移除"
             question={`從此裝置移除 ${itemCount} 筆行程${pendingPhotoCount ? `及 ${pendingPhotoCount} 張待上傳照片` : ''}？`}
