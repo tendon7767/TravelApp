@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useStore } from '../store/useStore'
 import type { Item, Plan, Review, Trip } from '../types'
 import { eachDay, shortDate, timeSortKey } from '../lib/date'
@@ -173,8 +173,68 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     else void clearReviewDrafts(plan.id)
   }, [hydrated, dirty, drafts, plan.id])
 
+  /**
+   * 切換編輯狀態前，那一列在畫面上的位置。
+   * 泡泡換成輸入框（或換回來）會讓整條捲動的內容變高變矮 —— 捲在底部附近時
+   * `scrollTop` 會被夾住，整個畫面當場往上跳一大段。記著那一列原本在哪，
+   * 切換後把捲動位置補回去，視線就留在原地。
+   */
+  const anchorRef = useRef<{ itemId: string; top: number } | null>(null)
+  const anchorRow = (itemId: string) => {
+    const row = scrollRef.current?.querySelector<HTMLElement>(`[data-item-id="${itemId}"]`)
+    anchorRef.current = row ? { itemId, top: row.getBoundingClientRect().top } : null
+  }
+
+  /* 收尾寫在 layout effect：它保證跑在瀏覽器繪之前，不會先繪出跳掉的那一幀。 */
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current
+    const scroller = scrollRef.current
+    if (!anchor || !scroller) return
+    anchorRef.current = null
+    const row = scroller.querySelector<HTMLElement>(`[data-item-id="${anchor.itemId}"]`)
+    if (!row) return
+    scroller.scrollTop += row.getBoundingClientRect().top - anchor.top
+    /*
+     * 捲在底部附近時補不回來：內容變矮，scrollTop 已經被夾在新的最大值上。
+     * 在尾端補上剛好差額的空白，讓它捲得回去 —— 這是唯一能把那一列釘回原處的辦法，
+     * 空白只在最底下、只在編輯期間存在，編輯結束就收掉。
+     */
+    const rest = row.getBoundingClientRect().top - anchor.top
+    if (rest <= 1) return
+    scroller.style.paddingBottom = `${parseFloat(scroller.style.paddingBottom || '0') + rest}px`
+    scroller.scrollTop += rest
+  }, [drafts, scrollRef])
+
+  /* 尾端那段補償只在編輯期間存在。 */
+  useEffect(() => {
+    if (hasEditing) return
+    const scroller = scrollRef.current
+    if (scroller) scroller.style.paddingBottom = ''
+  }, [hasEditing, scrollRef])
+
+  /*
+   * 進編輯時把游標放進那一則。不能用 autoFocus：瀏覽器為了讓焦點元素露出來，
+   * 會去捲「每一個」可捲的祖先 —— html / body / #root 雖然都是 overflow: hidden，
+   * 那只是不給使用者捲，程式與焦點照樣捲得動，整個 App 會被推上去、底下露出背景。
+   * 改成 preventScroll，再自己把該捲的那一條捲到剛好看得見就好。
+   */
+  useEffect(() => {
+    if (!focusId) return
+    const scroller = scrollRef.current
+    const el = scroller?.querySelector<HTMLTextAreaElement>(`[data-review-edit="${focusId}"]`)
+    setFocusId(null)
+    if (!scroller || !el) return
+    el.focus({ preventScroll: true })
+    const box = scroller.getBoundingClientRect()
+    const rect = el.getBoundingClientRect()
+    const margin = 8
+    if (rect.bottom > box.bottom - margin) scroller.scrollTop += rect.bottom - box.bottom + margin
+    else if (rect.top < box.top + margin) scroller.scrollTop -= box.top - rect.top + margin
+  }, [focusId, scrollRef])
+
   const beginEdit = (itemId: string) => {
     if (itemId in drafts) return
+    anchorRow(itemId)
     setFocusId(itemId)
     setDrafts((current) => ({ ...current, [itemId]: mineText(itemId) }))
   }
@@ -200,6 +260,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
 
   /** 丟棄單獨一列的草稿，其他列正在編輯的內容不受影響。 */
   const discardRow = (itemId: string) => {
+    anchorRow(itemId)
     setDrafts((current) => {
       const next = { ...current }
       delete next[itemId]
@@ -394,12 +455,15 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                         {editing ? (
                           /* 編輯時不掛名牌，改用等寬的縮排讓輸入框跟上面的氣泡對齊。 */
                           <div className="detail-review detail-review-edit">
+                            {/* rows={1}：textarea 預設兩行高，而 autoGrow 量的 scrollHeight
+                                至少等於當下的框高 —— 不寫死一行，空的心得就從兩行開始。 */}
                             <textarea
                               className="field"
                               ref={autoGrow}
+                              data-review-edit={item.id}
+                              rows={1}
                               placeholder="實際去了之後的感想"
                               value={drafts[item.id]}
-                              autoFocus={focusId === item.id}
                               onInput={(event) => autoGrow(event.currentTarget)}
                               onChange={(event) =>
                                 setDrafts((current) => ({ ...current, [item.id]: event.target.value }))
