@@ -42,7 +42,13 @@ interface Props {
 const autoGrow = (el: HTMLTextAreaElement | null) => {
   if (!el) return
   el.style.height = 'auto'
-  el.style.height = `${el.scrollHeight}px`
+  /*
+   * scrollHeight 是「內容 + 內距」，不含框線，而全站是 border-box ——
+   * 直接指派會少掉上下框線那一截，輸入框就比同樣內容的氣泡矮一圈。
+   */
+  const style = getComputedStyle(el)
+  const borders = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth)
+  el.style.height = `${el.scrollHeight + borders}px`
 }
 
 /**

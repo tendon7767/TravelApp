@@ -1821,9 +1821,9 @@ body[data-actual='true'] {
      （JSX 那邊還要 rows={1}，textarea 的預設是兩行）。 */
   min-height: 0;
   /* 上限六行：鍵盤升起後可視區本來就沒剩多少，再高就看不到自己正在打的那一行。
-     1.65 是行高、12 是上下內距，跟氣泡用同一組值；用 em 而不是 rem，
-     字級改了會自己跟著。 */
-  max-height: calc(6 * 1.65em + 12px);
+     1.65 是行高、12 是上下內距、3 是上下框線（border-box 要自己算進去），
+     跟氣泡用同一組值；用 em 而不是 rem，字級改了會自己跟著。 */
+  max-height: calc(6 * 1.65em + 15px);
   overflow-y: auto;
   resize: none;
   /*
