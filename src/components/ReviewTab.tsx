@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react'
 import { useStore } from '../store/useStore'
 import type { Item, Plan, Review, Trip } from '../types'
 import { eachDay, shortDate, timeSortKey } from '../lib/date'
@@ -32,8 +40,8 @@ const autoGrow = (el: HTMLTextAreaElement | null) => {
   el.style.height = `${el.scrollHeight}px`
 }
 
-/** 取消編輯的對象：底部那顆是整批，點列則只丟棄那一列。 */
-type CancelTarget = { kind: 'all' } | { kind: 'row'; itemId: string }
+/** 要放棄修改的那一則。心得是一則一則編的，沒有「整批取消」這回事。 */
+type CancelTarget = { itemId: string }
 
 /**
  * 心得模式：整趟的心得攤在同一頁，由上而下讀得完，要補寫就在原地展開輸入框。
@@ -218,6 +226,25 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
    * 那只是不給使用者捲，程式與焦點照樣捲得動，整個 App 會被推上去、底下露出背景。
    * 改成 preventScroll，再自己把該捲的那一條捲到剛好看得見就好。
    */
+  /**
+   * 把正在編輯的那一組（輸入框連同它底下的取消／儲存）帶進可視範圍。
+   * 對象是整組不是輸入框 —— 鍵盤升起時看得到自己在打什麼還不夠，
+   * 那兩顆按鈕也要看得到，不然又回到「要送出得先捲畫面」。
+   * 捲的只有 .itinerary-scroll 這一條，捲最小的距離。
+   */
+  const revealEditing = useCallback(() => {
+    const scroller = scrollRef.current
+    const active = document.activeElement
+    if (!scroller || !(active instanceof HTMLTextAreaElement)) return
+    const group = active.closest<HTMLElement>('.detail-review-edit')
+    if (!group) return
+    const box = scroller.getBoundingClientRect()
+    const rect = group.getBoundingClientRect()
+    const margin = 8
+    if (rect.bottom > box.bottom - margin) scroller.scrollTop += rect.bottom - box.bottom + margin
+    else if (rect.top < box.top + margin) scroller.scrollTop -= box.top - rect.top + margin
+  }, [scrollRef])
+
   useEffect(() => {
     if (!focusId) return
     const scroller = scrollRef.current
@@ -225,12 +252,27 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     setFocusId(null)
     if (!scroller || !el) return
     el.focus({ preventScroll: true })
-    const box = scroller.getBoundingClientRect()
-    const rect = el.getBoundingClientRect()
-    const margin = 8
-    if (rect.bottom > box.bottom - margin) scroller.scrollTop += rect.bottom - box.bottom + margin
-    else if (rect.top < box.top + margin) scroller.scrollTop -= box.top - rect.top + margin
-  }, [focusId, scrollRef])
+    revealEditing()
+  }, [focusId, scrollRef, revealEditing])
+
+  /*
+   * 鍵盤是動畫升起的，focus 當下量到的可視範圍還是沒鍵盤時的。
+   * 可視視窗一縮就再帶一次；350ms 是等它停穩，跟 keyboard.ts 用的是同一個數字。
+   */
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const onResize = () => {
+      clearTimeout(timer)
+      timer = setTimeout(revealEditing, 350)
+    }
+    vv.addEventListener('resize', onResize)
+    return () => {
+      clearTimeout(timer)
+      vv.removeEventListener('resize', onResize)
+    }
+  }, [revealEditing])
 
   const beginEdit = (itemId: string) => {
     if (itemId in drafts) return
@@ -277,8 +319,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
    */
   const openRow = (itemId: string, hasContent: boolean) => {
     if (itemId in drafts) {
-      if (drafts[itemId] !== mineText(itemId)) setCancelTarget({ kind: 'row', itemId })
-      else discardRow(itemId)
+      requestRowCancel(itemId)
       return
     }
     // 沒東西可讀就沒有「展開」這個狀態可言，直接進編輯，中間不經過一個空框。
@@ -311,23 +352,26 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     })
   }
 
-  const stopEditing = () => {
-    setDrafts({})
-    setFocusId(null)
-    setCancelTarget(null)
-    void clearReviewDrafts(plan.id)
-  }
-
-  const completeEditing = () => {
-    editingIds.forEach((id) => {
-      if (drafts[id] !== mineText(id)) setReview(id, drafts[id])
+  /**
+   * 只寫這一則就收起來。心得是一則一則寫的 —— 底部那排「一次存全部」的按鈕
+   * 逼著使用者把它捲出來，而且它管的東西跟當下在打的那一則根本不是同一件事。
+   */
+  const saveRow = (itemId: string) => {
+    anchorRow(itemId)
+    if (drafts[itemId] !== mineText(itemId)) setReview(itemId, drafts[itemId])
+    setDrafts((current) => {
+      const next = { ...current }
+      delete next[itemId]
+      return next
     })
-    stopEditing()
+    setFocusId((current) => (current === itemId ? null : current))
+    setCancelTarget(null)
   }
 
-  const requestCancel = () => {
-    if (dirty) setCancelTarget({ kind: 'all' })
-    else stopEditing()
+  /** 動過的先問一次再丟。點列取消與那顆取消鍵走同一段。 */
+  const requestRowCancel = (itemId: string) => {
+    if (drafts[itemId] !== mineText(itemId)) setCancelTarget({ itemId })
+    else discardRow(itemId)
   }
 
   return (
@@ -336,17 +380,13 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
         <Modal
           title="尚未儲存變更"
           onCancel={() => setCancelTarget(null)}
-          onComplete={() =>
-            cancelTarget.kind === 'all' ? stopEditing() : discardRow(cancelTarget.itemId)
-          }
+          onComplete={() => discardRow(cancelTarget.itemId)}
           cancelLabel="繼續編輯"
           completeLabel="放棄變更"
           completeDanger
         >
           <p style={{ margin: 0 }}>
-            {cancelTarget.kind === 'all'
-              ? '確定要取消編輯並放棄這次的全部修改嗎？'
-              : '確定要放棄這則心得的修改嗎？其他正在編輯的不受影響。'}
+            確定要放棄這則心得的修改嗎？其他正在編輯的不受影響。
           </p>
         </Modal>
       )}
@@ -453,22 +493,47 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
                           </div>
                         ))}
                         {editing ? (
-                          /* 編輯時不掛名牌，改用等寬的縮排讓輸入框跟上面的氣泡對齊。 */
-                          <div className="detail-review detail-review-edit">
-                            {/* rows={1}：textarea 預設兩行高，而 autoGrow 量的 scrollHeight
-                                至少等於當下的框高 —— 不寫死一行，空的心得就從兩行開始。 */}
-                            <textarea
-                              className="field"
-                              ref={autoGrow}
-                              data-review-edit={item.id}
-                              rows={1}
-                              placeholder="實際去了之後的感想"
-                              value={drafts[item.id]}
-                              onInput={(event) => autoGrow(event.currentTarget)}
-                              onChange={(event) =>
-                                setDrafts((current) => ({ ...current, [item.id]: event.target.value }))
-                              }
-                            />
+                          /* 編輯時照樣掛名牌，樣子還是一顆氣泡 —— 只是底色淺一階、多一圈框，
+                             一眼看得出「這則正在改」，而不是換成一個跟四周無關的表單欄位。 */
+                          <div
+                            className="detail-review detail-review-edit review-hue"
+                            data-hue={hues?.[me]}
+                          >
+                            <span className="review-tag" title={me}>
+                              {tagCharOf(me)}
+                            </span>
+                            <div className="review-edit">
+                              {/* rows={1}：textarea 預設兩行高，而 autoGrow 量的 scrollHeight
+                                  至少等於當下的框高 —— 不寫死一行，空的心得就從兩行開始。 */}
+                              <textarea
+                                className="review-edit-box"
+                                ref={autoGrow}
+                                data-review-edit={item.id}
+                                rows={1}
+                                placeholder="實際去了之後的感想"
+                                value={drafts[item.id]}
+                                onInput={(event) => autoGrow(event.currentTarget)}
+                                onChange={(event) =>
+                                  setDrafts((current) => ({ ...current, [item.id]: event.target.value }))
+                                }
+                              />
+                              {/* 按鈕就在剛打完字的手指旁邊，不必為了送出去捲畫面。 */}
+                              <div className="review-edit-actions">
+                                <button
+                                  className="btn btn-sm"
+                                  onClick={() => requestRowCancel(item.id)}
+                                >
+                                  取消
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-primary"
+                                  onClick={() => saveRow(item.id)}
+                                  disabled={drafts[item.id] === mine}
+                                >
+                                  儲存
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         ) : (
                           /* 還沒寫的不畫任何東西 —— 空框沒有資訊量，列尾那支筆已經講完了。 */
@@ -495,10 +560,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
         })}
       </div>
 
-      {/*
-        * 編輯中就收掉：fab 固定在導航列上方 30px，正好是按鈕列的位置，兩者會疊在一起。
-        * 而且那個當下你在寫字，不是在導航。
-        */}
+      {/* 編輯中就收掉：那個當下你在寫字，不是在導航。 */}
       {days.includes(today) && !hasEditing && (
         <button
           className="now-fab"
@@ -508,15 +570,6 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
         >
           <ClockIcon size={15} />now
         </button>
-      )}
-
-      {hasEditing && (
-        <div className="editor-actions">
-          <button className="btn" onClick={requestCancel}>取消編輯</button>
-          <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>
-            完成編輯
-          </button>
-        </div>
       )}
     </div>
   )

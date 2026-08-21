@@ -1663,8 +1663,6 @@ body[data-actual='true'] {
   border-bottom: 5px solid transparent;
 }
 
-/* 編輯時不掛名牌，改用等寬縮排讓輸入框跟上面的氣泡對齊。 */
-.detail-review-edit { padding-left: calc(28px + 8px); }
 
 /*
  * 名牌與氣泡同色系，一組三個變數。沒指定色號的一律中性色 ——
@@ -1722,9 +1720,45 @@ body[data-actual='true'] {
 }
 .review-hue-swatch[data-on='true'] { border-color: var(--text); }
 
+/*
+ * 編輯中的那一則還是一顆氣泡：名牌留著、圓角與尖角都不變，只有底色淺一階、
+ * 多一圈框。換成一般表單欄位的話，那一則會突然跟四周長得毫不相干。
+ *
+ * 淺一階是拿 --tag-bg 去調而不是 --bubble-bg —— 自訂屬性不能拿自己的值重算，
+ * 那是循環參照，整條宣告會失效。名牌的尖角吃的也是 --bubble-bg，所以連它一起變淺。
+ */
+.detail-review.detail-review-edit {
+  --bubble-bg: color-mix(in srgb, var(--tag-bg) 25%, var(--surface));
+}
+.review-edit {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+.review-edit-box {
+  width: 100%;
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--text-3) 34%, transparent);
+  /* 左上角收窄，尖角才接得上去，其餘三角維持 8px —— 跟氣泡同一組值。 */
+  border-radius: 4px 8px 8px 8px;
+  background: var(--bubble-bg);
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.review-edit-box:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.review-edit-box:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+/* 按鈕靠右，跟輸入框的右緣切齊；小一號就好，這裡不該搶走內容的空間。 */
+.review-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .review-body textarea {
   display: block;
-  margin-top: 2px;
   /* 一行起跳。高度由 autoGrow 寫，這裡只負責不要有個更高的地板
      （JSX 那邊還要 rows={1}，textarea 的預設是兩行）。 */
   min-height: 0;
