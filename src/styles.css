@@ -1717,7 +1717,11 @@ body[data-actual='true'] {
     padding: 12px 18px max(18px, calc(12px + env(safe-area-inset-bottom) - var(--kb, 0px)));
     box-shadow: 0 -8px 24px rgba(21, 34, 56, 0.13);
   }
-  .editor-actions .btn { font-weight: 600; }
+  .editor-actions .btn {
+    flex: 1;
+    min-height: 44px;
+    font-weight: 600;
+  }
 }
 
 /*
@@ -1846,10 +1850,10 @@ body[data-actual='true'] {
 
 .sheet {
   width: 100%;
-  /* 鍵盤升起時整張不動：底部的取消／完成管的是整個彈窗，固定在頁底就好。
-     鍵盤上緣那一排是 .kb-actions 的事，兩者各自負責。 */
+  /* 鍵盤升起時整張往上讓，底部的取消／完成就浮在鍵盤上方。 */
+  margin-bottom: var(--kb, 0px);
   /* 留一條看得到蓋板的邊，點它可以關掉；其餘高度都給內容。 */
-  max-height: calc(100% - 24px);
+  max-height: calc(100% - 24px - var(--kb, 0px));
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -1892,12 +1896,10 @@ body[data-actual='true'] {
 }
 
 .sheetactions,
-.editor-actions,
-.kb-actions {
+.editor-actions {
   display: flex;
   align-items: center;
-  /* 兩顆按鈕往中間靠：貼著左右邊緣時，單手握著要伸到對角才按得到。 */
-  justify-content: center;
+  justify-content: space-between;
   gap: 12px;
   flex: none;
   background: var(--surface);
@@ -1905,35 +1907,15 @@ body[data-actual='true'] {
   z-index: 2;
 }
 
-/* iOS 主畫面 App 的視窗四角是圓的，按鈕貼著左右下角會被切掉一塊。 */
+/* iOS 主畫面 App 的視窗四角是圓的，按鈕貼著左右下角會被切掉一塊。
+   底部的安全區在鍵盤升起時是多餘的，用 --kb 扣掉。 */
 .sheetactions {
-  padding: 10px 18px max(16px, calc(10px + env(safe-area-inset-bottom)));
+  padding: 10px 18px max(16px, calc(10px + env(safe-area-inset-bottom) - var(--kb, 0px)));
 }
 .editor-actions { padding: 10px 18px; }
 
 .sheetactions .btn,
-.editor-actions .btn,
-.kb-actions .btn {
-  min-width: 128px;
-  min-height: 44px;
-}
-
-/*
- * 鍵盤上緣那一排「取消編輯／完成編輯」。彈窗底部那對被鍵盤蓋住的時候，
- * 打字中唯一按得到的出口就是它。z-index 要壓過蓋板（50），它是最上層的東西。
- * Android 的版面視窗會跟著縮，--kb 是 0，這排自然就坐在鍵盤上方。
- */
-.kb-actions {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: var(--kb, 0px);
-  z-index: 60;
-  padding: 8px 18px max(8px, calc(8px + env(safe-area-inset-bottom) - var(--kb, 0px)));
-  background: var(--surface);
-  border-top: 0.5px solid var(--border);
-  box-shadow: 0 -8px 24px rgba(21, 34, 56, 0.13);
-}
+.editor-actions .btn { min-width: 92px; }
 
 .editor-actions .detail-leave-wide {
   width: 100%;

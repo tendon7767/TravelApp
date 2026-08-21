@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import { parseInviteLink } from '../sync/client'
 import Modal from './Modal'
-import KeyboardEditBar from './KeyboardEditBar'
 
 /**
  * 貼上邀請連結加入旅程。
@@ -54,7 +53,6 @@ export default function JoinTripModal({ onClose }: { onClose: () => void }) {
       completeLabel={busy ? '加入中…' : '加入'}
       dirty={text.trim().length > 0}
     >
-      <KeyboardEditBar value={text} onRestore={setText} />
       <div style={{ paddingTop: 12 }}>
         <label className="label" htmlFor="join-invite">邀請連結</label>
         <input

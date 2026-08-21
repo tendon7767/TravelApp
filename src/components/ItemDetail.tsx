@@ -18,7 +18,6 @@ import NumberField from './NumberField'
 import { methodLabel, OWNERLESS } from '../lib/owners'
 import SettingsModal from './SettingsModal'
 import Modal from './Modal'
-import EditActions from './EditActions'
 import { amountInMethodCurrency, computeMethod, focusedRule, suggestSplit } from '../lib/rewards'
 import {
   clearItemDraft,
@@ -1190,7 +1189,12 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         * 那條按鈕列只留給沒有手勢的桌機，手機不算繪，不留一條空的橫條。
         */}
       {hasEditing ? (
-        <EditActions dirty={dirty} onCancel={requestCancel} onComplete={completeEditing} />
+        <div className="editor-actions">
+          <button className="btn" onClick={requestCancel}>取消編輯</button>
+          <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>
+            完成編輯
+          </button>
+        </div>
       ) : (
         <div className="editor-actions wide-only">
           <button className="btn detail-leave-wide" onClick={requestCancel}>離開</button>

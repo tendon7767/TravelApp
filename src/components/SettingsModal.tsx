@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import Modal from './Modal'
 import AppVersion from './AppVersion'
-import KeyboardEditBar from './KeyboardEditBar'
 
 /** 配色只有兩種，不做「跟隨系統」——多一個狀態要處理，但這是單人裝置的偏好。 */
 const THEMES = [
@@ -68,15 +67,6 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal title="設定" onCancel={onClose} onComplete={save} dirty={dirty}>
-      {/* 三個欄位分開存，還原時要整組一起，不然「取消編輯」只還原得了其中一個。 */}
-      <KeyboardEditBar
-        value={{ name: draft, url: urlDraft, folder: folderDraft }}
-        onRestore={(snapshot) => {
-          setDraft(snapshot.name)
-          setUrlDraft(snapshot.url)
-          setFolderDraft(snapshot.folder)
-        }}
-      />
       <div style={{ paddingTop: 12 }}>
         <label className="label" htmlFor="s-name">你的名字</label>
         <input
