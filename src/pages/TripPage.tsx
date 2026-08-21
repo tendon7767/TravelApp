@@ -259,7 +259,7 @@ export default function TripPage() {
         </Modal>
       )}
       <div className="topbar" ref={topbarRef}>
-        <div className="topbar-main">
+        <div style={{ flex: 1, minWidth: 0 }}>
           {/* 旅程名稱就是旅程設定的入口。同步鍵在下一行，不能包進同一顆按鈕裡。 */}
           <button
             className="topbar-title"

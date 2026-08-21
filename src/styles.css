@@ -442,18 +442,6 @@ a { color: var(--accent); }
   text-overflow: ellipsis;
 }
 
-/*
- * 頂列左半（旅程名 + 副行）。靠 align-self 沉到底，兩行就落在頂列偏下的位置。
- * 能沉多少由旁邊那顆 36px 圖示鍵決定 —— 兩行文字壓緊之後是 32px，
- * 所以只有 4px 可以下移。要再更多就得動頂列的內距（那會連帶長高，
- * 而且 .topbar 是跟旅程列表頁共用的）。
- */
-.topbar-main {
-  flex: 1;
-  min-width: 0;
-  align-self: flex-end;
-}
-
 /* 頂列的副行：匯率與同步狀態。 */
 .topbar-sub { font-size: 11px; line-height: 1.25; }
 
