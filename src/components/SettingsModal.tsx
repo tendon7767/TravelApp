@@ -128,6 +128,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         <input
           id="s-name"
           className="field"
+          autoComplete="off"
           value={draft}
           placeholder="阿嘎"
           onChange={(e) => changeName(e.target.value)}
@@ -176,6 +177,11 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           <input
             id="s-gas"
             className="field"
+            autoComplete="off"
+            inputMode="url"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
             value={urlDraft}
             onChange={(e) => setUrlDraft(e.target.value)}
             placeholder="https://script.google.com/macros/s/.../exec"
@@ -205,6 +211,11 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           <input
             id="s-folder"
             className="field"
+            autoComplete="off"
+            inputMode="url"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
             value={folderDraft}
             onChange={(e) => setFolderDraft(e.target.value)}
             placeholder="貼上雲端硬碟資料夾網址，留空則用「旅遊資料」"

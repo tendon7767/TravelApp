@@ -22,6 +22,7 @@ export default function TripFields({
         <input
           id={`${idPrefix}-name`}
           className="field"
+          autoComplete="off"
           value={form.name}
           placeholder="瀨戶內海9日遊"
           onChange={(e) => onChange({ name: e.target.value })}
@@ -59,6 +60,7 @@ export default function TripFields({
           <input
             id={`${idPrefix}-cur`}
             className="field"
+            autoComplete="off"
             value={form.foreignCurrency}
             onChange={(e) => onChange({ foreignCurrency: e.target.value.toUpperCase() })}
           />

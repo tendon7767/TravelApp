@@ -64,6 +64,8 @@ export default function JoinTripModal({ onClose }: { onClose: () => void }) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="https://…/#/join?u=…&s=…&k=…"
+          autoComplete="off"
+          inputMode="url"
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}

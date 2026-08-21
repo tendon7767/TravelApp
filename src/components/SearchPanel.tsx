@@ -52,6 +52,7 @@ export default function SearchPanel({ plan, onPick, onClose }: Props) {
           className="field"
           style={{ flex: 1, minWidth: 0 }}
           placeholder="搜尋行程、備註、連結、費用項目"
+          autoComplete="off"
           autoFocus
           value={q}
           onChange={(e) => setQ(e.target.value)}

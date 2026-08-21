@@ -636,6 +636,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               <input
                 id="d-title"
                 className="field"
+                autoComplete="off"
                 style={{ fontSize: 16 }}
                 value={item.title}
                 onChange={(event) => patchItem({ title: event.target.value })}
@@ -661,6 +662,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   <input
                     id="d-start"
                     className="field mono"
+                    autoComplete="off"
                     inputMode="numeric"
                     placeholder="09:10"
                     value={timeDraft}
@@ -778,6 +780,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   <span className="detail-note-bullet" aria-hidden="true">•</span>
                   <input
                     className="field"
+                    autoComplete="off"
                     value={note.text}
                     onChange={(event) =>
                       patchItem({
@@ -813,6 +816,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               <div className="link-add-row">
                 <input
                   className="field"
+                  autoComplete="off"
                   value={noteDraft}
                   placeholder="新增提醒或補充"
                   autoFocus={focusSection === 'notes' && item.notes.length === 0}
@@ -864,6 +868,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   <div className="costline-head">
                     <input
                       className="field cl-label"
+                      autoComplete="off"
                       placeholder="項目"
                       value={cost.label}
                       onChange={(event) => patchCost(cost.id, { label: event.target.value })}
@@ -975,6 +980,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                 <div key={link.id} className="link-edit-row">
                   <input
                     className="field"
+                    autoComplete="off"
                     style={{ flex: 1, minWidth: 0 }}
                     value={link.label}
                     placeholder={link.url}
@@ -1003,6 +1009,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                 <div className="link-add-row">
                   <input
                     className="field"
+                    autoComplete="off"
+                    inputMode="url"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={mapDraft}
                     placeholder="貼上 Google Maps 網址"
                     autoFocus={focusSection === 'map'}
@@ -1065,6 +1076,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                 <div key={link.id} className="link-edit-row">
                   <input
                     className="field"
+                    autoComplete="off"
                     style={{ flex: 1, minWidth: 0 }}
                     value={link.label}
                     placeholder={link.url}
@@ -1091,6 +1103,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               <div className="link-add-row">
                 <input
                   className="field"
+                  autoComplete="off"
+                  inputMode="url"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={webDraft}
                   placeholder="貼上訂位、票券或網站網址"
                   autoFocus={focusSection === 'links' && webLinks.length === 0}

@@ -43,6 +43,9 @@ export default function NumberField({
       style={style}
       type="text"
       inputMode="decimal"
+      /* 這個 App 沒有任何一格在收使用者自己的個資，所以正確的 autocomplete 就是 off ——
+         給語意 token（cc-name、name、url…）反而會讓 iOS 拿聯絡人或信用卡來填。 */
+      autoComplete="off"
       placeholder={placeholder}
       value={draft}
       onFocus={() => {

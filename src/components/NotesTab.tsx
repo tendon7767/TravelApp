@@ -287,6 +287,7 @@ function NoteEditorModal({
         <input
           id="note-title"
           className="field"
+          autoComplete="off"
           style={{ fontSize: 15, fontWeight: 600 }}
           value={draft.title}
           placeholder="未命名筆記"
@@ -309,6 +310,7 @@ function NoteEditorModal({
               </button>
               <input
                 className="field"
+                autoComplete="off"
                 style={{
                   flex: 1,
                   minWidth: 0,
@@ -365,6 +367,7 @@ function NoteEditorModal({
                 </span>
                 <input
                   className="field"
+                  autoComplete="off"
                   style={{ flex: 1, minWidth: 0 }}
                   value={l.label}
                   placeholder={l.url}
@@ -388,6 +391,11 @@ function NoteEditorModal({
             <div style={{ display: 'flex', gap: 6 }}>
               <input
                 className="field"
+                autoComplete="off"
+                inputMode="url"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
                 value={linkDraft}
                 onChange={(e) => setLinkDraft(e.target.value)}
                 onKeyDown={(e) => {
