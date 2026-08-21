@@ -104,7 +104,12 @@ export default function Modal({
               <CloseIcon />
             </button>
           </div>
-          <div className="sheetbody" ref={bodyRef} onKeyDown={onBodyKeyDown}>
+          <div
+            className="sheetbody"
+            data-actions={onComplete ? '' : undefined}
+            ref={bodyRef}
+            onKeyDown={onBodyKeyDown}
+          >
             {children}
             {/*
              * 按鈕列寫在捲動區裡，用 sticky 假裝釘在底部；鍵盤升起時（:root[data-kb]）
@@ -139,7 +144,7 @@ export default function Modal({
             <div className="sheethead">
               <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>尚未儲存變更</strong>
             </div>
-            <div className="sheetbody">
+            <div className="sheetbody" data-actions="">
               <p style={{ margin: 0 }}>確定要取消並放棄這次的修改嗎？</p>
               <div className="sheetactions">
                 <button className="btn" onClick={() => setConfirmingCancel(false)}>繼續編輯</button>
