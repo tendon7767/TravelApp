@@ -124,10 +124,13 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="設定" onCancel={onClose} dirty={dirty}>
       <div>
-        <Label htmlFor="s-name" text="你的名字" open={!!hints.name} onToggle={() => toggleHint('name')} />
+        <Label htmlFor="s-member" text="你的名字" open={!!hints.name} onToggle={() => toggleHint('name')} />
         <input
-          id="s-name"
+          id="s-member"
           className="field"
+          /* 實驗：Chrome 刻意忽略 autocomplete="off"，改用 type="search" 讓它的
+             自動填入直接跳過這一格；id 也避開 name 這個字。 */
+          type="search"
           autoComplete="off"
           value={draft}
           placeholder="阿嘎"
