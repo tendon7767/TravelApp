@@ -41,10 +41,14 @@ export default function NumberField({
       aria-label={ariaLabel}
       className={className}
       style={style}
-      type="text"
+      /*
+       * type="search" 跟其他文字欄位同一個理由：Chrome 忽略 autocomplete="off"，
+       * 只有「這是搜尋欄」擋得住鍵盤上那條自動完成的建議列。數字鍵盤是 inputMode
+       * 決定的，跟 type 無關，所以換掉不影響輸入。
+       */
+      type="search"
       inputMode="decimal"
-      /* 這個 App 沒有任何一格在收使用者自己的個資，所以正確的 autocomplete 就是 off ——
-         給語意 token（cc-name、name、url…）反而會讓 iOS 拿聯絡人或信用卡來填。 */
+      enterKeyHint="done"
       autoComplete="off"
       placeholder={placeholder}
       value={draft}
