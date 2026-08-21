@@ -363,6 +363,21 @@ a { color: var(--accent); }
  * 同步狀態直接接在匯率後面，長得跟旁邊的說明文字一樣，點下去就是手動同步。
  * 加底線是因為那一整行都是灰字，不標一下看不出來它可以按。
  */
+/*
+ * 旅程名稱是點開旅程設定的入口，但它同時是這一頁的標題 ——
+ * 看起來要維持標題的樣子，不要長成一顆按鈕。
+ */
+.topbar-title {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .topbar-sync {
   font-size: inherit;
   color: inherit;

@@ -4,8 +4,7 @@ import { useStore } from '../store/useStore'
 import ItineraryTab from '../components/ItineraryTab'
 import ReviewTab from '../components/ReviewTab'
 import ItemDetail from '../components/ItemDetail'
-import TripSettingsTab from '../components/TripSettingsTab'
-import TripIcon from '../components/TripIcon'
+import TripSettings from '../components/TripSettings'
 import SearchPanel from '../components/SearchPanel'
 import ExpensesTab from '../components/ExpensesTab'
 import RewardsTab from '../components/RewardsTab'
@@ -24,12 +23,15 @@ import ReviewIcon from '../components/ReviewIcon'
 import RewardsIcon from '../components/RewardsIcon'
 import NotesIcon from '../components/NotesIcon'
 
-// 花費統計不常看，從導航列移走，改由行程頁的「全程合計」點進去。
+/*
+ * 花費統計不常看，從導航列移走，改由行程頁的「全程合計」點進去。
+ * 旅程設定同理：進去多半只為了改名稱或日期，改完就出來，
+ * 沒必要佔一格導航列 —— 改成點頂列的旅程名稱開彈窗。
+ */
 const TABS = [
   { key: 'itinerary', label: '行程', Icon: ItineraryIcon },
   { key: 'rewards', label: '回饋', Icon: RewardsIcon },
   { key: 'notes', label: '筆記', Icon: NotesIcon },
-  { key: 'trip', label: '旅程', Icon: TripIcon },
 ] as const
 
 export default function TripPage() {
@@ -42,6 +44,7 @@ export default function TripPage() {
   const [reviewDirty, setReviewDirty] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
   const [copied, setCopied] = useState<{ tripId: string; item: Item } | null>(null)
+  const [tripOpen, setTripOpen] = useState(false)
   const topbarRef = useRef<HTMLDivElement>(null)
 
   const trip = useStore((s) => s.data.trips.find((t) => t.id === tripId && !t.deleted))
@@ -58,7 +61,9 @@ export default function TripPage() {
     [allPlans, tripId],
   )
 
-  const tab = params.get('tab') ?? 'itinerary'
+  // 舊版把旅程設定做成分頁，網址（或 iOS 恢復 PWA 時的殘留 hash）可能還指著它。
+  const tabParam = params.get('tab') ?? 'itinerary'
+  const tab = tabParam === 'trip' ? 'itinerary' : tabParam
   const selectedId = params.get('sel')
   const searching = params.get('q') === '1'
   const preferredPlan = useMemo(
@@ -264,6 +269,24 @@ export default function TripPage() {
           </p>
         </Modal>
       )}
+      {tripOpen && (
+        <Modal
+          title="編輯旅程"
+          onCancel={() => setTripOpen(false)}
+          dirty={tripDirty}
+        >
+          <TripSettings
+            trip={trip}
+            activePlanId={plan?.id}
+            onPickPlan={(id) => setParam('plan', id)}
+            onLeave={() => {
+              setTripOpen(false)
+              navigate('/')
+            }}
+            onDirtyChange={setTripDirty}
+          />
+        </Modal>
+      )}
       <div className="topbar" ref={topbarRef}>
         {/* 手機用右滑返回，這顆只留給沒有手勢的桌機。 */}
         <button
@@ -274,9 +297,14 @@ export default function TripPage() {
           <BackIcon size={22} />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {/* 旅程名稱就是旅程設定的入口。同步鍵在下一行，不能包進同一顆按鈕裡。 */}
+          <button
+            className="topbar-title"
+            onClick={() => setTripOpen(true)}
+            aria-haspopup="dialog"
+          >
             {trip.name}
-          </div>
+          </button>
           <div className="dim" style={{ fontSize: 11 }}>
             {trip.foreignCurrency} 匯率 {trip.rate}
             {linked && (
@@ -374,17 +402,6 @@ export default function TripPage() {
           {!searching && tab === 'notes' && (
             <div className="pane-scroll">
               <NotesTab trip={trip} />
-            </div>
-          )}
-          {!searching && tab === 'trip' && (
-            <div className="pane-scroll">
-              <TripSettingsTab
-                trip={trip}
-                activePlanId={plan?.id}
-                onPickPlan={(id) => setParam('plan', id)}
-                onLeave={() => navigate('/')}
-                onDirtyChange={setTripDirty}
-              />
             </div>
           )}
           {!searching && tab === 'album' && actualPlan && (

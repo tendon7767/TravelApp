@@ -9,11 +9,12 @@ import PlanSwitcher from './PlanSwitcher'
 import { REVIEW_HUES, tagCharOf } from '../lib/reviewHues'
 
 /**
- * 旅程本身的設定。縮短日期範圍會讓範圍外的項目變成看不到的孤兒，所以先數給使用者看。
- * 名稱與日期是「改完按儲存」，未存就切走由 TripPage 的 requestNavigation 攔下來 ——
+ * 旅程本身的設定，內容放在頂列旅程名稱點開的彈窗裡。
+ * 縮短日期範圍會讓範圍外的項目變成看不到的孤兒，所以先數給使用者看。
+ * 名稱與日期是「改完按儲存」，未存就關掉由彈窗的 dirty 攔下來 ——
  * 跟行程詳細頁走同一套判斷，不另外做一份。
  */
-export default function TripSettingsTab({
+export default function TripSettings({
   trip,
   activePlanId,
   onPickPlan,
@@ -100,7 +101,7 @@ export default function TripSettingsTab({
   }
 
   return (
-    <div className="sec" style={{ display: 'grid', gap: 10 }}>
+    <div style={{ display: 'grid', gap: 10, paddingTop: 12 }}>
         <TripFields
           form={form}
           onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
