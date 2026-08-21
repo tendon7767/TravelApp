@@ -17,6 +17,7 @@ export default function DayStrip({ days, activeDay, today, stripRef, onPick }: P
           key={day}
           className="daypill"
           data-day-pill={day}
+          data-strip-pill=""
           data-on={day === activeDay}
           data-today={day === today}
           onClick={() => onPick(day)}

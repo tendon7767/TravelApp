@@ -15,25 +15,10 @@ import { copyItemSnapshot } from '../lib/items'
 import { tripFormOf, tripFormValid, type TripForm } from '../lib/tripForm'
 import { useSwipeBack } from '../lib/useSwipeBack'
 import AlbumView from '../components/AlbumView'
-import BackIcon from '../components/BackIcon'
-import TripsPage from './TripsPage'
 import SearchIcon from '../components/SearchIcon'
 import CloseIcon from '../components/CloseIcon'
-import ItineraryIcon from '../components/ItineraryIcon'
 import ReviewIcon from '../components/ReviewIcon'
-import RewardsIcon from '../components/RewardsIcon'
-import NotesIcon from '../components/NotesIcon'
-
-/*
- * 花費統計不常看，從導航列移走，改由行程頁的「全程合計」點進去。
- * 旅程設定同理：進去多半只為了改名稱或日期，改完就出來，
- * 沒必要佔一格導航列 —— 改成點頂列的旅程名稱開彈窗。
- */
-const TABS = [
-  { key: 'itinerary', label: '行程', Icon: ItineraryIcon },
-  { key: 'rewards', label: '回饋', Icon: RewardsIcon },
-  { key: 'notes', label: '筆記', Icon: NotesIcon },
-] as const
+import TabBar from '../components/TabBar'
 
 export default function TripPage() {
   const { tripId } = useParams()
@@ -56,6 +41,7 @@ export default function TripPage() {
   const localRev = useStore((s) => s.localRev)
   const dismissOverwritten = useStore((s) => s.dismissOverwritten)
   const updateTrip = useStore((s) => s.updateTrip)
+  const setActive = useStore((s) => s.setActive)
   const duplicateItem = useStore((s) => s.duplicateItem)
   const allPlans = useStore((s) => s.data.plans)
   const plans = useMemo(
@@ -166,14 +152,16 @@ export default function TripPage() {
     }
   }, [plan?.kind])
 
+  // 首頁的另外三格指的是「最近看的那趟」，所以看到哪一趟就記哪一趟。
+  useEffect(() => {
+    if (trip) setActive(trip.id, plan?.id)
+  }, [trip, plan?.id, setActive])
+
   // iOS 從主畫面恢復 PWA 時可能保留更新前的 hash 路徑。該 ID 已不存在就回列表，
   // 讓使用者選目前真正存在的旅程，不停在無法操作的錯誤頁。
   useEffect(() => {
     if (!trip) navigate('/', { replace: true })
   }, [trip, navigate])
-
-  /** 拖曳中才把旅程列表墊在底下：滑開的時候要看得到自己正要回到哪裡。 */
-  const [swipingBack, setSwipingBack] = useState(false)
 
   /* 詳細頁在 860px 以上是右側欄不是覆蓋層，那裡不吃關閉手勢。 */
   const [overlayDetail, setOverlayDetail] = useState(
@@ -205,15 +193,9 @@ export default function TripPage() {
     requestNavigation(() => setParam(key, value))
 
   /*
-   * 往右拖曳退回上一層，跟左上角那顆返回鍵走同一條路（會攔未儲存的修改）。
-   * 詳細頁蓋在旅程頁上面，兩層都掛，靠內層吃掉 touchstart 決定誰接手。
-   * 日期列本來就要橫捲，起點落在它上面時放行。
+   * 詳細頁還是往右拖曳關閉。旅程頁那一層不再吃這個手勢 ——
+   * 左右撥在分頁裡各有各的用途（換日、換持有人、換筆記），出口改成導航列的「首頁」。
    */
-  const tripSwipe = useSwipeBack<HTMLDivElement>({
-    onDismiss: () => requestNavigation(() => navigate('/')),
-    ignoreWithin: '.daystrip',
-    onDrag: setSwipingBack,
-  })
   const detailSwipe = useSwipeBack<HTMLDivElement>({
     onDismiss: () => requestNavigation(() => setParam('sel')),
     disabled: !overlayDetail,
@@ -255,12 +237,7 @@ export default function TripPage() {
 
   return (
     <>
-    {swipingBack && (
-      <div className="swipe-behind" aria-hidden="true" inert>
-        <TripsPage />
-      </div>
-    )}
-    <div className="app" ref={tripSwipe} data-actual={plan?.kind === 'actual'}>
+    <div className="app" data-actual={plan?.kind === 'actual'}>
       {pendingNavigation && (
         <Modal
           title="尚未儲存變更"
@@ -304,14 +281,6 @@ export default function TripPage() {
         </Modal>
       )}
       <div className="topbar" ref={topbarRef}>
-        {/* 手機用右滑返回，這顆只留給沒有手勢的桌機。 */}
-        <button
-          className="btn btn-sm btn-glyph btn-plain wide-only"
-          onClick={() => requestNavigation(() => navigate('/'))}
-          aria-label="回到旅程列表"
-        >
-          <BackIcon size={22} />
-        </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* 旅程名稱就是旅程設定的入口。同步鍵在下一行，不能包進同一顆按鈕裡。 */}
           <button
@@ -411,15 +380,9 @@ export default function TripPage() {
             </div>
           )}
           {!searching && tab === 'rewards' && (
-            <div className="pane-scroll">
-              <RewardsTab trip={trip} plan={plan} onSelect={(id) => navigateParam('sel', id)} />
-            </div>
+            <RewardsTab trip={trip} plan={plan} onSelect={(id) => navigateParam('sel', id)} />
           )}
-          {!searching && tab === 'notes' && (
-            <div className="pane-scroll">
-              <NotesTab trip={trip} />
-            </div>
-          )}
+          {!searching && tab === 'notes' && <NotesTab trip={trip} />}
           {!searching && tab === 'album' && actualPlan && (
             <AlbumView trip={trip} plan={actualPlan} />
           )}
@@ -444,28 +407,22 @@ export default function TripPage() {
         )}
       </div>
 
-      <div className="tabbar" ref={tabbarRef}>
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            className="tab"
-            data-on={tab === t.key}
-            onClick={() => {
-              const next = new URLSearchParams(params)
-              next.set('tab', t.key)
-              next.delete('sel')
-              next.delete('q')
-              next.delete('mode')
-              requestNavigation(() => setParams(next, { replace: true }))
-            }}
-          >
-            <span className="tabicon">
-              <t.Icon size={21} />
-            </span>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        active={tab}
+        barRef={tabbarRef}
+        onSelect={(key) => {
+          if (key === 'home') {
+            requestNavigation(() => navigate('/'))
+            return
+          }
+          const next = new URLSearchParams(params)
+          next.set('tab', key)
+          next.delete('sel')
+          next.delete('q')
+          next.delete('mode')
+          requestNavigation(() => setParams(next, { replace: true }))
+        }}
+      />
 
     </div>
     </>

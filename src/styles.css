@@ -496,13 +496,40 @@ body[data-actual='true'] {
   white-space: nowrap;
   border: 0.5px solid transparent;
 }
-/* 這裡要的是強調色而不是文字色。深色主題兩者剛好同值，所以長年寫成 --text 也看不出來；
-   亮色把它們分開之後才現形（黑膠囊配藍框）。深色的算繪結果不受這次改動影響。 */
+/*
+ * 選中的那顆：底色獨立成 ::before 一層，左右撥的時候它可以先滑向目的地那一顆，
+ * 文字留在原地。位移量由 --pill-shift 帶進來（見 lib/stripIndicator.ts）。
+ *
+ * 這裡要的是強調色而不是文字色。深色主題兩者剛好同值，所以長年寫成 --text 也看不出來；
+ * 亮色把它們分開之後才現形（黑膠囊配藍框）。深色的算繪結果不受這次改動影響。
+ */
 .daypill[data-on="true"] {
-  background: var(--accent);
+  position: relative;
   color: var(--accent-contrast);
-  border-color: var(--accent);
+}
+.daypill[data-on="true"]::before {
+  content: '';
+  position: absolute;
+  /* .daystrip 有 z-index，自成堆疊脈絡，負值只會排到膠囊文字後面，不會掉到橫條底色之下。 */
+  z-index: -1;
+  inset: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
+  transform: translateX(var(--pill-shift, 0px));
+}
+/* 放開之後那一小段滑到定位要有動畫；拖曳中不能有，會跟不上手指。 */
+.daystrip[data-animating="true"] .daypill[data-on="true"]::before {
+  transition: transform 0.18s ease-out;
+}
+/*
+ * 拖曳中底色轉成淡的：它會滑到別顆膠囊的文字上面，實色會把字整個蓋掉。
+ * 同一時間原本那顆的文字改用強調色，才不會變成「深色字配沒有底色」。
+ */
+.daystrip[data-dragging="true"] .daypill[data-on="true"] { color: var(--accent); }
+.daystrip[data-dragging="true"] .daypill[data-on="true"]::before {
+  background: var(--accent-bg);
+  box-shadow: 0 0 0 1px var(--border-2);
 }
 .daypill[data-today="true"]:not([data-on="true"]) {
   color: var(--accent);
@@ -554,6 +581,13 @@ body[data-actual='true'] {
   cursor: pointer;
 }
 .row[data-sel="true"] { background: var(--accent-bg); }
+
+/* 旅程列表上「導航列另外三格會進到的那一趟」。底色加左緣色條，
+   兩個記號一起用是因為它要在一整排長得一樣的列裡一眼認得出來。 */
+.row[data-on="true"] {
+  background: var(--accent-bg);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
 
 /* 選取中已經用底色表示，所以「現在正在進行」改用左緣色條，兩者可以同時成立。 */
 .row[data-now="true"] { box-shadow: inset 3px 0 0 var(--accent); }
@@ -726,22 +760,6 @@ body[data-actual='true'] {
 }
 
 /*
- * 右滑返回時墊在底下的下一層畫面。只在拖曳中存在，純粹是背景，不吃任何操作。
- *
- * z-index 必須是負的。拖曳中 .app 有 transform、自成堆疊脈絡，用 0 也蓋得住；
- * 但位移一歸零它就變回一般的流內區塊，而定位元素會蓋在非定位內容上面 ——
- * 於是在彈回到這層卸載之間，下一層畫面整個跳到前面閃一幀。
- * 負值讓它排在流內內容之後、頁面底色之前，兩種狀態都在下面。
- */
-.swipe-behind {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-/*
  * 旅程清單頁的版本列。.page-scroll 是 flex: 1，所以這條放在它後面就自動釘在底部，
  * 不必用 position: fixed —— 版面本來就是固定高度、文件不捲動。
  */
@@ -771,6 +789,8 @@ body[data-actual='true'] {
 }
 /* 同 .daypill：選中的分頁要的是強調色。 */
 .tab[data-on="true"] { color: var(--accent); }
+/* 一趟旅程都沒有時，另外三格沒有目的地。 */
+.tab:disabled { opacity: 0.35; cursor: default; }
 .tabicon { display: block; margin: 0 auto 1px; line-height: 0; }
 
 .scroll,
@@ -787,6 +807,34 @@ body[data-actual='true'] {
   overflow-x: hidden;
   touch-action: pan-y;
   overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/*
+ * 左右撥切換的分頁：軌道上永遠是「上一格、這一格、下一格」三格，
+ * 靜止時停在中間那一格（-1/3）。拖曳中動的是軌道，不是整個畫面。
+ */
+.pager-view {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+.pager-track {
+  display: flex;
+  width: 300%;
+  height: 100%;
+  transform: translateX(-33.3333%);
+}
+.pager-pane {
+  width: 33.3333%;
+  height: 100%;
+  overflow-y: auto;
+  /* 同 .pane-scroll：只要垂直。放著不管的話 overflow-x 會跟著變成 auto，
+     內容寬一點就能左右拖動並回彈，看起來像版面壞掉。 */
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -1923,14 +1971,11 @@ body[data-actual='true'] {
 }
 
 /*
- * 只有桌機需要的返回出口。手機兩層都用右滑返回，這些按鈕是多餘的；
- * 而桌機的詳細頁是側欄不是覆蓋層，刻意不吃手勢，沒有按鈕就真的關不掉。
+ * 只有桌機需要的出口。旅程頁的返回已經在導航列裡，這裡剩下詳細頁 ——
+ * 桌機的詳細頁是側欄不是覆蓋層，刻意不吃右滑手勢，沒有按鈕就真的關不掉。
  */
 .wide-only { display: none; }
-/* 純圖示按鈕那條 .btn:has(> svg:only-child) 的特異性比單一 class 高，要蓋過它得用複合選擇器。 */
-.btn.btn-glyph.wide-only { display: none; }
 @media (min-width: 860px) {
-  .btn.btn-glyph.wide-only { display: inline-flex; }
   .editor-actions.wide-only { display: flex; }
 }
 

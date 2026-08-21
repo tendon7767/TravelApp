@@ -3,6 +3,8 @@ import { useStore } from '../store/useStore'
 import { ITINERARY_CATEGORIES, type ItineraryCategory, type Item, type Plan, type Trip } from '../types'
 import { eachDay, shortDate, timeSortKey } from '../lib/date'
 import { useDayScroller } from '../lib/useDayScroller'
+import { useSwipeSteps } from '../lib/useSwipeSteps'
+import { pillGap, SETTLE_MS, setAnimating, setDragging, setPillShift } from '../lib/stripIndicator'
 import { useNowClock } from '../lib/useNowClock'
 import { pickCurrentItemId } from '../lib/items'
 import { applyTemplate, needsSecondLevel, quickItemsFor, soleQuickItem, type QuickItem } from '../lib/presets'
@@ -70,6 +72,35 @@ export default function ItineraryTab({
   const [addingOn, setAddingOn] = useState<string | null>(null)
   const [pickedCategory, setPickedCategory] = useState<ItineraryCategory | null>(null)
   const { activeDay, scrollRef, daystripRef, scrollProps, jumpTo, scrollToNow } = useDayScroller(days, today)
+  /*
+   * 左右撥換日：拖曳中只有日期膠囊的底色跟著滑，內容不動 ——
+   * 這一頁的「日」是同一條長捲動裡的位置，把整頁拖走等於騙人。
+   * 底色滑到目的地那一顆之後才觸發捲動。日期橫條本身要橫捲，起點落在它上面時放行。
+   */
+  const dayIndex = days.indexOf(activeDay)
+  const stepDays = useSwipeSteps<HTMLDivElement>({
+    canPrev: dayIndex > 0,
+    canNext: dayIndex >= 0 && dayIndex < days.length - 1,
+    ignoreWithin: '.daystrip',
+    onShift: ({ dx, progress }) => {
+      const strip = daystripRef.current
+      setDragging(strip, true)
+      setAnimating(strip, false)
+      setPillShift(strip, pillGap(strip, dayIndex, dx < 0 ? dayIndex + 1 : dayIndex - 1) * progress)
+    },
+    onRelease: (step) => {
+      const strip = daystripRef.current
+      setAnimating(strip, true)
+      setPillShift(strip, step ? pillGap(strip, dayIndex, dayIndex + step) : 0)
+      window.setTimeout(() => {
+        // 清位移與換日同一刻：分兩步的話底色會先彈回原本那顆再跳過去。
+        setAnimating(strip, false)
+        setDragging(strip, false)
+        setPillShift(strip, 0)
+        if (step) jumpTo(days[dayIndex + step])
+      }, SETTLE_MS)
+    },
+  })
 
   const byDay = useMemo(() => {
     const map = new Map<string, Item[]>()
@@ -122,7 +153,7 @@ export default function ItineraryTab({
   }
 
   return (
-    <div className="itinerary-view">
+    <div className="itinerary-view" ref={stepDays}>
       <DayStrip days={days} activeDay={activeDay} today={today} stripRef={daystripRef} onPick={jumpTo} />
 
       {copiedItem && (

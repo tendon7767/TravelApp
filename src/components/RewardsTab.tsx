@@ -6,6 +6,7 @@ import { formatMoney } from '../lib/money'
 import { dayCount, shortDate } from '../lib/date'
 import { methodLabel, OWNERLESS } from '../lib/owners'
 import PaymentEditor from './PaymentEditor'
+import SwipePager from './SwipePager'
 import PencilIcon from './PencilIcon'
 import CheckIcon from './CheckIcon'
 import Modal from './Modal'
@@ -82,7 +83,8 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
   // 沒有「全部」這個選項，所以一定有一位被選中。選中的人被刪掉或改名時退回第一位，
   // 否則 ownerFilter 會指向一個不存在的人，整頁變空白。
   const activeOwner = ownerFilter && owners.includes(ownerFilter) ? ownerFilter : owners[0]
-  const shown = byOwner.filter(([owner]) => owner === activeOwner)
+  const ownerIndex = Math.max(0, owners.indexOf(activeOwner))
+  const disabled = methods.filter((m) => !m.enabled)
   const openEditor = (method: MethodResult['method'], isNew = false) => {
     setEditingDraft({ ...method, rules: method.rules.map((r) => ({ ...r })) })
     setEditingNew(isNew)
@@ -104,7 +106,7 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
   }
 
   return (
-    <>
+    <div className="itinerary-view">
       <div className="sec" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <button
           className="btn btn-sm"
@@ -197,48 +199,43 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
         </Modal>
       )}
 
-      {owners.length > 1 && (
-        <div className="daystrip" style={{ position: 'static' }}>
-          {owners.map((owner) => (
-            <button
-              key={owner}
-              className="daypill"
-              data-on={owner === activeOwner}
-              onClick={() => setOwnerFilter(owner)}
-            >
-              {owner}
-            </button>
-          ))}
-        </div>
-      )}
+      {/*
+        * 一位持有人一頁，左右撥切換。整頁（含卡片下面的空白）都是拖曳的起點 ——
+        * 每一頁本身就是那一格的捲動層，撐滿整個高度。
+        */}
+      <SwipePager
+        items={owners.map((owner) => ({ key: owner, label: owner }))}
+        index={ownerIndex}
+        onIndex={(i) => setOwnerFilter(owners[i])}
+        renderPane={(i) => (
+          <>
+            {/* 上面的持有人膠囊已經說明現在看的是誰，不再重複一條持有人橫條。 */}
+            <div className="method-cards">
+              {(byOwner[i]?.[1] ?? []).map((res) => (
+                <MethodCard
+                  key={res.method.id}
+                  res={res}
+                  planning={!isActual}
+                  onEdit={() => openEditor(res.method)}
+                  onSelect={onSelect}
+                />
+              ))}
+            </div>
 
-      {/* 上面的持有人膠囊已經說明現在看的是誰，不再重複一條持有人橫條。 */}
-      <div className="method-cards">
-        {shown.flatMap(([, list]) =>
-          list.map((res) => (
-            <MethodCard
-              key={res.method.id}
-              res={res}
-              planning={!isActual}
-              onEdit={() => openEditor(res.method)}
-              onSelect={onSelect}
-            />
-          )),
+            {disabled.length > 0 && (
+              <div className="sec">
+                <span className="label">這趟沒帶</span>
+                {disabled.map((m) => (
+                  <button key={m.id} className="chip" style={{ marginRight: 4 }} onClick={() => updatePayment(m.id, { enabled: true })}>
+                    {methodLabel(m.name, m.owner)} ＋帶上
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         )}
-      </div>
-
-      {methods.filter((m) => !m.enabled).length > 0 && (
-        <div className="sec">
-          <span className="label">這趟沒帶</span>
-          {methods.filter((m) => !m.enabled).map((m) => (
-            <button key={m.id} className="chip" style={{ marginRight: 4 }} onClick={() => updatePayment(m.id, { enabled: true })}>
-              {methodLabel(m.name, m.owner)} ＋帶上
-            </button>
-          ))}
-        </div>
-      )}
-
-    </>
+      />
+    </div>
   )
 }
 

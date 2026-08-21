@@ -1,16 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  FLING,
+  FLING_MIN,
+  useHorizontalSwipe,
+} from './useHorizontalSwipe'
 
-/** 從畫面最左緣起算，這段寬度讓給 iOS 自己的歷史返回手勢。 */
-const EDGE_GUARD = 24
-/** 位移超過這麼多才判定方向，避免點擊時的微小抖動被當成拖曳。 */
-const LOCK_AT = 8
-/** 水平要明顯多過垂直才算橫向，不然捲動列表時會誤判。 */
-const DIRECTION_RATIO = 1.5
 /** 放開時拖過螢幕的幾成就算完成。 */
 const COMPLETE_RATIO = 0.25
-/** 或者甩得夠快也算（px/ms），但仍要拖過這段距離，免得手指一抖就關掉。 */
-const FLING = 0.3
-const FLING_MIN = 36
 
 interface Options {
   /**
@@ -30,9 +25,7 @@ interface Options {
 
 /**
  * 往右拖曳關閉目前這一層。跟著手指走，放開時超過門檻才真的關，不到就彈回。
- *
- * 不需要 preventDefault：所有捲動層都設了 touch-action: pan-y，
- * 瀏覽器只接管垂直方向，水平的 touchmove 本來就完整送到這裡。
+ * 方向判定與門檻在 useHorizontalSwipe，跟切換上下一個的手勢共用同一份。
  */
 export function useSwipeBack<T extends HTMLElement>({
   onDismiss,
@@ -41,114 +34,46 @@ export function useSwipeBack<T extends HTMLElement>({
   stopPropagation = false,
   onDrag,
 }: Options) {
-  /*
-   * 回傳的是 callback ref 而不是物件 ref：要掛手勢的元素常常是條件算繪的
-   * （詳細頁就是），用 useEffect 搭物件 ref 的話，效果跑的時候 current 還是 null，
-   * 之後元素出現也不會再跑一次，手勢就永遠掛不上。
-   */
-  const [el, setEl] = useState<T | null>(null)
-  const ref = useCallback((node: T | null) => setEl(node), [])
-  // 事件監聽只掛一次，但回呼每次算繪都是新的，所以放進 ref 讓監聽讀得到最新值。
-  const latest = useRef({ onDismiss, disabled, ignoreWithin, stopPropagation, onDrag })
-  latest.current = { onDismiss, disabled, ignoreWithin, stopPropagation, onDrag }
+  const paint = (el: HTMLElement, dx: number) => {
+    el.style.transform = dx ? `translateX(${dx}px)` : ''
+  }
 
-  useEffect(() => {
-    if (!el) return
+  const release = (el: HTMLElement, animate: boolean) => {
+    el.style.transition = animate ? 'transform 0.18s ease-out' : ''
+    paint(el, 0)
+    if (animate) window.setTimeout(() => { el.style.transition = '' }, 200)
+  }
 
-    let startX = 0
-    let startY = 0
-    let startAt = 0
-    /** null 表示還沒判定方向；'v' 表示這一次交給捲動，不再理會。 */
-    let axis: 'h' | 'v' | null = null
-    let dragging = false
-
-    const paint = (dx: number) => {
-      el.style.transform = dx ? `translateX(${dx}px)` : ''
-    }
-
-    const release = (animate: boolean) => {
-      el.style.transition = animate ? 'transform 0.18s ease-out' : ''
-      paint(0)
-      if (animate) window.setTimeout(() => { el.style.transition = '' }, 200)
-    }
-
-    const onStart = (event: TouchEvent) => {
-      const { disabled: off, ignoreWithin: skip } = latest.current
-      axis = null
-      dragging = false
-      if (off || event.touches.length !== 1) return
-      const touch = event.touches[0]
-      // 最左緣讓給系統的返回手勢。這個 App 的網址參數都用 replace 寫入，
-      // 歷史不累積，系統手勢會直接離開整個旅程頁而不是關掉這一層。
-      if (touch.clientX < EDGE_GUARD) return
-      if (skip && event.target instanceof Element && event.target.closest(skip)) return
-      // 鍵盤升起代表正在打字，這時的水平拖曳是在選字，不該被當成關閉手勢。
-      if (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb')) > 0) return
-      if (latest.current.stopPropagation) event.stopPropagation()
-      startX = touch.clientX
-      startY = touch.clientY
-      startAt = event.timeStamp
-      dragging = true
-    }
-
-    const onMove = (event: TouchEvent) => {
-      if (!dragging || axis === 'v' || event.touches.length !== 1) return
-      const touch = event.touches[0]
-      const dx = touch.clientX - startX
-      const dy = touch.clientY - startY
-      if (axis === null) {
-        if (Math.hypot(dx, dy) < LOCK_AT) return
-        axis = dx > 0 && Math.abs(dx) > Math.abs(dy) * DIRECTION_RATIO ? 'h' : 'v'
-        if (axis === 'v') return
-        latest.current.onDrag?.(true)
-      }
-      paint(Math.max(0, dx))
-    }
-
-    const onEnd = (event: TouchEvent) => {
-      if (!dragging) return
-      const wasHorizontal = axis === 'h'
-      dragging = false
-      axis = null
-      if (!wasHorizontal) return
-      const touch = event.changedTouches[0]
-      const dx = touch.clientX - startX
-      const speed = dx / Math.max(1, event.timeStamp - startAt)
-      const done = () => latest.current.onDrag?.(false)
+  return useHorizontalSwipe<T>({
+    direction: 'right',
+    disabled,
+    ignoreWithin,
+    stopPropagation,
+    onLock: () => onDrag?.(true),
+    onMove: (dx, el) => paint(el, Math.max(0, dx)),
+    onEnd: ({ dx, speed, el }) => {
+      const done = () => onDrag?.(false)
       if (dx > el.offsetWidth * COMPLETE_RATIO || (dx > FLING_MIN && speed > FLING)) {
         // 先滑出去再交棒，不然畫面會在原地瞬間消失。
         el.style.transition = 'transform 0.16s ease-out'
-        paint(el.offsetWidth)
+        paint(el, el.offsetWidth)
         window.setTimeout(() => {
           /*
            * 位移留著不要清。先清成 0 再交棒的話，元素會在原位閃現一幀才被卸載，
            * 看起來就是關閉瞬間閃出另一個畫面。
            */
-          latest.current.onDismiss()
+          onDismiss()
           // 沒真的關掉（例如被未儲存的確認彈窗攔下）就滑回原位。
           window.requestAnimationFrame(() => {
             if (!el.isConnected) return done()
-            release(true)
+            release(el, true)
             window.setTimeout(done, 200)
           })
         }, 160)
         return
       }
-      release(true)
+      release(el, true)
       window.setTimeout(done, 200)
-    }
-
-    el.addEventListener('touchstart', onStart, { passive: true })
-    el.addEventListener('touchmove', onMove, { passive: true })
-    el.addEventListener('touchend', onEnd, { passive: true })
-    el.addEventListener('touchcancel', onEnd, { passive: true })
-    return () => {
-      el.removeEventListener('touchstart', onStart)
-      el.removeEventListener('touchmove', onMove)
-      el.removeEventListener('touchend', onEnd)
-      el.removeEventListener('touchcancel', onEnd)
-    }
-  }, [el])
-
-  return ref
+    },
+  })
 }

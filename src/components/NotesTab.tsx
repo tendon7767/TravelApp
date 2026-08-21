@@ -12,6 +12,7 @@ import PencilIcon from './PencilIcon'
 import MapPinIcon from './MapPinIcon'
 import LinkIcon from './LinkIcon'
 import { fetchLinkMetadata } from '../sync/client'
+import SwipePager from './SwipePager'
 
 const PACKING_TITLE = '打包清單'
 
@@ -28,10 +29,19 @@ export default function NotesTab({ trip }: { trip: Trip }) {
   )
   const editingNote = editing ? notes.find((n) => n.id === editing.id) : undefined
 
+  /*
+   * 一次看一則，左右撥換下一則 —— 全部堆在同一個捲動裡的話，
+   * 筆記一多就得一直往下捲，而每則筆記本身是獨立的一件事。
+   */
+  const [pickedId, setPickedId] = useState<string | null>(null)
+  const active = notes.find((note) => note.id === pickedId) ?? notes[0]
+  const index = active ? notes.findIndex((note) => note.id === active.id) : 0
+
   // 新旅程會自動帶打包清單，但更早建立的旅程沒有，補一個入口讓它們也拿得到範本。
   const hasPacking = notes.some((n) => n.title.trim() === PACKING_TITLE)
   const addPacking = () => {
     const note = createNote(trip.id, PACKING_TITLE)
+    setPickedId(note.id)
     updateNote(note.id, {
       blocks: (template ?? DEFAULT_PACKING).map((text) => ({
         id: newId(),
@@ -42,13 +52,17 @@ export default function NotesTab({ trip }: { trip: Trip }) {
     })
   }
 
+  const addNote = () => {
+    const note = createNote(trip.id)
+    setPickedId(note.id)
+    setEditing({ id: note.id, isNew: true })
+  }
+
   return (
-    <>
+    <div className="itinerary-view">
+      {/* 新增在上、筆記列表在下，跟回饋頁同一個順序。 */}
       <div className="sec" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <button
-          className="btn btn-sm"
-          onClick={() => setEditing({ id: createNote(trip.id).id, isNew: true })}
-        >
+        <button className="btn btn-sm" onClick={addNote}>
           ＋ 新增筆記
         </button>
         {!hasPacking && (
@@ -58,10 +72,21 @@ export default function NotesTab({ trip }: { trip: Trip }) {
         )}
       </div>
 
-      {notes.length === 0 && <div className="empty">還沒有筆記。</div>}
-      {notes.map((note) => (
-        <NoteCard key={note.id} note={note} onEdit={() => setEditing({ id: note.id, isNew: false })} />
-      ))}
+      {notes.length === 0 ? (
+        <div className="empty">還沒有筆記。</div>
+      ) : (
+        <SwipePager
+          items={notes.map((note) => ({ key: note.id, label: note.title || '未命名筆記' }))}
+          index={index}
+          onIndex={(i) => setPickedId(notes[i].id)}
+          renderPane={(i) => {
+            const note = notes[i]
+            return note ? (
+              <NoteCard note={note} onEdit={() => setEditing({ id: note.id, isNew: false })} />
+            ) : null
+          }}
+        />
+      )}
 
       {editingNote && editing && (
         <NoteEditorModal
@@ -72,7 +97,7 @@ export default function NotesTab({ trip }: { trip: Trip }) {
           onClose={() => setEditing(null)}
         />
       )}
-    </>
+    </div>
   )
 }
 

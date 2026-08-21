@@ -9,6 +9,7 @@ import GearIcon from '../components/GearIcon'
 import TripFields from '../components/TripFields'
 import JoinTripModal from '../components/JoinTripModal'
 import { tripFormValid } from '../lib/tripForm'
+import TabBar from '../components/TabBar'
 
 export default function TripsPage() {
   // selector 必須回傳穩定參照，過濾留給 useMemo，否則每次重繪都是新陣列。
@@ -22,6 +23,13 @@ export default function TripsPage() {
   const allPhotos = useStore((s) => s.data.photos)
   const pendingPhotos = useStore((s) => s.pendingPhotos)
   const navigate = useNavigate()
+  /*
+   * 底部導航列在這一頁也留著，另外三格指的是「最近看的那趟」。
+   * 沒有紀錄（或那趟已經不在）就退回列表最上面那一趟 —— 那三格永遠要有目的地，
+   * 而畫面上被高亮的那一列，就是點下去會進到的地方。
+   */
+  const activeTripId = useStore((s) => s.settings.activeTripId)
+  const activeTrip = trips.find((t) => t.id === activeTripId) ?? trips[0]
   const [blankForm] = useState(() => draftTrip())
   const [form, setForm] = useState(blankForm)
   const [open, setOpen] = useState(false)
@@ -102,7 +110,12 @@ export default function TripsPage() {
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {trips.map((t) => (
-        <div key={t.id} className="row" style={{ alignItems: 'center' }}>
+        <div
+          key={t.id}
+          className="row"
+          data-on={t.id === activeTrip?.id}
+          style={{ alignItems: 'center' }}
+        >
           <button
             style={{ flex: 1, textAlign: 'left', minWidth: 0 }}
             onClick={() => navigate(`/trip/${t.id}`)}
@@ -136,6 +149,15 @@ export default function TripsPage() {
       <div className="sec app-version-bar">
         <AppVersion />
       </div>
+
+      <TabBar
+        active="home"
+        tripDisabled={!activeTrip}
+        onSelect={(key) => {
+          if (key === 'home' || !activeTrip) return
+          navigate(`/trip/${activeTrip.id}?tab=${key}`)
+        }}
+      />
     </div>
   )
 }
