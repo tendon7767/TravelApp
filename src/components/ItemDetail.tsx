@@ -27,6 +27,9 @@ import {
 } from '../store/drafts'
 import CategoryIcon from './CategoryIcon'
 import TrashIcon from './TrashIcon'
+import BackIcon from './BackIcon'
+import CopyIcon from './CopyIcon'
+import CloseIcon from './CloseIcon'
 import MapPinIcon from './MapPinIcon'
 import PencilIcon from './PencilIcon'
 import LinkIcon from './LinkIcon'
@@ -572,8 +575,18 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       {paymentModal}
 
       <div className="topbar detail-head">
+        <button
+          className="btn btn-sm btn-glyph btn-plain"
+          onClick={requestCancel}
+          aria-label="返回行程列表"
+        >
+          <BackIcon size={22} />
+        </button>
+        <span className="detail-head-gap" />
         <ConfirmButton
-          label="刪除"
+          label={<TrashIcon size={20} />}
+          ariaLabel="刪除這個項目"
+          className="btn btn-sm btn-glyph btn-plain"
           question="刪除這個項目？"
           onConfirm={() => {
             removeItem(item.id)
@@ -581,20 +594,22 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
             onClose()
           }}
         />
-        <span className="detail-head-gap" />
         <button
-          className="btn btn-sm"
+          className="btn btn-sm btn-glyph btn-plain"
           onClick={() => onCopy(storedItem)}
           disabled={hasEditing}
+          aria-label="複製這筆行程"
           title={hasEditing ? '請先完成或取消編輯' : '複製這筆行程'}
         >
-          複製
+          <CopyIcon size={20} />
         </button>
         <button
-          className="btn btn-sm detail-edit-all"
+          className="btn btn-sm btn-glyph btn-plain detail-edit-all"
           onClick={allSectionsOpen ? requestCancel : beginEditAll}
+          aria-label={allSectionsOpen ? '取消編輯' : '編輯全部'}
+          title={allSectionsOpen ? '取消編輯' : '編輯全部'}
         >
-          {allSectionsOpen ? '取消編輯' : '編輯全部'}
+          {allSectionsOpen ? <CloseIcon size={20} /> : <PencilIcon size={20} />}
         </button>
       </div>
 
@@ -1169,18 +1184,22 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         {isActual && <PhotoSection trip={trip} itemId={item.id} kind="trip" />}
       </div>
 
-      <div className="editor-actions">
-        {hasEditing ? (
-          <>
-            <button className="btn" onClick={requestCancel}>取消編輯</button>
-            <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>
-              完成編輯
-            </button>
-          </>
-        ) : (
+      {/*
+        * 沒在編輯時只剩「離開」可按，而手機是用右滑返回的 ——
+        * 那條按鈕列只留給沒有手勢的桌機，手機不算繪，不留一條空的橫條。
+        */}
+      {hasEditing ? (
+        <div className="editor-actions">
+          <button className="btn" onClick={requestCancel}>取消編輯</button>
+          <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>
+            完成編輯
+          </button>
+        </div>
+      ) : (
+        <div className="editor-actions wide-only">
           <button className="btn detail-leave-wide" onClick={requestCancel}>離開</button>
-        )}
-      </div>
+        </div>
+      )}
     </>
   )
 }

@@ -58,11 +58,11 @@ export default function TripsPage() {
           {(memberName.trim() || '我')}的旅程
         </strong>
         <button
-          className="btn btn-sm btn-glyph"
+          className="btn btn-sm btn-glyph btn-plain"
           onClick={() => setSettingsOpen(true)}
           aria-label="設定"
         >
-          <GearIcon />
+          <GearIcon size={22} />
         </button>
       </div>
 

@@ -15,8 +15,8 @@ import type { Item } from '../types'
 import { copyItemSnapshot } from '../lib/items'
 import { useSwipeBack } from '../lib/useSwipeBack'
 import AlbumView from '../components/AlbumView'
-import TripsPage from './TripsPage'
 import BackIcon from '../components/BackIcon'
+import TripsPage from './TripsPage'
 import SearchIcon from '../components/SearchIcon'
 import CloseIcon from '../components/CloseIcon'
 import ItineraryIcon from '../components/ItineraryIcon'
@@ -265,12 +265,13 @@ export default function TripPage() {
         </Modal>
       )}
       <div className="topbar" ref={topbarRef}>
+        {/* 手機用右滑返回，這顆只留給沒有手勢的桌機。 */}
         <button
-          className="btn btn-sm btn-glyph"
+          className="btn btn-sm btn-glyph btn-plain wide-only"
           onClick={() => requestNavigation(() => navigate('/'))}
           aria-label="回到旅程列表"
         >
-          <BackIcon />
+          <BackIcon size={22} />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -300,21 +301,21 @@ export default function TripPage() {
         </div>
         {tab === 'itinerary' && !searching && plan?.kind === 'actual' && (
           <button
-            className="btn btn-sm btn-glyph"
+            className="btn btn-sm btn-glyph btn-plain"
             data-on={reviewMode}
             onClick={() => navigateParam('mode', reviewMode ? undefined : 'review')}
             aria-label={reviewMode ? '離開心得模式' : '心得模式'}
             aria-pressed={reviewMode}
           >
-            <ReviewIcon size={20} />
+            <ReviewIcon size={22} />
           </button>
         )}
         <button
-          className="btn btn-sm btn-glyph"
+          className="btn btn-sm btn-glyph btn-plain"
           onClick={() => navigateParam('q', searching ? undefined : '1')}
           aria-label={searching ? '關閉搜尋' : '搜尋'}
         >
-          {searching ? <CloseIcon /> : <SearchIcon />}
+          {searching ? <CloseIcon size={22} /> : <SearchIcon size={22} />}
         </button>
       </div>
 

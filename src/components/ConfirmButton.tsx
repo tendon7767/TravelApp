@@ -1,12 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
 interface Props {
-  label: string
+  /** 收合時的樣子；可以是文字，也可以是圖示。 */
+  label: ReactNode
   /** 說清楚會刪掉什麼，例如「連同 31 筆行程」 */
   question: string
   onConfirm: () => void
   danger?: boolean
   confirmLabel?: string
+  /** 收合時要套在按鈕上的額外 class，例如做成無外框的圖示鍵。 */
+  className?: string
+  /** label 是圖示時要另外給無障礙名稱。 */
+  ariaLabel?: string
 }
 
 /**
@@ -19,6 +24,8 @@ export default function ConfirmButton({
   onConfirm,
   danger = true,
   confirmLabel = '刪除',
+  className = 'btn btn-sm',
+  ariaLabel,
 }: Props) {
   const [armed, setArmed] = useState(false)
 
@@ -31,7 +38,9 @@ export default function ConfirmButton({
   if (!armed) {
     return (
       <button
-        className={danger ? 'btn btn-sm btn-quiet-danger' : 'btn btn-sm'}
+        className={danger ? `${className} btn-quiet-danger` : className}
+        aria-label={ariaLabel}
+        title={ariaLabel}
         onClick={() => setArmed(true)}
       >
         {label}
