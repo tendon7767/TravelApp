@@ -12,7 +12,6 @@ import NotesTab from '../components/NotesTab'
 import Modal from '../components/Modal'
 import type { Item } from '../types'
 import { copyItemSnapshot } from '../lib/items'
-import { tripFormOf, tripFormValid, type TripForm } from '../lib/tripForm'
 import { useSwipeBack } from '../lib/useSwipeBack'
 import AlbumView from '../components/AlbumView'
 import SearchIcon from '../components/SearchIcon'
@@ -30,7 +29,7 @@ export default function TripPage() {
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
   const [copied, setCopied] = useState<{ tripId: string; item: Item } | null>(null)
   /* 旅程基本資訊是草稿，按「完成」才寫回去；不是 null 就代表彈窗開著。 */
-  const [tripDraft, setTripDraft] = useState<TripForm | null>(null)
+  const [tripOpen, setTripOpen] = useState(false)
   const topbarRef = useRef<HTMLDivElement>(null)
 
   const trip = useStore((s) => s.data.trips.find((t) => t.id === tripId && !t.deleted))
@@ -40,7 +39,6 @@ export default function TripPage() {
   const syncTrip = useStore((s) => s.syncTrip)
   const localRev = useStore((s) => s.localRev)
   const dismissOverwritten = useStore((s) => s.dismissOverwritten)
-  const updateTrip = useStore((s) => s.updateTrip)
   const setActive = useStore((s) => s.setActive)
   const duplicateItem = useStore((s) => s.duplicateItem)
   const allPlans = useStore((s) => s.data.plans)
@@ -210,17 +208,6 @@ export default function TripPage() {
     )
   }
 
-  const tripDirty =
-    tripDraft !== null && JSON.stringify(tripDraft) !== JSON.stringify(tripFormOf(trip))
-
-  /* 名稱空白或日期顛倒就先不收，讓彈窗留著給人改（日期的錯誤訊息就在欄位底下）。 */
-  const completeTripEdit = () => {
-    if (!tripDraft) return
-    if (!tripFormValid(tripDraft)) return
-    updateTrip(trip.id, { ...tripDraft, name: tripDraft.name.trim() })
-    setTripDraft(null)
-  }
-
   /*
    * 同步狀態接在匯率後面顯示，本身就是手動同步的按鈕。
    * 自動同步很頻繁，獨立的圖示鍵大半時間是 disabled，看起來像壞掉。
@@ -258,24 +245,14 @@ export default function TripPage() {
           </p>
         </Modal>
       )}
-      {tripDraft && (
-        <Modal
-          title="編輯旅程"
-          onCancel={() => setTripDraft(null)}
-          onComplete={completeTripEdit}
-          completeDisabled={!tripDirty || !tripFormValid(tripDraft)}
-          dirty={tripDirty}
-        >
+      {tripOpen && (
+        <Modal title="旅程" onCancel={() => setTripOpen(false)}>
           <TripSettings
             trip={trip}
-            form={tripDraft}
-            onFormChange={(patch) =>
-              setTripDraft((current) => (current ? { ...current, ...patch } : current))
-            }
             activePlanId={plan?.id}
             onPickPlan={(id) => setParam('plan', id)}
             onLeave={() => {
-              setTripDraft(null)
+              setTripOpen(false)
               navigate('/')
             }}
           />
@@ -286,7 +263,7 @@ export default function TripPage() {
           {/* 旅程名稱就是旅程設定的入口。同步鍵在下一行，不能包進同一顆按鈕裡。 */}
           <button
             className="topbar-title"
-            onClick={() => setTripDraft(tripFormOf(trip))}
+            onClick={() => setTripOpen(true)}
             aria-haspopup="dialog"
           >
             {trip.name}

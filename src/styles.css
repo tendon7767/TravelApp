@@ -311,6 +311,25 @@ a { color: var(--accent); }
 /* 二選一的按鈕組（例如配色）：選中的那顆要一眼看得出來。 */
 .btn[aria-pressed='true'] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
 
+/*
+ * 旅程彈窗最上面那塊基本資訊的摘要。這裡只是顯示，要改要按底下的「編輯」——
+ * 用 --surface-2 當底在深色是「浮起來的那一層」，亮色卻是最深的色塊（語意翻轉），
+ * 所以亮色另外覆寫回 --surface，兩邊看起來都是「浮在彈窗上的一塊」。
+ */
+.trip-summary {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  /* 旅程名可能是一長串沒有空白的字，不斷行會頂破彈窗。 */
+  overflow-wrap: anywhere;
+}
+:root[data-theme='light'] .trip-summary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
 /* 設定頁的說明文字。行高壓一點，一整頁排下來省下來的高度很可觀。 */
 .settings-hint { color: var(--text-3); font-size: 12px; line-height: 1.45; margin: 8px 0 0; }
 

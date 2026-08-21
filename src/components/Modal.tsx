@@ -3,6 +3,14 @@ import { createPortal } from 'react-dom'
 import { isSubmitEnter } from '../lib/keys'
 import CloseIcon from './CloseIcon'
 
+/*
+ * 疊起來的彈窗共用的狀態。旅程彈窗裡再開編輯旅程，就是兩個獨立的 Modal 同時掛著：
+ * 沒有這個計數的話，內層卸載時會直接把 body 的捲動鎖解掉（外層還開著），
+ * 而兩層都在 document 上聽 Esc，按一次會兩層一起關。
+ */
+const stack: number[] = []
+let nextToken = 0
+
 interface Props {
   title: string
   onCancel: () => void
@@ -47,18 +55,31 @@ export default function Modal({
     else onCancel()
   }, [dirty, onCancel])
 
+  /* 掛載順序就是疊放順序，最後掛上的那個是最上層。 */
+  const tokenRef = useRef(0)
+  useEffect(() => {
+    nextToken += 1
+    const token = nextToken
+    tokenRef.current = token
+    stack.push(token)
+    document.body.classList.add('modal-open')
+    return () => {
+      // 不能只 pop：內層與外層的卸載順序不保證，把自己那一個挑掉才對。
+      stack.splice(stack.indexOf(token), 1)
+      if (stack.length === 0) document.body.classList.remove('modal-open')
+    }
+  }, [])
+
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== 'Escape') return
+      // 只有最上層那個吃 Esc，否則一次按鍵會把整疊關掉。
+      if (tokenRef.current !== stack[stack.length - 1]) return
       if (confirmingCancel) setConfirmingCancel(false)
       else requestCancel()
     }
     document.addEventListener('keydown', onKey)
-    document.body.classList.add('modal-open')
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.classList.remove('modal-open')
-    }
+    return () => document.removeEventListener('keydown', onKey)
   }, [confirmingCancel, requestCancel])
 
   /*

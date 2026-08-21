@@ -1,36 +1,34 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import type { Trip } from '../types'
 import TripFields from './TripFields'
-import type { TripForm } from '../lib/tripForm'
+import Modal from './Modal'
+import { dayCount, shortDate } from '../lib/date'
+import { tripFormOf, tripFormValid, type TripForm } from '../lib/tripForm'
 import SyncSection from './SyncSection'
 import ConfirmButton from './ConfirmButton'
 import PlanSwitcher from './PlanSwitcher'
 import { REVIEW_HUES, tagCharOf } from '../lib/reviewHues'
 
 /**
- * 旅程本身的設定，內容放在頂列旅程名稱點開的彈窗裡。
- * 縮短日期範圍會讓範圍外的項目變成看不到的孤兒，所以先數給使用者看。
- * 基本資訊是草稿：按彈窗底部的「完成」才寫回去，比照編輯支付方式 ——
- * 所以草稿由開彈窗的那一層持有，這裡只負責畫。
- * 其餘的（版本、配色、同步、刪除）都是點下去就生效，不進草稿。
+ * 旅程本身的設定，內容放在頂列旅程名稱點開的「旅程」彈窗裡。
+ * **這一頁的東西全部即時生效，關掉不會丟掉任何東西。** 唯一的草稿是基本資訊，
+ * 而它被收進另一個彈窗裡（點「編輯」才開），草稿的生死也就關在那個彈窗裡 ——
+ * 所以外層不需要取消／儲存，底部是一條「關閉」。
  */
 export default function TripSettings({
   trip,
-  form,
-  onFormChange,
   activePlanId,
   onPickPlan,
   onLeave,
 }: {
   trip: Trip
-  form: TripForm
-  onFormChange: (patch: Partial<TripForm>) => void
   activePlanId?: string
   onPickPlan: (id: string) => void
   /** 旅程被移除後要離開這一頁。 */
   onLeave: () => void
 }) {
+  const updateTrip = useStore((s) => s.updateTrip)
   const removeTrip = useStore((s) => s.removeTrip)
   const removePlan = useStore((s) => s.removePlan)
   const allPlans = useStore((s) => s.data.plans)
@@ -39,12 +37,18 @@ export default function TripSettings({
   const allReviews = useStore((s) => s.data.reviews)
   const reviewHues = useStore((s) => s.settings.reviewHues?.[trip.id])
   const setReviewHue = useStore((s) => s.setReviewHue)
+  /* 基本資訊的草稿只在那個彈窗開著時存在。null 就是沒在編輯。 */
+  const [draft, setDraft] = useState<TripForm | null>(null)
+  const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(tripFormOf(trip))
+
+  /* 縮短日期範圍會讓範圍外的項目變成看不到的孤兒，所以編輯期間先數給使用者看。 */
   const stranded = useMemo(() => {
+    if (!draft) return 0
     const planIds = new Set(allPlans.filter((p) => p.tripId === trip.id && !p.deleted).map((p) => p.id))
     return allItems.filter(
-      (i) => !i.deleted && planIds.has(i.planId) && (i.date < form.startDate || i.date > form.endDate),
+      (i) => !i.deleted && planIds.has(i.planId) && (i.date < draft.startDate || i.date > draft.endDate),
     ).length
-  }, [allPlans, allItems, trip.id, form.startDate, form.endDate])
+  }, [allPlans, allItems, trip.id, draft])
 
   const itemCount = useMemo(() => {
     const planIds = new Set(allPlans.filter((p) => p.tripId === trip.id && !p.deleted).map((p) => p.id))
@@ -80,7 +84,50 @@ export default function TripSettings({
 
   return (
     <div style={{ display: 'grid', gap: 10 }}>
-        <TripFields form={form} onChange={onFormChange} idPrefix="e" />
+        <div>
+          <span className="label">基本資訊</span>
+          <div className="trip-summary">
+            <strong style={{ fontSize: 15, fontWeight: 500 }}>{trip.name}</strong>
+            <span className="dim" style={{ fontSize: 12 }}>
+              {shortDate(trip.startDate)} – {shortDate(trip.endDate)} ·{' '}
+              {dayCount(trip.startDate, trip.endDate)} 天
+            </span>
+            <span className="dim" style={{ fontSize: 12 }}>
+              {trip.foreignCurrency} 匯率 {trip.rate}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+            <button className="btn btn-sm" onClick={() => setDraft(tripFormOf(trip))}>
+              編輯
+            </button>
+          </div>
+        </div>
+
+        {/* 彈窗放在按鈕外面：Modal 是 portal 到 body 的，但 React 的合成事件沿的是
+            React 樹，寫進可點元素裡的話點蓋板關掉的那一下會再冒泡回去把它打開。 */}
+        {draft && (
+          <Modal
+            title="編輯旅程"
+            onCancel={() => setDraft(null)}
+            onComplete={() => {
+              updateTrip(trip.id, { ...draft, name: draft.name.trim() })
+              setDraft(null)
+            }}
+            completeDisabled={!dirty || !tripFormValid(draft)}
+            dirty={dirty}
+          >
+            <TripFields
+              form={draft}
+              onChange={(patch) => setDraft((current) => (current ? { ...current, ...patch } : current))}
+              idPrefix="e"
+            />
+            {stranded > 0 && (
+              <p style={{ fontSize: 12, color: 'var(--danger)', margin: '10px 0 0' }}>
+                有 {stranded} 筆行程落在新的日期範圍外，儲存後會看不到（資料還在，把日期改回來就會出現）。
+              </p>
+            )}
+          </Modal>
+        )}
 
         <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
           <span className="label">目前檢視版本</span>
@@ -132,12 +179,6 @@ export default function TripSettings({
           <span className="label">雲端同步</span>
           <SyncSection trip={trip} />
         </div>
-
-        {stranded > 0 && (
-          <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>
-            有 {stranded} 筆行程落在新的日期範圍外，完成後會看不到（資料還在，把日期改回來就會出現）。
-          </p>
-        )}
 
         {actualPlan && (
           <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12, marginTop: 4 }}>

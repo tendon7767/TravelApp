@@ -43,9 +43,13 @@ export default function SyncSection({ trip }: { trip: Trip }) {
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       {!link ? (
-        <button className="btn btn-sm" onClick={connect} disabled={busy}>
-          {busy ? '建立中…' : '在雲端硬碟建立這趟的試算表'}
-        </button>
+        /* 外層是 grid，按鈕直接放進去會被拉滿整行。包成跟已連線那一支同樣的一排，
+           寬度就由文字決定並靠左，兩支的形狀也一致。 */
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button className="btn btn-sm" onClick={connect} disabled={busy}>
+            {busy ? '建立中…' : '在雲端硬碟建立這趟的試算表'}
+          </button>
+        </div>
       ) : (
         <>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
