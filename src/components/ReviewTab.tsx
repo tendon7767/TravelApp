@@ -13,6 +13,7 @@ import { eachDay, shortDate, timeSortKey } from '../lib/date'
 import { useDayScroller } from '../lib/useDayScroller'
 import { useDaySwipe } from '../lib/useDaySwipe'
 import { useNowClock } from '../lib/useNowClock'
+import { expectedKeyboardHeight } from '../lib/keyboard'
 import { pickCurrentItemId } from '../lib/items'
 import {
   clearReviewDrafts,
@@ -39,6 +40,13 @@ interface Props {
  * 長的要在小框裡捲，兩邊都難讀。上限交給 CSS 的 max-height 收。
  * 掛在 ref 上負責掛載時（含還原草稿）的初始高度，onInput 負責打字途中。
  */
+/** 讀一個掛在 <html> 上、值是純數字 px 的 CSS 變數（--kb 與 --tabbar-h 都是量出來寫進去的）。 */
+const cssPx = (name: string): number =>
+  parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0
+
+/** 平滑捲動；不支援的瀏覽器退回直接跳過去。 */
+const SMOOTH = 'scrollBehavior' in document.documentElement.style
+
 const autoGrow = (el: HTMLTextAreaElement | null) => {
   if (!el) return
   el.style.height = 'auto'
@@ -248,18 +256,34 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
    * 那兩顆按鈕也要看得到，不然又回到「要送出得先捲畫面」。
    * 捲的只有 .itinerary-scroll 這一條，捲最小的距離。
    */
-  const revealEditing = useCallback(() => {
-    const scroller = scrollRef.current
-    const active = document.activeElement
-    if (!scroller || !(active instanceof HTMLTextAreaElement)) return
-    const group = active.closest<HTMLElement>('.review-editing')
-    if (!group) return
-    const box = scroller.getBoundingClientRect()
-    const rect = group.getBoundingClientRect()
-    const margin = 8
-    if (rect.bottom > box.bottom - margin) scroller.scrollTop += rect.bottom - box.bottom + margin
-    else if (rect.top < box.top + margin) scroller.scrollTop -= box.top - rect.top + margin
-  }, [scrollRef])
+  const revealEditing = useCallback(
+    (expectKb = 0) => {
+      const scroller = scrollRef.current
+      const active = document.activeElement
+      if (!scroller || !(active instanceof HTMLTextAreaElement)) return
+      const group = active.closest<HTMLElement>('.review-editing')
+      if (!group) return
+      const box = scroller.getBoundingClientRect()
+      const rect = group.getBoundingClientRect()
+      const margin = 8
+      /*
+       * expectKb 是「鍵盤等一下會有多高」。鍵盤升起時 .review-view 會加上
+       * max(0, --kb - --tabbar-h) 的下內距，捲動區就矮那一截 —— 這裡先自己扣掉，
+       * 就能在鍵盤還沒上來時算出它上來之後的可視底緣。已經升起時傳 0 就好，
+       * 那時量到的 box 本來就是縮過的。
+       */
+      const bottom = box.bottom - Math.max(0, expectKb - cssPx('--tabbar-h'))
+      let delta = 0
+      if (rect.bottom > bottom - margin) delta = rect.bottom - bottom + margin
+      else if (rect.top < box.top + margin) delta = rect.top - box.top - margin
+      // 一兩 px 的差不值得動：預測準的時候，鍵盤停穩後的那次校正就該是靜悄悄的。
+      if (Math.abs(delta) < 2) return
+      // 平滑捲動途中的中間值不該把日期膠囊搶走。
+      holdDay()
+      scroller.scrollTo({ top: scroller.scrollTop + delta, behavior: SMOOTH ? 'smooth' : 'auto' })
+    },
+    [scrollRef, holdDay],
+  )
 
   /** 排程中的那一次帶進可視範圍。兩條路線共用，後排的取代先排的，所以只會捲一次。 */
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -276,16 +300,21 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
      * 還得再捲一次 —— 那就是兩次上推。所以軟鍵盤的裝置先不捲，等可視視窗被壓小再一次到位。
      * 已經有鍵盤（換一則編輯）或本來就沒有軟鍵盤（滑鼠裝置）的話，立刻捲才對。
      */
-    const kb = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb')) || 0
     const softKeyboard =
       Boolean(window.visualViewport) && !window.matchMedia('(hover: hover) and (pointer: fine)').matches
-    if (kb > 0 || !softKeyboard) {
+    if (cssPx('--kb') > 0 || !softKeyboard) {
       revealEditing()
       return
     }
-    // 保底：接了實體鍵盤的觸控裝置不會有 resize，那就不能一直等下去。
+    /*
+     * 鍵盤還沒升起，但它有多高是已知的（上次量過）—— 直接用預測值算好目的地就開始滑，
+     * 跟鍵盤上升的動畫重疊，看起來是一個動作。沒量過（這台裝置第一次編輯）就只能等。
+     */
+    const expect = expectedKeyboardHeight()
+    if (expect > 0) revealEditing(expect)
+    // 保底兼校正：接了實體鍵盤的觸控裝置不會有 resize，那就不能一直等下去。
     clearTimeout(revealTimerRef.current)
-    revealTimerRef.current = setTimeout(revealEditing, 600)
+    revealTimerRef.current = setTimeout(() => revealEditing(), 600)
   }, [focusId, scrollRef, revealEditing])
 
   /*
@@ -328,7 +357,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     const onResize = () => {
       // 蓋掉上面排的保底：鍵盤真的來了，就以它停穩之後的尺寸為準捲那唯一的一次。
       clearTimeout(revealTimerRef.current)
-      revealTimerRef.current = setTimeout(revealEditing, 350)
+      revealTimerRef.current = setTimeout(() => revealEditing(), 350)
     }
     vv.addEventListener('resize', onResize)
     return () => {
