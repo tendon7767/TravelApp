@@ -811,10 +811,16 @@ body[data-actual='true'] {
 
 .link-edit-row { margin-bottom: 6px; }
 .link-add-row .field { flex: 1; min-width: 0; }
+.link-paste-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: var(--accent);
+}
 .link-lookup-error { font-size: 11px; margin: 5px 0 0; }
 
 @media (max-width: 420px) {
-  .category-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .category-picker { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 .rowtime {
@@ -1049,6 +1055,19 @@ body[data-actual='true'] {
   outline-offset: -2px;
 }
 
+/* 手機單區塊編輯時，其餘區塊退到背景且不能操作，避免誤以為能同時改多區。 */
+@media (max-width: 859px) {
+  .detail-scroll[data-edit-mode='section'] > .detail-section:not([data-active='true']) {
+    /*
+     * 不用 opacity：亮色實際版的頁底是淡綠色，白色區塊變透明後會被染成綠灰。
+     * 直接降低亮度並收掉部分彩度，四種主題都會得到中性的壓暗效果。
+     */
+    filter: brightness(0.78) saturate(0.5);
+    pointer-events: none;
+    transition: filter 140ms ease;
+  }
+}
+
 .detail-summary { padding-top: 16px; }
 
 /* 編輯基本資訊時，區塊標題、欄位名稱與輸入框是一組緊湊表單。 */
@@ -1173,14 +1192,12 @@ body[data-actual='true'] {
   font-size: 13px;
 }
 
-.detail-link-open {
+.detail-link-content {
   display: flex;
   flex: 1;
   align-items: center;
   gap: 7px;
   min-width: 0;
-  color: inherit;
-  text-decoration: none;
 }
 
 .detail-link-label {
@@ -1188,16 +1205,13 @@ body[data-actual='true'] {
   overflow-wrap: anywhere;
 }
 
-/* 鉛筆佔住原本「開啟」的位置，讓「這裡可以編輯」看得出來。 */
-.detail-link-edit {
-  display: inline-flex;
-  align-items: center;
+.detail-link-external {
+  display: flex;
   justify-content: center;
-  flex: none;
-  width: 30px;
-  height: 30px;
-  margin: -4px -3px -4px 0;
-  color: var(--text-3);
+  flex: 0 0 calc(33.333% - 3px);
+  min-width: 0;
+  white-space: nowrap;
+  text-decoration: none;
 }
 
 .detail-link-icon {
@@ -1271,6 +1285,8 @@ body[data-actual='true'] {
 
 .detail-note-edit-row { align-items: center; margin-bottom: 6px; }
 .detail-note-edit-row .field { flex: 1; min-width: 0; }
+.detail-note-new-row .detail-note-bullet { align-self: center; }
+.detail-add-row { margin-top: 4px; }
 
 .detail-cost-summary {
   display: flex;
@@ -1476,6 +1492,25 @@ body[data-actual='true'] {
 .detail-review { margin-top: 8px; }
 .detail-review .detail-key { display: block; margin-bottom: 4px; }
 
+/* 詳細頁沿用心得模式的作者配色與名牌語言，但名牌不需要 sticky。 */
+.detail-review-colored {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.detail-review-colored .review-tag {
+  position: relative;
+  top: auto;
+  z-index: auto;
+}
+.detail-review-colored > p {
+  flex: 1;
+  min-width: 0;
+  border: 1.5px solid transparent;
+  border-radius: 4px 8px 8px 8px;
+  background: var(--bubble-bg);
+}
+
 .detail-author {
   margin-bottom: 5px;
   color: var(--text-3);
@@ -1496,6 +1531,11 @@ body[data-actual='true'] {
 .detail-restored span { flex: 1; }
 
 .photo-section { cursor: default; }
+.photo-section-embedded {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--border);
+}
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1627,7 +1667,7 @@ body[data-actual='true'] {
 
 /*
  * iOS 鍵盤升起時版面視窗不會縮，只有可視視窗縮，所以畫面底部那段被鍵盤蓋住
- * ——「取消／完成編輯」就在那裡。詳細頁沒這問題是因為它是 position: fixed 的蓋板；
+ * ——「取消／儲存」就在那裡。詳細頁沒這問題是因為它是 position: fixed 的蓋板；
  * 心得模式在流內，改成讓外層讓開，捲動區自己吸收，按鈕列就升到鍵盤上緣。
  * 扣掉 --tabbar-h 是因為底部導航列已經佔掉那一段，不扣會抬過頭。
  * 本 App 明確採 resizes-visual；現代 Android Chrome 與 iOS 都由可視視窗回報遮蔽高度。
@@ -1897,7 +1937,48 @@ body[data-actual='true'] {
 }
 
 .costline-head .cl-label { flex: 1; min-width: 0; }
+.costline .cl-price { width: 76px; }
+.costline .cl-qty { width: 52px; }
 .costline .cl-sub { flex: 1; text-align: right; font-size: 12px; }
+
+/*
+ * 手機上的費用卡採緊湊雙列：第一列只放名稱與刪除，第二列依序放
+ * 單價、數量、幣別與小計。桌機仍保留原本較寬鬆、可換行的排列。
+ */
+@media (max-width: 619px) {
+  .costline {
+    display: grid;
+    grid-template-columns: minmax(54px, 1fr) auto 44px auto minmax(44px, auto);
+    align-items: stretch;
+    gap: 6px;
+    margin-bottom: 8px;
+    padding: 7px;
+    border-radius: 9px;
+  }
+
+  .costline-head {
+    grid-column: 1 / -1;
+    gap: 6px;
+  }
+
+  .costline .cl-price {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .costline-times {
+    align-self: center;
+  }
+
+  .costline .cl-qty { width: 44px; }
+  .costline .seg-btn-sm { padding: 0 6px; font-size: 11px; }
+  .costline .cl-sub {
+    align-self: center;
+    min-width: 0;
+    white-space: nowrap;
+    font-size: 11px;
+  }
+}
 
 /*
  * 無外框的圖示按鈕（編輯用的小鉛筆）。外框套在這種尺寸的圖示上太搶眼，

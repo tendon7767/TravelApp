@@ -11,10 +11,12 @@ export default function PhotoSection({
   trip,
   itemId,
   kind,
+  embedded = false,
 }: {
   trip: Trip
   itemId: string
   kind: Photo['kind']
+  embedded?: boolean
 }) {
   const allPhotos = useStore((state) => state.data.photos)
   const pending = useStore((state) => state.pendingPhotos)
@@ -71,8 +73,8 @@ export default function PhotoSection({
     if (albumRef.current) albumRef.current.value = ''
   }
 
-  return (
-    <section className="detail-section photo-section">
+  const content = (
+    <>
       <div className="detail-section-head">
         <span className="detail-kicker">
           {kind === 'receipt' ? <ReceiptIcon size={14} /> : <PhotoIcon size={14} />}
@@ -127,6 +129,16 @@ export default function PhotoSection({
           onRetry={retryPhoto}
         />
       )}
-    </section>
+    </>
   )
+
+  if (embedded) {
+    return (
+      <div className="photo-section photo-section-embedded" onClick={(event) => event.stopPropagation()}>
+        {content}
+      </div>
+    )
+  }
+
+  return <section className="detail-section photo-section">{content}</section>
 }

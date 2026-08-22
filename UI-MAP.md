@@ -34,7 +34,7 @@
 │   ├── 行程列                                       .row
 │   │   └── 點開 → 詳細頁                            .pane-detail / ItemDetail.tsx
 │   │       ├── 區段（時間、地點、花費、照片、心得）
-│   │       └── 取消編輯／完成編輯                    .editor-actions
+│   │       └── 取消／儲存                            .editor-actions
 │   ├── now 鈕                                       .now-fab
 │   └── 心得模式（同一頁的另一種樣子）                 ReviewTab.tsx / mode=review
 │       ├── 一列一則心得，共用日期橫條

@@ -47,6 +47,8 @@ import { copyItemSnapshot } from '../lib/items'
 import { flightStatusUrl, hasFlightStatus } from '../lib/flight'
 import PlaneIcon from './PlaneIcon'
 import PhotoSection from './PhotoSection'
+import { tagCharOf } from '../lib/reviewHues'
+import PasteIcon from './PasteIcon'
 
 interface Props {
   trip: Trip
@@ -66,7 +68,7 @@ const SECTION_LABELS: Record<ItemDraftSection, string> = {
   review: '心得',
 }
 
-// 按「新增一筆費用」（或空白費用按鉛筆）會先長出一列空的，使用者什麼都沒填就取消時
+// 按「新增費用」（或空白費用按鉛筆）會先長出一列空的，使用者什麼都沒填就取消時
 // 不該被當成有未儲存變更；比對與儲存前都把這種空列濾掉。
 /*
  * 現金與其他不是支付方式記錄 —— 沒有回饋規則、不該出現在回饋頁 ——
@@ -96,6 +98,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const me = useStore((state) => state.settings.memberName)
   const gasUrl = useStore((state) => state.settings.gasUrl)
   const ruleFocus = useStore((state) => state.settings.rewardRuleFocus)
+  const reviewHues = useStore((state) => state.settings.reviewHues?.[trip.id])
   const tripLink = useStore((state) => state.settings.tripLinks?.[trip.id])
   const isActual = useStore((state) =>
     state.data.plans.some(
@@ -118,6 +121,12 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const [resolvingLink, setResolvingLink] = useState<LinkRef['kind'] | null>(null)
   const [linkLookupError, setLinkLookupError] = useState('')
   const [noteDraft, setNoteDraft] = useState('')
+  const [addingNote, setAddingNote] = useState(false)
+  const [addingWebLink, setAddingWebLink] = useState(false)
+  const noteDraftRef = useRef<HTMLInputElement>(null)
+  const webDraftRef = useRef<HTMLInputElement>(null)
+  const mapDraftRef = useRef<HTMLInputElement>(null)
+  const [focusCostId, setFocusCostId] = useState<string | null>(null)
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
   const [choosingCategory, setChoosingCategory] = useState(false)
   const [pickingPayment, setPickingPayment] = useState(false)
@@ -209,7 +218,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       normalizeTime(timeDraft) !== normalizeTime(storedItem.startTime ?? '') ||
       (item.guide ?? '') !== (storedItem.guide ?? '') ||
       item.category !== storedItem.category ||
-      item.paymentMethodId !== storedItem.paymentMethodId ||
       JSON.stringify(item.notes) !== JSON.stringify(storedItem.notes) ||
       JSON.stringify(item.links) !== JSON.stringify(storedItem.links) ||
       JSON.stringify(filledCosts(item.costs)) !== JSON.stringify(filledCosts(storedItem.costs))
@@ -242,6 +250,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         setNoteDraft(saved.noteDraft ?? '')
         setMapDraft(saved.mapDraft ?? '')
         setWebDraft(saved.webDraft ?? '')
+        setAddingNote(Boolean(saved.noteDraft))
+        setAddingWebLink(Boolean(saved.webDraft))
         const savedSections = new Set(saved.sections ?? (saved.section ? [saved.section] : []))
         const restoredMode = saved.mode ?? (savedSections.size > 1 ? 'all' : 'section')
         const categoryOnly =
@@ -326,14 +336,20 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   }
 
   const beginEdit = (section: ItemDraftSection) => {
-    // 空白費用按鉛筆後直接得到第一列，不必再多按一次「新增一筆」。
+    // 空白費用按鉛筆後直接得到第一列，不必再多按一次「新增費用」。
     if (section === 'costs' && item.costs.length === 0) {
+      const costId = newId()
       patchItem({
         costs: [
-          { id: newId(), label: '', unitPrice: 0, qty: 1, currency: trip.foreignCurrency },
+          { id: costId, label: '', unitPrice: 0, qty: 1, currency: trip.foreignCurrency },
         ],
       })
+      setFocusCostId(costId)
+    } else {
+      setFocusCostId(null)
     }
+    setAddingNote(section === 'notes' && item.notes.length === 0)
+    setAddingWebLink(section === 'links' && webLinks.length === 0)
     setFocusLinkId(null)
     setLinkLookupError('')
     setRestored(false)
@@ -357,6 +373,9 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setFocusLinkId(null)
     setRestored(false)
     setChoosingCategory(true)
+    setAddingNote(false)
+    setAddingWebLink(webLinks.length === 0)
+    setFocusCostId(null)
     setEditMode('all')
     // 展開全部時焦點固定回標題，它在最上面，畫面不會被拉走。
     setFocusSection('basic')
@@ -416,6 +435,9 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setMapDraft('')
     setWebDraft('')
     setNoteDraft('')
+    setAddingNote(false)
+    setAddingWebLink(false)
+    setFocusCostId(null)
     setEditingSections(new Set())
     setEditMode('none')
     setFocusSection(null)
@@ -441,7 +463,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         title: item.title,
         guide: item.guide,
         category: item.category,
-        paymentMethodId: item.paymentMethodId,
         notes: item.notes,
         links: item.links,
         costs: filledCosts(item.costs),
@@ -452,6 +473,9 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setMapDraft('')
     setWebDraft('')
     setNoteDraft('')
+    setAddingNote(false)
+    setAddingWebLink(false)
+    setFocusCostId(null)
     setEditingSections(new Set())
     setEditMode('none')
     setFocusSection(null)
@@ -467,6 +491,9 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setMapDraft('')
     setWebDraft('')
     setNoteDraft('')
+    setAddingNote(false)
+    setAddingWebLink(false)
+    setFocusCostId(null)
     setEditingSections(new Set())
     setEditMode('none')
     setFocusSection(null)
@@ -496,10 +523,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         patch = { notes: nextItem.notes }
         break
       case 'costs':
-        patch = {
-          costs: filledCosts(nextItem.costs),
-          paymentMethodId: nextItem.paymentMethodId,
-        }
+        patch = { costs: filledCosts(nextItem.costs) }
         nextItem = { ...nextItem, costs: filledCosts(nextItem.costs) }
         break
       case 'map':
@@ -525,10 +549,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     patchItem({ category })
   }
 
-  const selectPayment = (paymentMethodId?: string) => {
-    patchItem({ paymentMethodId })
-  }
-
   const toggleNoteOverview = (noteId: string, checked: boolean) => {
     const notes = item.notes.map((note) =>
       note.id === noteId ? { ...note, showInOverview: checked || undefined } : note,
@@ -541,15 +561,18 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const patchCost = (id: string, patch: Partial<CostLine>) =>
     patchItem({ costs: item.costs.map((cost) => (cost.id === id ? { ...cost, ...patch } : cost)) })
 
-  const addCost = () =>
+  const addCost = () => {
+    const costId = newId()
     patchItem({
       costs: [
         ...item.costs,
-        { id: newId(), label: '', unitPrice: 0, qty: 1, currency: trip.foreignCurrency },
+        { id: costId, label: '', unitPrice: 0, qty: 1, currency: trip.foreignCurrency },
       ],
     })
+    setFocusCostId(costId)
+  }
 
-  const addLink = async (kind: LinkRef['kind']) => {
+  const addLink = async (kind: LinkRef['kind'], finishSection = false) => {
     const value = kind === 'map' ? mapDraft : webDraft
     if (!value.trim() || resolvingLink) return
     if (kind === 'map' && item.links.some((link) => link.kind === 'map')) return
@@ -575,38 +598,42 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     if (!link.label && kind === 'map') link = { ...link, label: item.title }
     const nextItem = { ...item, links: [...item.links, link] }
     if (kind === 'map') setMapDraft('')
-    else setWebDraft('')
-    if (editMode === 'section') {
+    else {
+      setWebDraft('')
+      setAddingWebLink(true)
+    }
+    if (finishSection && editMode === 'section') {
       commitSection(kind === 'map' ? 'map' : 'links', nextItem)
     } else {
       patchItem({ links: nextItem.links })
-      if (!link.label) setFocusLinkId(link.id)
+      if (kind === 'web') requestAnimationFrame(() => webDraftRef.current?.focus())
+      else if (!link.label) setFocusLinkId(link.id)
     }
   }
 
-  const addNote = () => {
+  const addNote = (finishSection = false) => {
     if (!noteDraft.trim()) return
     const nextItem = {
       ...item,
       notes: [...item.notes, { id: newId(), text: noteDraft.trim() }],
     }
     setNoteDraft('')
-    if (editMode === 'section') commitSection('notes', nextItem)
-    else patchItem({ notes: nextItem.notes })
+    setAddingNote(true)
+    if (finishSection && editMode === 'section') commitSection('notes', nextItem)
+    else {
+      patchItem({ notes: nextItem.notes })
+      requestAnimationFrame(() => noteDraftRef.current?.focus())
+    }
   }
 
   const pickedMethod = methods.find((payment) => payment.id === item.paymentMethodId)
 
-  const paymentPicker = item.costs.length > 0 && (
+  const paymentPicker = (
     <div className="detail-payment-row" onClick={(event) => event.stopPropagation()}>
       <span className="detail-key">支付方式</span>
       <button
         className="btn btn-sm detail-payment-pick"
-        disabled={editMode !== 'none' && !editingSections.has('costs')}
-        onClick={() => {
-          if (editMode === 'none') beginEdit('costs')
-          setPickingPayment(true)
-        }}
+        onClick={() => setPickingPayment(true)}
       >
         <span className="detail-payment-name">
           {pickedMethod
@@ -619,8 +646,38 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   )
 
   const choosePayment = (id?: string) => {
-    selectPayment(id)
+    if (id !== item.paymentMethodId) {
+      updateItem(item.id, { paymentMethodId: id })
+      setDraftItem((current) => (current ? { ...current, paymentMethodId: id } : current))
+    }
     setPickingPayment(false)
+  }
+
+  const showNoteComposer = () => {
+    setAddingNote(true)
+    requestAnimationFrame(() => noteDraftRef.current?.focus())
+  }
+
+  const showWebLinkComposer = () => {
+    setAddingWebLink(true)
+    requestAnimationFrame(() => webDraftRef.current?.focus())
+  }
+
+  const pasteLinkDraft = async (kind: LinkRef['kind']) => {
+    setLinkLookupError('')
+    try {
+      const value = await navigator.clipboard.readText()
+      if (kind === 'map') {
+        setMapDraft(value)
+        requestAnimationFrame(() => mapDraftRef.current?.focus())
+      } else {
+        setAddingWebLink(true)
+        setWebDraft(value)
+        requestAnimationFrame(() => webDraftRef.current?.focus())
+      }
+    } catch {
+      setLinkLookupError('無法讀取剪貼簿，請確認瀏覽器權限。')
+    }
   }
 
   const activeSectionDirty = (() => {
@@ -636,10 +693,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       case 'notes':
         return JSON.stringify(item.notes) !== JSON.stringify(storedItem.notes)
       case 'costs':
-        return (
-          JSON.stringify(filledCosts(item.costs)) !== JSON.stringify(filledCosts(storedItem.costs)) ||
-          item.paymentMethodId !== storedItem.paymentMethodId
-        )
+        return JSON.stringify(filledCosts(item.costs)) !== JSON.stringify(filledCosts(storedItem.costs))
       case 'map':
         return JSON.stringify(mapLinks) !== JSON.stringify(storedItem.links.filter((link) => link.kind === 'map'))
       case 'links':
@@ -656,31 +710,27 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const sectionAction = (() => {
     if (editMode !== 'section' || !activeSection || activeSection === 'category') return undefined
     if (activeSection === 'notes' && noteDraft.trim()) {
-      return { label: '加入', disabled: false, run: addNote }
+      return { disabled: false, run: () => addNote(true) }
     }
     if (activeSection === 'map' && mapDraft.trim()) {
       return {
-        label: resolvingLink === 'map' ? '解析中…' : '加入',
         disabled: resolvingLink !== null,
-        run: () => void addLink('map'),
+        run: () => void addLink('map', true),
       }
     }
     if (activeSection === 'map' && mapLinks.length === 0 && !activeSectionDirty) {
       return {
-        label: '加入',
         disabled: true,
-        run: () => void addLink('map'),
+        run: () => void addLink('map', true),
       }
     }
     if (activeSection === 'links' && webDraft.trim()) {
       return {
-        label: resolvingLink === 'web' ? '讀取中…' : '加入',
         disabled: resolvingLink !== null,
-        run: () => void addLink('web'),
+        run: () => void addLink('web', true),
       }
     }
     return {
-      label: activeSection === 'costs' && storedItem.costs.length === 0 ? '加入費用' : '儲存',
       disabled: !activeSectionDirty || resolvingLink !== null,
       run: () => commitSection(activeSection),
     }
@@ -804,7 +854,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         </button>
       </div>
 
-      <div className="scroll detail-scroll">
+      <div className="scroll detail-scroll" data-edit-mode={editMode}>
         {restored && (
           <div className="detail-restored">
             <span>已還原上次未完成的編輯</span>
@@ -813,6 +863,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         )}
 
         <section
+          data-active={activeSection === 'basic' || undefined}
           className={`detail-section detail-summary${
             editingSections.has('basic') || editMode !== 'none' ? '' : ' detail-section-clickable'
           }${
@@ -897,6 +948,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         </section>
 
         <section
+          data-active={activeSection === 'category' || undefined}
           className={`detail-section${choosingCategory || editMode !== 'none' ? '' : ' detail-section-clickable'}`}
           {...categoryActionProps}
         >
@@ -938,6 +990,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         </section>
 
         <section
+          data-active={activeSection === 'guide' || undefined}
           className={`detail-section${
             editingSections.has('guide') || editMode !== 'none' ? '' : ' detail-section-clickable'
           }`}
@@ -962,6 +1015,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         </section>
 
         <section
+          data-active={activeSection === 'notes' || undefined}
           className={`detail-section${
             editingSections.has('notes') || editMode !== 'none' ? '' : ' detail-section-clickable'
           }`}
@@ -972,7 +1026,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           </div>
           {editingSections.has('notes') ? (
             <>
-              {item.notes.map((note, index) => (
+              {item.notes.map((note) => (
                 <div key={note.id} className="detail-note-edit-row">
                   <span className="detail-note-bullet" aria-hidden="true">•</span>
                   <input
@@ -989,18 +1043,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                       })
                     }
                   />
-                  <label
-                    className="detail-overview-toggle"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(note.showInOverview)}
-                      onChange={(event) => toggleNoteOverview(note.id, event.target.checked)}
-                      aria-label={`在行程總覽顯示備註 ${index + 1}`}
-                    />
-                    <span>顯示於總覽</span>
-                  </label>
                   <button
                     className="btn btn-sm delete-icon-btn"
                     aria-label="刪除這筆備註"
@@ -1012,20 +1054,29 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   </button>
                 </div>
               ))}
-              <div className="link-add-row">
-                <input
-                  className="field"
-                  type="search"
-                  enterKeyHint="done"
-                  autoComplete="off"
-                  value={noteDraft}
-                  placeholder="新增提醒或補充"
-                  autoFocus={focusSection === 'notes' && item.notes.length === 0}
-                  onChange={(event) => setNoteDraft(event.target.value)}
-                  onKeyDown={(event) => isSubmitEnter(event) && addNote()}
-                />
-                {editMode === 'all' && <button className="btn" onClick={addNote}>加入</button>}
-              </div>
+              {addingNote ? (
+                <div className="detail-note-edit-row detail-note-new-row">
+                  <span className="detail-note-bullet" aria-hidden="true">•</span>
+                  <input
+                    ref={noteDraftRef}
+                    className="field"
+                    type="search"
+                    enterKeyHint="done"
+                    autoComplete="off"
+                    value={noteDraft}
+                    placeholder="新增提醒或補充"
+                    autoFocus
+                    onChange={(event) => setNoteDraft(event.target.value)}
+                    onKeyDown={(event) => isSubmitEnter(event) && addNote()}
+                  />
+                  <button className="btn" disabled={!noteDraft.trim()} onClick={() => addNote()}>
+                    加入
+                  </button>
+                </div>
+              ) : null}
+              <button className="btn btn-sm detail-add-row" onClick={showNoteComposer}>
+                ＋ 新增備註
+              </button>
             </>
           ) : item.notes.length > 0 ? (
             <div className="detail-note-list">
@@ -1054,6 +1105,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         </section>
 
         <section
+          data-active={activeSection === 'costs' || undefined}
           className={`detail-section${
             editingSections.has('costs') || editMode !== 'none' ? '' : ' detail-section-clickable'
           }`}
@@ -1074,6 +1126,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                       autoComplete="off"
                       placeholder="項目"
                       value={cost.label}
+                      autoFocus={cost.id === focusCostId}
                       onChange={(event) => patchCost(cost.id, { label: event.target.value })}
                     />
                     <button
@@ -1087,17 +1140,15 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     </button>
                   </div>
                   <NumberField
-                    className="field mono"
-                    style={{ width: 76 }}
+                    className="field mono cl-price"
                     value={cost.unitPrice}
                     emptyAs={0}
                     onChange={(value) => patchCost(cost.id, { unitPrice: value ?? 0 })}
                     aria-label="單價"
                   />
-                  <span className="dim">×</span>
+                  <span className="dim costline-times">×</span>
                   <NumberField
-                    className="field mono"
-                    style={{ width: 52 }}
+                    className="field mono cl-qty"
                     value={cost.qty}
                     emptyAs={0}
                     onChange={(value) => patchCost(cost.id, { qty: value ?? 0 })}
@@ -1118,7 +1169,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   <span className="mono dim cl-sub">{formatMoney(lineTotal(cost), cost.currency)}</span>
                 </div>
               ))}
-              <button className="btn btn-sm" onClick={addCost}>新增一筆</button>
+              <button className="btn btn-sm detail-add-row" onClick={addCost}>＋ 新增費用</button>
               {item.costs.length > 0 && (
                 <div className="detail-total-row">
                   <strong>合計</strong>
@@ -1128,7 +1179,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   </span>
                 </div>
               )}
-              {paymentPicker}
             </>
           ) : item.costs.length > 0 ? (
             <>
@@ -1146,7 +1196,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   </div>
                 ))}
               </div>
-              {paymentPicker}
             </>
           ) : (
             <p className="dim detail-empty-copy">-</p>
@@ -1164,11 +1213,12 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               <p>這張卡有單筆回饋上限，一次刷完會有一部分拿不到。</p>
             </div>
           )}
+          {paymentPicker}
+          {isActual && <PhotoSection trip={trip} itemId={item.id} kind="receipt" embedded />}
         </section>
 
-        {isActual && <PhotoSection trip={trip} itemId={item.id} kind="receipt" />}
-
         <section
+          data-active={activeSection === 'map' || undefined}
           className={`detail-section${
             editingSections.has('map') || editMode !== 'none' ? '' : ' detail-section-clickable'
           }`}
@@ -1213,6 +1263,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               {mapLinks.length === 0 && (
                 <div className="link-add-row">
                   <input
+                    ref={mapDraftRef}
                     className="field"
                     type="search"
                     enterKeyHint="done"
@@ -1225,8 +1276,18 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     placeholder="貼上 Google Maps 網址"
                     autoFocus={focusSection === 'map'}
                     onChange={(event) => setMapDraft(event.target.value)}
-                    onKeyDown={(event) => isSubmitEnter(event) && void addLink('map')}
+                    onKeyDown={(event) =>
+                      isSubmitEnter(event) && void addLink('map', editMode === 'section')
+                    }
                   />
+                  <button
+                    className="btn btn-sm link-paste-btn"
+                    aria-label="貼上 Google Map 網址"
+                    title="貼上"
+                    onClick={() => void pasteLinkDraft('map')}
+                  >
+                    <PasteIcon />
+                  </button>
                   {editMode === 'all' && (
                     <button
                       className="btn"
@@ -1243,26 +1304,19 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           ) : mapLinks.length > 0 ? (
             mapLinks.map((link) => (
               <div key={link.id} className="detail-link-card">
+                <div className="detail-link-content">
+                  <span className="detail-link-icon"><MapPinIcon size={16} /></span>
+                  <span className="detail-link-label">{link.label || 'Google Map 地點'}</span>
+                </div>
                 <a
-                  className="detail-link-open"
+                  className="btn btn-sm detail-link-external"
                   href={link.url}
                   target="_blank"
                   rel="noreferrer"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <span className="detail-link-icon"><MapPinIcon size={16} /></span>
-                  <span className="detail-link-label">{link.label || 'Google Map 地點'}</span>
+                  開啟地圖
                 </a>
-                <button
-                  className="detail-link-edit"
-                  aria-label="編輯 Google Map"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    beginEdit('map')
-                  }}
-                >
-                  <PencilIcon />
-                </button>
               </div>
             ))
           ) : (
@@ -1271,6 +1325,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         </section>
 
         <section
+          data-active={activeSection === 'links' || undefined}
           className={`detail-section${
             editingSections.has('links') || editMode !== 'none' ? '' : ' detail-section-clickable'
           }`}
@@ -1311,58 +1366,63 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   </button>
                 </div>
               ))}
-              <div className="link-add-row">
-                <input
-                  className="field"
-                  type="search"
-                  enterKeyHint="done"
-                  autoComplete="off"
-                  inputMode="url"
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  value={webDraft}
-                  placeholder="貼上訂位、票券或網站網址"
-                  autoFocus={focusSection === 'links' && webLinks.length === 0}
-                  onChange={(event) => setWebDraft(event.target.value)}
-                  onKeyDown={(event) => isSubmitEnter(event) && void addLink('web')}
-                />
-                {editMode === 'all' && (
+              {addingWebLink ? (
+                <div className="link-add-row">
+                  <input
+                    ref={webDraftRef}
+                    className="field"
+                    type="search"
+                    enterKeyHint="done"
+                    autoComplete="off"
+                    inputMode="url"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={webDraft}
+                    placeholder="貼上訂位、票券或網站網址"
+                    autoFocus
+                    onChange={(event) => setWebDraft(event.target.value)}
+                    onKeyDown={(event) => isSubmitEnter(event) && void addLink('web')}
+                  />
+                  <button
+                    className="btn btn-sm link-paste-btn"
+                    aria-label="貼上相關連結網址"
+                    title="貼上"
+                    onClick={() => void pasteLinkDraft('web')}
+                  >
+                    <PasteIcon />
+                  </button>
                   <button
                     className="btn"
-                    disabled={resolvingLink !== null}
+                    disabled={!webDraft.trim() || resolvingLink !== null}
                     onClick={() => void addLink('web')}
                   >
                     {resolvingLink === 'web' ? '讀取中…' : '加入'}
                   </button>
-                )}
-              </div>
+                </div>
+              ) : null}
+              <button className="btn btn-sm detail-add-row" onClick={showWebLinkComposer}>
+                ＋ 新增連結
+              </button>
               {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
             </>
           ) : webLinks.length > 0 ? (
             <div className="detail-link-list">
               {webLinks.map((link) => (
                 <div key={link.id} className="detail-link-card">
+                  <div className="detail-link-content">
+                    <span className="detail-link-icon"><LinkIcon size={15} /></span>
+                    <span className="detail-link-label">{link.label || link.url}</span>
+                  </div>
                   <a
-                    className="detail-link-open"
+                    className="btn btn-sm detail-link-external"
                     href={link.url}
                     target="_blank"
                     rel="noreferrer"
                     onClick={(event) => event.stopPropagation()}
                   >
-                    <span className="detail-link-icon"><LinkIcon size={15} /></span>
-                    <span className="detail-link-label">{link.label || link.url}</span>
+                    開啟連結
                   </a>
-                  <button
-                    className="detail-link-edit"
-                    aria-label="編輯這個連結"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      beginEdit('links')
-                    }}
-                  >
-                    <PencilIcon />
-                  </button>
                 </div>
               ))}
             </div>
@@ -1373,17 +1433,22 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
 
         {isActual && (
           <section
+            data-active={activeSection === 'review' || undefined}
             className={`detail-section${
               editingSections.has('review') || editMode !== 'none' ? '' : ' detail-section-clickable'
             }`}
             {...sectionActionProps('review')}
           >
             <div className="detail-section-head">
-              <span className="detail-kicker"><ReviewIcon />旅程紀錄／心得</span>
+              <span className="detail-kicker"><ReviewIcon />心得</span>
             </div>
             {others.map((review) => (
-              <div key={review.id} className="detail-review">
-                <span className="detail-key">{review.author}</span>
+              <div
+                key={review.id}
+                className="detail-review detail-review-colored review-hue"
+                data-hue={reviewHues?.[review.author]}
+              >
+                <span className="review-tag" title={review.author}>{tagCharOf(review.author)}</span>
                 <p>{review.text}</p>
               </div>
             ))}
@@ -1403,8 +1468,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                 />
               </>
             ) : mine?.text.trim() ? (
-              <div className="detail-review">
-                <span className="detail-key">{me}</span>
+              <div
+                className="detail-review detail-review-colored review-hue"
+                data-hue={reviewHues?.[me]}
+              >
+                <span className="review-tag" title={me}>{tagCharOf(me)}</span>
                 <p>{mine.text}</p>
               </div>
             ) : (
@@ -1422,9 +1490,9 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         */}
       {editMode === 'all' ? (
         <div className="editor-actions">
-          <button className="btn" onClick={requestCancel}>取消編輯</button>
+          <button className="btn" onClick={requestCancel}>取消</button>
           <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>
-            完成編輯
+            儲存
           </button>
         </div>
       ) : editMode === 'section' ? (
@@ -1441,7 +1509,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               onClick={sectionAction.run}
               disabled={sectionAction.disabled}
             >
-              {sectionAction.label}
+              {resolvingLink ? (resolvingLink === 'map' ? '解析中…' : '讀取中…') : '儲存'}
             </button>
           )}
         </div>
