@@ -482,10 +482,10 @@ a { color: var(--accent); }
   .detail-auto-review { --detail-auto-min-height: calc(3em + 18px); }
   .detail-auto-textarea {
     min-height: var(--detail-auto-min-height);
-    /* 八行與鍵盤升起後可視高度 35% 取小者；極小畫面仍保障各欄位最低行數。 */
+    /* 八行與鍵盤升起後可視高度 42% 取小者；極小畫面仍保障各欄位最低行數。 */
     max-height: max(
       var(--detail-auto-min-height),
-      min(calc(12em + 18px), var(--vvh-35, 35dvh))
+      min(calc(12em + 18px), var(--detail-textarea-vvh-max, 42dvh))
     );
   }
 }
