@@ -2,6 +2,7 @@ import { del, get, set } from 'idb-keyval'
 import type { Item } from '../types'
 
 export type ItemDraftSection = 'basic' | 'guide' | 'map' | 'notes' | 'links' | 'costs' | 'review'
+export type ItemDraftMode = 'section' | 'all'
 
 /**
  * 未送出的編輯內容存進 IndexedDB。
@@ -13,6 +14,14 @@ export interface ItemDraft {
   item: Item
   timeDraft: string
   reviewDraft: string
+  /** 單獨改一區與整頁批次編輯有不同的提交語意，還原時不能混在一起。 */
+  mode?: ItemDraftMode
+  /** 單區塊模式正在編輯哪一區；category 沒有放進 editingSections，另外記。 */
+  activeSection?: ItemDraftSection | 'category'
+  /** 尚未按下「加入」的單筆輸入；快速編輯時也要能在 iOS 回收後救回來。 */
+  noteDraft?: string
+  mapDraft?: string
+  webDraft?: string
   /** 詳細資訊改成分區編輯後，要知道重新開啟時該還原哪一區。 */
   section?: ItemDraftSection
   /** 新版允許同時編輯多個區塊；section 留給舊草稿相容。 */

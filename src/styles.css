@@ -1051,6 +1051,13 @@ body[data-actual='true'] {
 
 .detail-summary { padding-top: 16px; }
 
+/* 編輯基本資訊時，區塊標題、欄位名稱與輸入框是一組緊湊表單。 */
+.detail-summary-editing .detail-section-head { margin-bottom: 3px; }
+.detail-summary-editing .detail-form-stack,
+.detail-summary-editing .detail-field { gap: 3px; }
+.detail-summary-editing .detail-field-row { margin-top: 3px; }
+.detail-summary-editing .detail-form-stack .detail-field .label { margin-top: 0; }
+
 .detail-section-head {
   display: flex;
   align-items: center;

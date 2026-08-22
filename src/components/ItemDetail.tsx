@@ -23,6 +23,7 @@ import {
   clearItemDraft,
   loadItemDraft,
   saveItemDraft,
+  type ItemDraftMode,
   type ItemDraftSection,
 } from '../store/drafts'
 import CategoryIcon from './CategoryIcon'
@@ -103,6 +104,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   )
 
   const [editingSections, setEditingSections] = useState<Set<ItemDraftSection>>(() => new Set())
+  const [editMode, setEditMode] = useState<ItemDraftMode | 'none'>('none')
   /**
    * 哪個區塊該拿到游標。每個區塊各自寫死 autoFocus 的話，「編輯全部」一次展開全部，
    * 最後掛上的心得欄位會搶走焦點，整個畫面被拖到最下面。
@@ -132,6 +134,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const mine = reviews.find((review) => review.author === me)
   const others = reviews.filter((review) => review.author !== me && review.text.trim())
   const initialReviewText = useRef(mine?.text ?? '')
+  const initialCategory = useRef(storedItem?.category)
   const item = draftItem?.id === storedItem?.id ? draftItem : storedItem
 
   const methods = useMemo(
@@ -212,7 +215,16 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       JSON.stringify(filledCosts(item.costs)) !== JSON.stringify(filledCosts(storedItem.costs))
     )
   }, [item, storedItem, timeDraft])
-  const dirty = itemDirty || reviewDraft !== (mine?.text ?? '')
+  const activeSection: ItemDraftSection | 'category' | undefined =
+    editMode === 'section'
+      ? choosingCategory
+        ? 'category'
+        : editingSections.values().next().value
+      : undefined
+  const pendingSectionInput = editMode === 'section' && Boolean(
+    noteDraft.trim() || mapDraft.trim() || webDraft.trim(),
+  )
+  const dirty = itemDirty || reviewDraft !== (mine?.text ?? '') || pendingSectionInput
 
   useEffect(() => {
     onDirtyChange(dirty)
@@ -227,7 +239,18 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         setDraftItem(saved.item)
         setTimeDraft(saved.timeDraft)
         setReviewDraft(saved.reviewDraft)
-        setEditingSections(new Set(saved.sections ?? (saved.section ? [saved.section] : [])))
+        setNoteDraft(saved.noteDraft ?? '')
+        setMapDraft(saved.mapDraft ?? '')
+        setWebDraft(saved.webDraft ?? '')
+        const savedSections = new Set(saved.sections ?? (saved.section ? [saved.section] : []))
+        const restoredMode = saved.mode ?? (savedSections.size > 1 ? 'all' : 'section')
+        const categoryOnly =
+          restoredMode === 'section' &&
+          (saved.activeSection === 'category' ||
+            (savedSections.size === 0 && saved.item.category !== initialCategory.current))
+        setEditMode(restoredMode)
+        setEditingSections(savedSections)
+        setChoosingCategory(restoredMode === 'all' || categoryOnly)
         setRestored(true)
         setTouched(true)
       } else {
@@ -255,11 +278,29 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         item,
         timeDraft,
         reviewDraft,
+        mode: editMode === 'none' ? undefined : editMode,
+        activeSection,
+        noteDraft,
+        mapDraft,
+        webDraft,
         sections: [...editingSections],
       })
     }
     else void clearItemDraft(itemId)
-  }, [hydrated, editingSections, dirty, item, itemId, timeDraft, reviewDraft])
+  }, [
+    hydrated,
+    editingSections,
+    editMode,
+    activeSection,
+    dirty,
+    item,
+    itemId,
+    timeDraft,
+    reviewDraft,
+    noteDraft,
+    mapDraft,
+    webDraft,
+  ])
 
   useEffect(() => {
     if (!dirty) return
@@ -294,9 +335,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       })
     }
     setFocusLinkId(null)
+    setLinkLookupError('')
     setRestored(false)
     setFocusSection(section)
-    setEditingSections((current) => new Set(current).add(section))
+    setEditMode('section')
+    setEditingSections(new Set([section]))
   }
 
   const editableSections: ItemDraftSection[] = [
@@ -308,21 +351,20 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     'links',
     ...(isActual ? (['review'] as const) : []),
   ]
-  const allSectionsOpen = editableSections.every((section) => editingSections.has(section))
-  // 行程類型、總覽勾選與支付方式不一定會展開區塊；只要已有草稿，也算編輯狀態。
-  const hasEditing = editingSections.size > 0 || choosingCategory || dirty
+  const hasEditing = editMode !== 'none'
 
   const beginEditAll = () => {
     setFocusLinkId(null)
     setRestored(false)
     setChoosingCategory(true)
+    setEditMode('all')
     // 展開全部時焦點固定回標題，它在最上面，畫面不會被拉走。
     setFocusSection('basic')
     setEditingSections(new Set(editableSections))
   }
 
   const sectionActionProps = (section: ItemDraftSection) => {
-    if (editingSections.has(section)) return {}
+    if (editMode !== 'none') return {}
     return {
       role: 'button' as const,
       'aria-label': `編輯${SECTION_LABELS[section]}`,
@@ -339,12 +381,16 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const beginEditCategory = () => {
     setFocusLinkId(null)
     setRestored(false)
+    setEditMode('section')
+    setEditingSections(new Set())
     setChoosingCategory(true)
   }
 
   // 行程類型自成一個區塊，點整塊任何位置都是改類型，不會誤觸基本資訊。
   const categoryActionProps = choosingCategory
     ? {}
+    : editMode !== 'none'
+      ? {}
     : {
         role: 'button' as const,
         'aria-label': '編輯行程類型',
@@ -371,6 +417,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setWebDraft('')
     setNoteDraft('')
     setEditingSections(new Set())
+    setEditMode('none')
     setFocusSection(null)
     setChoosingCategory(false)
     setConfirmingCancel(false)
@@ -406,6 +453,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setWebDraft('')
     setNoteDraft('')
     setEditingSections(new Set())
+    setEditMode('none')
     setFocusSection(null)
     setChoosingCategory(false)
     setTouched(false)
@@ -413,9 +461,68 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     void clearItemDraft(item.id)
   }
 
-  const selectCategory = (category?: ItineraryCategory) => {
-    patchItem({ category })
+  const finishSectionEditing = (nextItem = item, normalizedTime = timeDraft) => {
+    setDraftItem(copyItemSnapshot(nextItem))
+    setTimeDraft(normalizedTime)
+    setMapDraft('')
+    setWebDraft('')
+    setNoteDraft('')
+    setEditingSections(new Set())
+    setEditMode('none')
+    setFocusSection(null)
     setChoosingCategory(false)
+    setTouched(false)
+    setRestored(false)
+    void clearItemDraft(item.id)
+  }
+
+  const commitSection = (section: ItemDraftSection, nextItem = item) => {
+    const normalizedTime = normalizeTime(timeDraft) ?? ''
+    let patch: Partial<Item> | undefined
+
+    switch (section) {
+      case 'basic':
+        patch = {
+          title: nextItem.title,
+          date: nextItem.date,
+          startTime: normalizedTime || undefined,
+        }
+        nextItem = { ...nextItem, startTime: normalizedTime || undefined }
+        break
+      case 'guide':
+        patch = { guide: nextItem.guide }
+        break
+      case 'notes':
+        patch = { notes: nextItem.notes }
+        break
+      case 'costs':
+        patch = {
+          costs: filledCosts(nextItem.costs),
+          paymentMethodId: nextItem.paymentMethodId,
+        }
+        nextItem = { ...nextItem, costs: filledCosts(nextItem.costs) }
+        break
+      case 'map':
+      case 'links':
+        patch = { links: nextItem.links }
+        break
+      case 'review':
+        if (isActual && reviewDraft !== (mine?.text ?? '')) setReview(item.id, reviewDraft)
+        break
+    }
+
+    if (patch) updateItem(item.id, patch)
+    finishSectionEditing(nextItem, normalizedTime)
+  }
+
+  const selectCategory = (category?: ItineraryCategory) => {
+    if (editMode === 'section') {
+      const nextItem = { ...item, category }
+      if (category !== storedItem.category) updateItem(item.id, { category })
+      finishSectionEditing(nextItem)
+      return
+    }
+    patchItem({ category })
   }
 
   const selectPayment = (paymentMethodId?: string) => {
@@ -423,11 +530,12 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   }
 
   const toggleNoteOverview = (noteId: string, checked: boolean) => {
-    patchItem({
-      notes: item.notes.map((note) =>
-        note.id === noteId ? { ...note, showInOverview: checked || undefined } : note,
-      ),
-    })
+    const notes = item.notes.map((note) =>
+      note.id === noteId ? { ...note, showInOverview: checked || undefined } : note,
+    )
+    // 閱讀狀態下的勾選是低風險單一選項，直接生效；編輯中則仍屬於那份草稿。
+    if (editMode === 'none') updateItem(item.id, { notes })
+    else patchItem({ notes })
   }
 
   const patchCost = (id: string, patch: Partial<CostLine>) =>
@@ -465,16 +573,26 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       }
     }
     if (!link.label && kind === 'map') link = { ...link, label: item.title }
-    patchItem({ links: [...item.links, link] })
+    const nextItem = { ...item, links: [...item.links, link] }
     if (kind === 'map') setMapDraft('')
     else setWebDraft('')
-    if (!link.label) setFocusLinkId(link.id)
+    if (editMode === 'section') {
+      commitSection(kind === 'map' ? 'map' : 'links', nextItem)
+    } else {
+      patchItem({ links: nextItem.links })
+      if (!link.label) setFocusLinkId(link.id)
+    }
   }
 
   const addNote = () => {
     if (!noteDraft.trim()) return
-    patchItem({ notes: [...item.notes, { id: newId(), text: noteDraft.trim() }] })
+    const nextItem = {
+      ...item,
+      notes: [...item.notes, { id: newId(), text: noteDraft.trim() }],
+    }
     setNoteDraft('')
+    if (editMode === 'section') commitSection('notes', nextItem)
+    else patchItem({ notes: nextItem.notes })
   }
 
   const pickedMethod = methods.find((payment) => payment.id === item.paymentMethodId)
@@ -482,7 +600,14 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const paymentPicker = item.costs.length > 0 && (
     <div className="detail-payment-row" onClick={(event) => event.stopPropagation()}>
       <span className="detail-key">支付方式</span>
-      <button className="btn btn-sm detail-payment-pick" onClick={() => setPickingPayment(true)}>
+      <button
+        className="btn btn-sm detail-payment-pick"
+        disabled={editMode !== 'none' && !editingSections.has('costs')}
+        onClick={() => {
+          if (editMode === 'none') beginEdit('costs')
+          setPickingPayment(true)
+        }}
+      >
         <span className="detail-payment-name">
           {pickedMethod
             ? methodLabel(pickedMethod.name, pickedMethod.owner)
@@ -497,6 +622,69 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     selectPayment(id)
     setPickingPayment(false)
   }
+
+  const activeSectionDirty = (() => {
+    switch (activeSection) {
+      case 'basic':
+        return (
+          item.title !== storedItem.title ||
+          item.date !== storedItem.date ||
+          normalizeTime(timeDraft) !== normalizeTime(storedItem.startTime ?? '')
+        )
+      case 'guide':
+        return (item.guide ?? '') !== (storedItem.guide ?? '')
+      case 'notes':
+        return JSON.stringify(item.notes) !== JSON.stringify(storedItem.notes)
+      case 'costs':
+        return (
+          JSON.stringify(filledCosts(item.costs)) !== JSON.stringify(filledCosts(storedItem.costs)) ||
+          item.paymentMethodId !== storedItem.paymentMethodId
+        )
+      case 'map':
+        return JSON.stringify(mapLinks) !== JSON.stringify(storedItem.links.filter((link) => link.kind === 'map'))
+      case 'links':
+        return JSON.stringify(webLinks) !== JSON.stringify(storedItem.links.filter((link) => link.kind === 'web'))
+      case 'review':
+        return reviewDraft !== (mine?.text ?? '')
+      case 'category':
+        return item.category !== storedItem.category
+      default:
+        return false
+    }
+  })()
+
+  const sectionAction = (() => {
+    if (editMode !== 'section' || !activeSection || activeSection === 'category') return undefined
+    if (activeSection === 'notes' && noteDraft.trim()) {
+      return { label: '加入', disabled: false, run: addNote }
+    }
+    if (activeSection === 'map' && mapDraft.trim()) {
+      return {
+        label: resolvingLink === 'map' ? '解析中…' : '加入',
+        disabled: resolvingLink !== null,
+        run: () => void addLink('map'),
+      }
+    }
+    if (activeSection === 'map' && mapLinks.length === 0 && !activeSectionDirty) {
+      return {
+        label: '加入',
+        disabled: true,
+        run: () => void addLink('map'),
+      }
+    }
+    if (activeSection === 'links' && webDraft.trim()) {
+      return {
+        label: resolvingLink === 'web' ? '讀取中…' : '加入',
+        disabled: resolvingLink !== null,
+        run: () => void addLink('web'),
+      }
+    }
+    return {
+      label: activeSection === 'costs' && storedItem.costs.length === 0 ? '加入費用' : '儲存',
+      disabled: !activeSectionDirty || resolvingLink !== null,
+      run: () => commitSection(activeSection),
+    }
+  })()
 
   const paymentModal = pickingPayment && (
     <Modal title="選擇支付方式" onCancel={() => setPickingPayment(false)} variant="picker">
@@ -565,8 +753,10 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           completeDanger
         >
           <p style={{ margin: 0 }}>
-            {hasEditing
+            {editMode === 'all'
               ? '確定要取消編輯並放棄這次的全部修改嗎？'
+              : hasEditing
+                ? '確定要取消並放棄這個區塊的修改嗎？'
               : '確定要離開並放棄這次的全部修改嗎？'}
           </p>
         </Modal>
@@ -605,11 +795,12 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         </button>
         <button
           className="btn btn-sm btn-glyph btn-plain detail-edit-all"
-          onClick={allSectionsOpen ? requestCancel : beginEditAll}
-          aria-label={allSectionsOpen ? '取消編輯' : '編輯全部'}
-          title={allSectionsOpen ? '取消編輯' : '編輯全部'}
+          onClick={editMode === 'all' ? requestCancel : beginEditAll}
+          disabled={editMode === 'section'}
+          aria-label={editMode === 'all' ? '取消編輯' : '編輯全部'}
+          title={editMode === 'section' ? '請先完成目前區塊' : editMode === 'all' ? '取消編輯' : '編輯全部'}
         >
-          {allSectionsOpen ? <CloseIcon size={20} /> : <PencilIcon size={20} />}
+          {editMode === 'all' ? <CloseIcon size={20} /> : <PencilIcon size={20} />}
         </button>
       </div>
 
@@ -623,7 +814,9 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
 
         <section
           className={`detail-section detail-summary${
-            editingSections.has('basic') ? '' : ' detail-section-clickable'
+            editingSections.has('basic') || editMode !== 'none' ? '' : ' detail-section-clickable'
+          }${
+            editingSections.has('basic') ? ' detail-summary-editing' : ''
           }`}
           {...sectionActionProps('basic')}
         >
@@ -704,7 +897,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         </section>
 
         <section
-          className={`detail-section${choosingCategory ? '' : ' detail-section-clickable'}`}
+          className={`detail-section${choosingCategory || editMode !== 'none' ? '' : ' detail-section-clickable'}`}
           {...categoryActionProps}
         >
           <div className="detail-section-head">
@@ -746,7 +939,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
 
         <section
           className={`detail-section${
-            editingSections.has('guide') ? '' : ' detail-section-clickable'
+            editingSections.has('guide') || editMode !== 'none' ? '' : ' detail-section-clickable'
           }`}
           {...sectionActionProps('guide')}
         >
@@ -770,7 +963,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
 
         <section
           className={`detail-section${
-            editingSections.has('notes') ? '' : ' detail-section-clickable'
+            editingSections.has('notes') || editMode !== 'none' ? '' : ' detail-section-clickable'
           }`}
           {...sectionActionProps('notes')}
         >
@@ -831,7 +1024,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   onChange={(event) => setNoteDraft(event.target.value)}
                   onKeyDown={(event) => isSubmitEnter(event) && addNote()}
                 />
-                <button className="btn" onClick={addNote}>加入</button>
+                {editMode === 'all' && <button className="btn" onClick={addNote}>加入</button>}
               </div>
             </>
           ) : item.notes.length > 0 ? (
@@ -862,7 +1055,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
 
         <section
           className={`detail-section${
-            editingSections.has('costs') ? '' : ' detail-section-clickable'
+            editingSections.has('costs') || editMode !== 'none' ? '' : ' detail-section-clickable'
           }`}
           {...sectionActionProps('costs')}
         >
@@ -977,7 +1170,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
 
         <section
           className={`detail-section${
-            editingSections.has('map') ? '' : ' detail-section-clickable'
+            editingSections.has('map') || editMode !== 'none' ? '' : ' detail-section-clickable'
           }`}
           {...sectionActionProps('map')}
         >
@@ -1034,13 +1227,15 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     onChange={(event) => setMapDraft(event.target.value)}
                     onKeyDown={(event) => isSubmitEnter(event) && void addLink('map')}
                   />
-                  <button
-                    className="btn"
-                    disabled={resolvingLink !== null}
-                    onClick={() => void addLink('map')}
-                  >
-                    {resolvingLink === 'map' ? '解析中…' : '加入'}
-                  </button>
+                  {editMode === 'all' && (
+                    <button
+                      className="btn"
+                      disabled={resolvingLink !== null}
+                      onClick={() => void addLink('map')}
+                    >
+                      {resolvingLink === 'map' ? '解析中…' : '加入'}
+                    </button>
+                  )}
                 </div>
               )}
               {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
@@ -1077,7 +1272,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
 
         <section
           className={`detail-section${
-            editingSections.has('links') ? '' : ' detail-section-clickable'
+            editingSections.has('links') || editMode !== 'none' ? '' : ' detail-section-clickable'
           }`}
           {...sectionActionProps('links')}
         >
@@ -1132,13 +1327,15 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   onChange={(event) => setWebDraft(event.target.value)}
                   onKeyDown={(event) => isSubmitEnter(event) && void addLink('web')}
                 />
-                <button
-                  className="btn"
-                  disabled={resolvingLink !== null}
-                  onClick={() => void addLink('web')}
-                >
-                  {resolvingLink === 'web' ? '讀取中…' : '加入'}
-                </button>
+                {editMode === 'all' && (
+                  <button
+                    className="btn"
+                    disabled={resolvingLink !== null}
+                    onClick={() => void addLink('web')}
+                  >
+                    {resolvingLink === 'web' ? '讀取中…' : '加入'}
+                  </button>
+                )}
               </div>
               {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
             </>
@@ -1177,7 +1374,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         {isActual && (
           <section
             className={`detail-section${
-              editingSections.has('review') ? '' : ' detail-section-clickable'
+              editingSections.has('review') || editMode !== 'none' ? '' : ' detail-section-clickable'
             }`}
             {...sectionActionProps('review')}
           >
@@ -1223,12 +1420,30 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         * 沒在編輯時只剩「離開」可按，而手機是用右滑返回的 ——
         * 那條按鈕列只留給沒有手勢的桌機，手機不算繪，不留一條空的橫條。
         */}
-      {hasEditing ? (
+      {editMode === 'all' ? (
         <div className="editor-actions">
           <button className="btn" onClick={requestCancel}>取消編輯</button>
           <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>
             完成編輯
           </button>
+        </div>
+      ) : editMode === 'section' ? (
+        <div className="editor-actions">
+          <button
+            className={`btn${sectionAction ? '' : ' detail-leave-wide'}`}
+            onClick={requestCancel}
+          >
+            取消
+          </button>
+          {sectionAction && (
+            <button
+              className="btn btn-primary"
+              onClick={sectionAction.run}
+              disabled={sectionAction.disabled}
+            >
+              {sectionAction.label}
+            </button>
+          )}
         </div>
       ) : (
         <div className="editor-actions wide-only">
