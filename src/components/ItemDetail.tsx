@@ -9,7 +9,7 @@ import {
   type Trip,
 } from '../types'
 import { newId } from '../lib/id'
-import { makeLink } from '../lib/maps'
+import { makeLink, parseLink } from '../lib/maps'
 import { formatMoney, formatTotals, lineTotal, sumByCurrency, toHome } from '../lib/money'
 import { normalizeTime, shortDate } from '../lib/date'
 import { isSubmitEnter } from '../lib/keys'
@@ -90,6 +90,20 @@ const filledCosts = (costs: CostLine[]) => costs.filter((cost) => !isBlankCost(c
 const filledNotes = (notes: Item['notes']) => notes.filter((note) => note.text.trim())
 const filledLinks = (links: LinkRef[]) =>
   links.filter((link) => link.kind === 'map' || link.url.trim() || link.label.trim())
+
+/**
+ * 貼上地圖連結時把地名接在既有標題後面，不覆蓋 ——
+ * 快選給的是「午餐」這種模板標題，加上店名才是完整的一行。
+ * 標題裡已經有這個名字就原封不動，所以刪掉連結再貼一次不會變成「淺草今半 淺草今半」，
+ * 地名當作連結標籤的備援（label 直接取自 item.title）那一路也不會自我疊加。
+ */
+const appendPlaceName = (title: string, place: string): string => {
+  const name = place.trim()
+  if (!name) return title
+  const base = title.trim()
+  if (!base) return name
+  return base.includes(name) ? base : `${base} ${name}`
+}
 
 const autoGrowTextArea = (element: HTMLTextAreaElement | null) => {
   if (!element) return
@@ -564,6 +578,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         nextItem = { ...nextItem, costs: filledCosts(nextItem.costs) }
         break
       case 'map':
+        // 地名接到標題後面了，這裡要一起寫回去。只寫 links 的話那段標題會靜默消失 ——
+        // 草稿留著新標題、store 裡沒有，畫面看起來存好了，重開才發現變回「午餐」。
+        patch = { title: nextItem.title, links: filledLinks(nextItem.links) }
+        nextItem = { ...nextItem, links: filledLinks(nextItem.links) }
+        break
       case 'links':
         patch = { links: filledLinks(nextItem.links) }
         nextItem = { ...nextItem, links: filledLinks(nextItem.links) }
@@ -628,7 +647,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     const parsed = { ...makeLink(value), kind }
     let link = parsed
 
-    if (gasUrl && tripLink && /^https?:\/\//i.test(parsed.url)) {
+    // 桌機從網址列複製的是長網址，地名就寫在 /maps/place/ 裡，本地拆得出來就不必多跑一趟
+    // 後端 —— 省掉的不只是等待，離線時這條路照樣成立。短網址與一般網站才需要展開。
+    const needsLookup = kind === 'web' || parseLink(parsed.url).needsExpand
+
+    if (needsLookup && gasUrl && tripLink && /^https?:\/\//i.test(parsed.url)) {
       try {
         const metadata = await fetchLinkMetadata(gasUrl, tripLink, parsed.url)
         link = {
@@ -655,12 +678,13 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     } finally {
       setResolvingLink(null)
     }
-    const nextItem = { ...item, links: [...item.links, link] }
+    const title = appendPlaceName(item.title, link.label)
+    const nextItem = { ...item, title, links: [...item.links, link] }
     setMapDraft('')
     if (finishSection && editMode === 'section') {
       commitSection('map', nextItem)
     } else {
-      patchItem({ links: nextItem.links })
+      patchItem({ title, links: nextItem.links })
       if (!link.label) setFocusLinkId(link.id)
     }
   }
