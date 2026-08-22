@@ -809,7 +809,8 @@ body[data-actual='true'] {
   gap: 6px;
 }
 
-.link-edit-row { margin-bottom: 6px; }
+.link-edit-row,
+.link-add-row { margin-bottom: 6px; }
 .link-add-row .field { flex: 1; min-width: 0; }
 .link-paste-btn {
   width: 34px;
@@ -1066,6 +1067,13 @@ body[data-actual='true'] {
     pointer-events: none;
     transition: filter 140ms ease;
   }
+
+  /* 支付方式與收據雖放在費用區塊裡，仍是獨立設定；編輯費用時不能一起操作。 */
+  .detail-cost-independent[data-disabled='true'] {
+    filter: brightness(0.78) saturate(0.5);
+    pointer-events: none;
+    transition: filter 140ms ease;
+  }
 }
 
 .detail-summary { padding-top: 16px; }
@@ -1285,7 +1293,6 @@ body[data-actual='true'] {
 
 .detail-note-edit-row { align-items: center; margin-bottom: 6px; }
 .detail-note-edit-row .field { flex: 1; min-width: 0; }
-.detail-note-new-row .detail-note-bullet { align-self: center; }
 .detail-add-row { margin-top: 4px; }
 
 .detail-cost-summary {
@@ -1534,7 +1541,10 @@ body[data-actual='true'] {
 .photo-section-embedded {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 0.5px solid var(--border);
+}
+.photo-section-embedded .photo-add-actions {
+  margin-top: 0;
+  margin-left: auto;
 }
 .photo-grid {
   display: grid;

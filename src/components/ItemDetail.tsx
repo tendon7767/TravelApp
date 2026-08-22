@@ -68,8 +68,8 @@ const SECTION_LABELS: Record<ItemDraftSection, string> = {
   review: '心得',
 }
 
-// 按「新增費用」（或空白費用按鉛筆）會先長出一列空的，使用者什麼都沒填就取消時
-// 不該被當成有未儲存變更；比對與儲存前都把這種空列濾掉。
+// 備註、連結與費用的「新增」都會先長出一張空卡。空卡不該被當成未儲存變更；
+// 比對與儲存前一律濾掉。既有備註若被清空，也依同一規則移除。
 /*
  * 現金與其他不是支付方式記錄 —— 沒有回饋規則、不該出現在回饋頁 ——
  * 但仍然要能標在一筆花費上，所以借 paymentMethodId 存保留字。
@@ -86,6 +86,9 @@ const isBlankCost = (cost: CostLine) =>
   !cost.label.trim() && !cost.unitPrice
 
 const filledCosts = (costs: CostLine[]) => costs.filter((cost) => !isBlankCost(cost))
+const filledNotes = (notes: Item['notes']) => notes.filter((note) => note.text.trim())
+const filledLinks = (links: LinkRef[]) =>
+  links.filter((link) => link.kind === 'map' || link.url.trim() || link.label.trim())
 
 export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChange }: Props) {
   const storedItem = useStore((state) => state.data.items.find((item) => item.id === itemId))
@@ -117,16 +120,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const [timeDraft, setTimeDraft] = useState(storedItem?.startTime ?? '')
   const [reviewDraft, setReviewDraft] = useState('')
   const [mapDraft, setMapDraft] = useState('')
-  const [webDraft, setWebDraft] = useState('')
   const [resolvingLink, setResolvingLink] = useState<LinkRef['kind'] | null>(null)
   const [linkLookupError, setLinkLookupError] = useState('')
-  const [noteDraft, setNoteDraft] = useState('')
-  const [addingNote, setAddingNote] = useState(false)
-  const [addingWebLink, setAddingWebLink] = useState(false)
-  const noteDraftRef = useRef<HTMLInputElement>(null)
-  const webDraftRef = useRef<HTMLInputElement>(null)
   const mapDraftRef = useRef<HTMLInputElement>(null)
   const [focusCostId, setFocusCostId] = useState<string | null>(null)
+  const [focusNoteId, setFocusNoteId] = useState<string | null>(null)
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
   const [choosingCategory, setChoosingCategory] = useState(false)
   const [pickingPayment, setPickingPayment] = useState(false)
@@ -218,8 +216,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       normalizeTime(timeDraft) !== normalizeTime(storedItem.startTime ?? '') ||
       (item.guide ?? '') !== (storedItem.guide ?? '') ||
       item.category !== storedItem.category ||
-      JSON.stringify(item.notes) !== JSON.stringify(storedItem.notes) ||
-      JSON.stringify(item.links) !== JSON.stringify(storedItem.links) ||
+      JSON.stringify(filledNotes(item.notes)) !== JSON.stringify(filledNotes(storedItem.notes)) ||
+      JSON.stringify(filledLinks(item.links)) !== JSON.stringify(filledLinks(storedItem.links)) ||
       JSON.stringify(filledCosts(item.costs)) !== JSON.stringify(filledCosts(storedItem.costs))
     )
   }, [item, storedItem, timeDraft])
@@ -229,9 +227,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         ? 'category'
         : editingSections.values().next().value
       : undefined
-  const pendingSectionInput = editMode === 'section' && Boolean(
-    noteDraft.trim() || mapDraft.trim() || webDraft.trim(),
-  )
+  const pendingSectionInput = editMode === 'section' && Boolean(mapDraft.trim())
   const dirty = itemDirty || reviewDraft !== (mine?.text ?? '') || pendingSectionInput
 
   useEffect(() => {
@@ -244,14 +240,18 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     void loadItemDraft(itemId).then((saved) => {
       if (cancelled) return
       if (saved) {
-        setDraftItem(saved.item)
+        // 舊版把尚未加入的備註／連結另外存成單一字串；還原時轉成新版的草稿卡片。
+        const restoredItem = copyItemSnapshot(saved.item) ?? saved.item
+        if (saved.noteDraft?.trim()) {
+          restoredItem.notes.push({ id: newId(), text: saved.noteDraft })
+        }
+        if (saved.webDraft?.trim()) {
+          restoredItem.links.push({ id: newId(), kind: 'web', url: '', label: saved.webDraft })
+        }
+        setDraftItem(restoredItem)
         setTimeDraft(saved.timeDraft)
         setReviewDraft(saved.reviewDraft)
-        setNoteDraft(saved.noteDraft ?? '')
         setMapDraft(saved.mapDraft ?? '')
-        setWebDraft(saved.webDraft ?? '')
-        setAddingNote(Boolean(saved.noteDraft))
-        setAddingWebLink(Boolean(saved.webDraft))
         const savedSections = new Set(saved.sections ?? (saved.section ? [saved.section] : []))
         const restoredMode = saved.mode ?? (savedSections.size > 1 ? 'all' : 'section')
         const categoryOnly =
@@ -290,9 +290,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         reviewDraft,
         mode: editMode === 'none' ? undefined : editMode,
         activeSection,
-        noteDraft,
         mapDraft,
-        webDraft,
         sections: [...editingSections],
       })
     }
@@ -307,9 +305,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     itemId,
     timeDraft,
     reviewDraft,
-    noteDraft,
     mapDraft,
-    webDraft,
   ])
 
   useEffect(() => {
@@ -336,7 +332,10 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   }
 
   const beginEdit = (section: ItemDraftSection) => {
-    // 空白費用按鉛筆後直接得到第一列，不必再多按一次「新增費用」。
+    setFocusCostId(null)
+    setFocusNoteId(null)
+    setFocusLinkId(null)
+    // 空區塊點進去就先建立第一張草稿卡；空卡不算變更，儲存時也會濾掉。
     if (section === 'costs' && item.costs.length === 0) {
       const costId = newId()
       patchItem({
@@ -345,12 +344,15 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         ],
       })
       setFocusCostId(costId)
-    } else {
-      setFocusCostId(null)
+    } else if (section === 'notes' && item.notes.length === 0) {
+      const noteId = newId()
+      patchItem({ notes: [{ id: noteId, text: '' }] })
+      setFocusNoteId(noteId)
+    } else if (section === 'links' && webLinks.length === 0) {
+      const linkId = newId()
+      patchItem({ links: [...item.links, { id: linkId, kind: 'web', url: '', label: '' }] })
+      setFocusLinkId(linkId)
     }
-    setAddingNote(section === 'notes' && item.notes.length === 0)
-    setAddingWebLink(section === 'links' && webLinks.length === 0)
-    setFocusLinkId(null)
     setLinkLookupError('')
     setRestored(false)
     setFocusSection(section)
@@ -371,10 +373,9 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
 
   const beginEditAll = () => {
     setFocusLinkId(null)
+    setFocusNoteId(null)
     setRestored(false)
     setChoosingCategory(true)
-    setAddingNote(false)
-    setAddingWebLink(webLinks.length === 0)
     setFocusCostId(null)
     setEditMode('all')
     // 展開全部時焦點固定回標題，它在最上面，畫面不會被拉走。
@@ -433,11 +434,9 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setTimeDraft(storedItem.startTime ?? '')
     setReviewDraft(mine?.text ?? '')
     setMapDraft('')
-    setWebDraft('')
-    setNoteDraft('')
-    setAddingNote(false)
-    setAddingWebLink(false)
     setFocusCostId(null)
+    setFocusNoteId(null)
+    setFocusLinkId(null)
     setEditingSections(new Set())
     setEditMode('none')
     setFocusSection(null)
@@ -454,28 +453,33 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     else discardAndClose()
   }
 
-  const completeEditing = () => {
+  const completeEditing = async () => {
     const normalizedTime = normalizeTime(timeDraft)
+    const normalizedLinks = await resolvePendingWebLinks(item.links)
+    const nextItem = {
+      ...item,
+      notes: filledNotes(item.notes),
+      links: normalizedLinks,
+      costs: filledCosts(item.costs),
+    }
     if (itemDirty) {
       updateItem(item.id, {
-        date: item.date,
+        date: nextItem.date,
         startTime: normalizedTime,
-        title: item.title,
-        guide: item.guide,
-        category: item.category,
-        notes: item.notes,
-        links: item.links,
-        costs: filledCosts(item.costs),
+        title: nextItem.title,
+        guide: nextItem.guide,
+        category: nextItem.category,
+        notes: nextItem.notes,
+        links: nextItem.links,
+        costs: nextItem.costs,
       })
     }
     if (isActual && reviewDraft !== (mine?.text ?? '')) setReview(item.id, reviewDraft)
     setTimeDraft(normalizedTime ?? '')
     setMapDraft('')
-    setWebDraft('')
-    setNoteDraft('')
-    setAddingNote(false)
-    setAddingWebLink(false)
     setFocusCostId(null)
+    setFocusNoteId(null)
+    setFocusLinkId(null)
     setEditingSections(new Set())
     setEditMode('none')
     setFocusSection(null)
@@ -489,11 +493,9 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setDraftItem(copyItemSnapshot(nextItem))
     setTimeDraft(normalizedTime)
     setMapDraft('')
-    setWebDraft('')
-    setNoteDraft('')
-    setAddingNote(false)
-    setAddingWebLink(false)
     setFocusCostId(null)
+    setFocusNoteId(null)
+    setFocusLinkId(null)
     setEditingSections(new Set())
     setEditMode('none')
     setFocusSection(null)
@@ -520,7 +522,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         patch = { guide: nextItem.guide }
         break
       case 'notes':
-        patch = { notes: nextItem.notes }
+        patch = { notes: filledNotes(nextItem.notes) }
+        nextItem = { ...nextItem, notes: filledNotes(nextItem.notes) }
         break
       case 'costs':
         patch = { costs: filledCosts(nextItem.costs) }
@@ -528,7 +531,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         break
       case 'map':
       case 'links':
-        patch = { links: nextItem.links }
+        patch = { links: filledLinks(nextItem.links) }
+        nextItem = { ...nextItem, links: filledLinks(nextItem.links) }
         break
       case 'review':
         if (isActual && reviewDraft !== (mine?.text ?? '')) setReview(item.id, reviewDraft)
@@ -572,16 +576,25 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setFocusCostId(costId)
   }
 
-  const addLink = async (kind: LinkRef['kind'], finishSection = false) => {
-    const value = kind === 'map' ? mapDraft : webDraft
-    if (!value.trim() || resolvingLink) return
-    if (kind === 'map' && item.links.some((link) => link.kind === 'map')) return
+  const addNoteCard = () => {
+    const noteId = newId()
+    patchItem({ notes: [...item.notes, { id: noteId, text: '' }] })
+    setFocusNoteId(noteId)
+  }
+
+  const addWebLinkCard = () => {
+    const linkId = newId()
+    patchItem({
+      links: [...item.links, { id: linkId, kind: 'web', url: '', label: '' }],
+    })
+    setFocusLinkId(linkId)
+  }
+
+  const resolveLinkValue = async (value: string, kind: LinkRef['kind']) => {
     const parsed = { ...makeLink(value), kind }
     let link = parsed
-    setLinkLookupError('')
 
     if (gasUrl && tripLink && /^https?:\/\//i.test(parsed.url)) {
-      setResolvingLink(kind)
       try {
         const metadata = await fetchLinkMetadata(gasUrl, tripLink, parsed.url)
         link = {
@@ -591,39 +604,58 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         }
       } catch {
         setLinkLookupError('無法讀取連結名稱，已使用預設備援名稱。')
-      } finally {
-        setResolvingLink(null)
       }
     }
     if (!link.label && kind === 'map') link = { ...link, label: item.title }
-    const nextItem = { ...item, links: [...item.links, link] }
-    if (kind === 'map') setMapDraft('')
-    else {
-      setWebDraft('')
-      setAddingWebLink(true)
+    return link
+  }
+
+  const addMapLink = async (finishSection = false) => {
+    if (!mapDraft.trim() || resolvingLink) return
+    if (item.links.some((link) => link.kind === 'map')) return
+    setLinkLookupError('')
+    setResolvingLink('map')
+    let link: LinkRef
+    try {
+      link = await resolveLinkValue(mapDraft, 'map')
+    } finally {
+      setResolvingLink(null)
     }
+    const nextItem = { ...item, links: [...item.links, link] }
+    setMapDraft('')
     if (finishSection && editMode === 'section') {
-      commitSection(kind === 'map' ? 'map' : 'links', nextItem)
+      commitSection('map', nextItem)
     } else {
       patchItem({ links: nextItem.links })
-      if (kind === 'web') requestAnimationFrame(() => webDraftRef.current?.focus())
-      else if (!link.label) setFocusLinkId(link.id)
+      if (!link.label) setFocusLinkId(link.id)
     }
   }
 
-  const addNote = (finishSection = false) => {
-    if (!noteDraft.trim()) return
-    const nextItem = {
-      ...item,
-      notes: [...item.notes, { id: newId(), text: noteDraft.trim() }],
+  const resolvePendingWebLinks = async (links: LinkRef[]) => {
+    const cleanLinks = filledLinks(links)
+    const hasPending = cleanLinks.some(
+      (link) => link.kind === 'web' && !link.url.trim() && link.label.trim(),
+    )
+    if (!hasPending) return cleanLinks
+
+    setLinkLookupError('')
+    setResolvingLink('web')
+    try {
+      return await Promise.all(
+        cleanLinks.map(async (link) => {
+          if (link.kind !== 'web' || link.url.trim() || !link.label.trim()) return link
+          const resolved = await resolveLinkValue(link.label, 'web')
+          return { ...resolved, id: link.id, kind: 'web' as const }
+        }),
+      )
+    } finally {
+      setResolvingLink(null)
     }
-    setNoteDraft('')
-    setAddingNote(true)
-    if (finishSection && editMode === 'section') commitSection('notes', nextItem)
-    else {
-      patchItem({ notes: nextItem.notes })
-      requestAnimationFrame(() => noteDraftRef.current?.focus())
-    }
+  }
+
+  const saveLinksSection = async () => {
+    const links = await resolvePendingWebLinks(item.links)
+    commitSection('links', { ...item, links })
   }
 
   const pickedMethod = methods.find((payment) => payment.id === item.paymentMethodId)
@@ -640,7 +672,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
             ? methodLabel(pickedMethod.name, pickedMethod.owner)
             : (OTHER_PAYMENTS.find(([id]) => id === item.paymentMethodId)?.[1] ?? '未設定')}
         </span>
-        <span aria-hidden="true">›</span>
       </button>
     </div>
   )
@@ -653,27 +684,20 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setPickingPayment(false)
   }
 
-  const showNoteComposer = () => {
-    setAddingNote(true)
-    requestAnimationFrame(() => noteDraftRef.current?.focus())
-  }
-
-  const showWebLinkComposer = () => {
-    setAddingWebLink(true)
-    requestAnimationFrame(() => webDraftRef.current?.focus())
-  }
-
-  const pasteLinkDraft = async (kind: LinkRef['kind']) => {
+  const pasteLinkDraft = async (kind: LinkRef['kind'], linkId?: string) => {
     setLinkLookupError('')
     try {
       const value = await navigator.clipboard.readText()
       if (kind === 'map') {
         setMapDraft(value)
         requestAnimationFrame(() => mapDraftRef.current?.focus())
-      } else {
-        setAddingWebLink(true)
-        setWebDraft(value)
-        requestAnimationFrame(() => webDraftRef.current?.focus())
+      } else if (linkId) {
+        patchItem({
+          links: item.links.map((link) =>
+            link.id === linkId ? { ...link, label: value } : link,
+          ),
+        })
+        requestAnimationFrame(() => document.getElementById(`web-link-${linkId}`)?.focus())
       }
     } catch {
       setLinkLookupError('無法讀取剪貼簿，請確認瀏覽器權限。')
@@ -691,13 +715,15 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       case 'guide':
         return (item.guide ?? '') !== (storedItem.guide ?? '')
       case 'notes':
-        return JSON.stringify(item.notes) !== JSON.stringify(storedItem.notes)
+        return JSON.stringify(filledNotes(item.notes)) !== JSON.stringify(filledNotes(storedItem.notes))
       case 'costs':
         return JSON.stringify(filledCosts(item.costs)) !== JSON.stringify(filledCosts(storedItem.costs))
       case 'map':
         return JSON.stringify(mapLinks) !== JSON.stringify(storedItem.links.filter((link) => link.kind === 'map'))
       case 'links':
-        return JSON.stringify(webLinks) !== JSON.stringify(storedItem.links.filter((link) => link.kind === 'web'))
+        return JSON.stringify(filledLinks(webLinks)) !== JSON.stringify(
+          filledLinks(storedItem.links.filter((link) => link.kind === 'web')),
+        )
       case 'review':
         return reviewDraft !== (mine?.text ?? '')
       case 'category':
@@ -709,25 +735,22 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
 
   const sectionAction = (() => {
     if (editMode !== 'section' || !activeSection || activeSection === 'category') return undefined
-    if (activeSection === 'notes' && noteDraft.trim()) {
-      return { disabled: false, run: () => addNote(true) }
-    }
     if (activeSection === 'map' && mapDraft.trim()) {
       return {
         disabled: resolvingLink !== null,
-        run: () => void addLink('map', true),
+        run: () => void addMapLink(true),
       }
     }
     if (activeSection === 'map' && mapLinks.length === 0 && !activeSectionDirty) {
       return {
         disabled: true,
-        run: () => void addLink('map', true),
+        run: () => void addMapLink(true),
       }
     }
-    if (activeSection === 'links' && webDraft.trim()) {
+    if (activeSection === 'links') {
       return {
-        disabled: resolvingLink !== null,
-        run: () => void addLink('web', true),
+        disabled: !activeSectionDirty || resolvingLink !== null,
+        run: () => void saveLinksSection(),
       }
     }
     return {
@@ -1035,6 +1058,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     enterKeyHint="done"
                     autoComplete="off"
                     value={note.text}
+                    placeholder="新增提醒或補充"
+                    autoFocus={note.id === focusNoteId}
                     onChange={(event) =>
                       patchItem({
                         notes: item.notes.map((value) =>
@@ -1054,27 +1079,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   </button>
                 </div>
               ))}
-              {addingNote ? (
-                <div className="detail-note-edit-row detail-note-new-row">
-                  <span className="detail-note-bullet" aria-hidden="true">•</span>
-                  <input
-                    ref={noteDraftRef}
-                    className="field"
-                    type="search"
-                    enterKeyHint="done"
-                    autoComplete="off"
-                    value={noteDraft}
-                    placeholder="新增提醒或補充"
-                    autoFocus
-                    onChange={(event) => setNoteDraft(event.target.value)}
-                    onKeyDown={(event) => isSubmitEnter(event) && addNote()}
-                  />
-                  <button className="btn" disabled={!noteDraft.trim()} onClick={() => addNote()}>
-                    加入
-                  </button>
-                </div>
-              ) : null}
-              <button className="btn btn-sm detail-add-row" onClick={showNoteComposer}>
+              <button className="btn btn-sm detail-add-row" onClick={addNoteCard}>
                 ＋ 新增備註
               </button>
             </>
@@ -1213,8 +1218,13 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               <p>這張卡有單筆回饋上限，一次刷完會有一部分拿不到。</p>
             </div>
           )}
-          {paymentPicker}
-          {isActual && <PhotoSection trip={trip} itemId={item.id} kind="receipt" embedded />}
+          <div
+            className="detail-cost-independent"
+            data-disabled={(editMode === 'section' && activeSection === 'costs') || undefined}
+          >
+            {paymentPicker}
+            {isActual && <PhotoSection trip={trip} itemId={item.id} kind="receipt" embedded />}
+          </div>
         </section>
 
         <section
@@ -1277,7 +1287,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     autoFocus={focusSection === 'map'}
                     onChange={(event) => setMapDraft(event.target.value)}
                     onKeyDown={(event) =>
-                      isSubmitEnter(event) && void addLink('map', editMode === 'section')
+                      isSubmitEnter(event) && void addMapLink(editMode === 'section')
                     }
                   />
                   <button
@@ -1292,7 +1302,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     <button
                       className="btn"
                       disabled={resolvingLink !== null}
-                      onClick={() => void addLink('map')}
+                      onClick={() => void addMapLink()}
                     >
                       {resolvingLink === 'map' ? '解析中…' : '加入'}
                     </button>
@@ -1337,71 +1347,79 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           {editingSections.has('links') ? (
             <>
               {webLinks.map((link) => (
-                <div key={link.id} className="link-edit-row">
-                  <input
-                    className="field"
-                    type="search"
-                    enterKeyHint="done"
-                    autoComplete="off"
-                    style={{ flex: 1, minWidth: 0 }}
-                    value={link.label}
-                    placeholder={link.url}
-                    onChange={(event) =>
-                      patchItem({
-                        links: item.links.map((value) =>
-                          value.id === link.id ? { ...value, label: event.target.value } : value,
-                        ),
-                      })
-                    }
-                  />
-                  <a className="btn btn-sm" href={link.url} target="_blank" rel="noreferrer">開啟</a>
-                  <button
-                    className="btn btn-sm delete-icon-btn"
-                    aria-label="刪除這個連結"
-                    onClick={() =>
-                      patchItem({ links: item.links.filter((value) => value.id !== link.id) })
-                    }
-                  >
-                    <TrashIcon />
-                  </button>
-                </div>
+                link.url ? (
+                  <div key={link.id} className="link-edit-row">
+                    <input
+                      className="field"
+                      type="search"
+                      enterKeyHint="done"
+                      autoComplete="off"
+                      style={{ flex: 1, minWidth: 0 }}
+                      value={link.label}
+                      placeholder={link.url}
+                      onChange={(event) =>
+                        patchItem({
+                          links: item.links.map((value) =>
+                            value.id === link.id ? { ...value, label: event.target.value } : value,
+                          ),
+                        })
+                      }
+                    />
+                    <a className="btn btn-sm" href={link.url} target="_blank" rel="noreferrer">開啟</a>
+                    <button
+                      className="btn btn-sm delete-icon-btn"
+                      aria-label="刪除這個連結"
+                      onClick={() =>
+                        patchItem({ links: item.links.filter((value) => value.id !== link.id) })
+                      }
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                ) : (
+                  <div key={link.id} className="link-add-row">
+                    <input
+                      id={`web-link-${link.id}`}
+                      className="field"
+                      type="search"
+                      enterKeyHint="done"
+                      autoComplete="off"
+                      inputMode="url"
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      value={link.label}
+                      placeholder="貼上訂位、票券或網站網址"
+                      autoFocus={link.id === focusLinkId}
+                      onChange={(event) =>
+                        patchItem({
+                          links: item.links.map((value) =>
+                            value.id === link.id ? { ...value, label: event.target.value } : value,
+                          ),
+                        })
+                      }
+                    />
+                    <button
+                      className="btn btn-sm link-paste-btn"
+                      aria-label="貼上相關連結網址"
+                      title="貼上"
+                      onClick={() => void pasteLinkDraft('web', link.id)}
+                    >
+                      <PasteIcon />
+                    </button>
+                    <button
+                      className="btn btn-sm delete-icon-btn"
+                      aria-label="刪除這個連結"
+                      onClick={() =>
+                        patchItem({ links: item.links.filter((value) => value.id !== link.id) })
+                      }
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                )
               ))}
-              {addingWebLink ? (
-                <div className="link-add-row">
-                  <input
-                    ref={webDraftRef}
-                    className="field"
-                    type="search"
-                    enterKeyHint="done"
-                    autoComplete="off"
-                    inputMode="url"
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    value={webDraft}
-                    placeholder="貼上訂位、票券或網站網址"
-                    autoFocus
-                    onChange={(event) => setWebDraft(event.target.value)}
-                    onKeyDown={(event) => isSubmitEnter(event) && void addLink('web')}
-                  />
-                  <button
-                    className="btn btn-sm link-paste-btn"
-                    aria-label="貼上相關連結網址"
-                    title="貼上"
-                    onClick={() => void pasteLinkDraft('web')}
-                  >
-                    <PasteIcon />
-                  </button>
-                  <button
-                    className="btn"
-                    disabled={!webDraft.trim() || resolvingLink !== null}
-                    onClick={() => void addLink('web')}
-                  >
-                    {resolvingLink === 'web' ? '讀取中…' : '加入'}
-                  </button>
-                </div>
-              ) : null}
-              <button className="btn btn-sm detail-add-row" onClick={showWebLinkComposer}>
+              <button className="btn btn-sm detail-add-row" onClick={addWebLinkCard}>
                 ＋ 新增連結
               </button>
               {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
@@ -1491,8 +1509,12 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       {editMode === 'all' ? (
         <div className="editor-actions">
           <button className="btn" onClick={requestCancel}>取消</button>
-          <button className="btn btn-primary" onClick={completeEditing} disabled={!dirty}>
-            儲存
+          <button
+            className="btn btn-primary"
+            onClick={() => void completeEditing()}
+            disabled={!dirty || resolvingLink !== null}
+          >
+            {resolvingLink === 'web' ? '讀取中…' : '儲存'}
           </button>
         </div>
       ) : editMode === 'section' ? (

@@ -5,7 +5,6 @@ import { useStore } from '../store/useStore'
 import type { Photo, Trip } from '../types'
 import PhotoLightbox, { PhotoThumbnail, type PhotoView } from './PhotoLightbox'
 import PhotoIcon from './PhotoIcon'
-import ReceiptIcon from './ReceiptIcon'
 
 export default function PhotoSection({
   trip,
@@ -73,13 +72,42 @@ export default function PhotoSection({
     if (albumRef.current) albumRef.current.value = ''
   }
 
+  const canAddPhotos = linked && (photoApiVersion ?? 0) >= 1
+  const photoAddActions = (
+    <div className="photo-add-actions">
+      <button className="btn btn-sm" disabled={processing} onClick={() => cameraRef.current?.click()}>
+        {kind === 'receipt' ? '拍收據' : '拍照'}
+      </button>
+      <button className="btn btn-sm" disabled={processing} onClick={() => albumRef.current?.click()}>
+        {processing ? '處理中…' : '從相簿選取'}
+      </button>
+      <input
+        ref={cameraRef}
+        className="photo-file-input"
+        type="file"
+        accept="image/*,.heic,.heif"
+        capture="environment"
+        onChange={(event) => void addFiles(event.target.files)}
+      />
+      <input
+        ref={albumRef}
+        className="photo-file-input"
+        type="file"
+        accept="image/*,.heic,.heif"
+        multiple
+        onChange={(event) => void addFiles(event.target.files)}
+      />
+    </div>
+  )
+
   const content = (
     <>
       <div className="detail-section-head">
         <span className="detail-kicker">
-          {kind === 'receipt' ? <ReceiptIcon size={14} /> : <PhotoIcon size={14} />}
+          {kind === 'trip' && <PhotoIcon size={14} />}
           {kind === 'receipt' ? '收據照片' : '行程照片'}
         </span>
+        {kind === 'receipt' && canAddPhotos && photoAddActions}
       </div>
 
       {views.length > 0 && (
@@ -92,32 +120,7 @@ export default function PhotoSection({
         <p className="dim photo-help">請先在行程設定連接雲端硬碟，才能加入照片。</p>
       ) : (photoApiVersion ?? 0) < 1 ? (
         <p className="photo-error">目前的 Apps Script 尚未支援照片，請重新部署後端。</p>
-      ) : (
-        <div className="photo-add-actions">
-          <button className="btn btn-sm" disabled={processing} onClick={() => cameraRef.current?.click()}>
-            {kind === 'receipt' ? '拍收據' : '拍照'}
-          </button>
-          <button className="btn btn-sm" disabled={processing} onClick={() => albumRef.current?.click()}>
-            {processing ? '處理中…' : '從相簿選取'}
-          </button>
-          <input
-            ref={cameraRef}
-            className="photo-file-input"
-            type="file"
-            accept="image/*,.heic,.heif"
-            capture="environment"
-            onChange={(event) => void addFiles(event.target.files)}
-          />
-          <input
-            ref={albumRef}
-            className="photo-file-input"
-            type="file"
-            accept="image/*,.heic,.heif"
-            multiple
-            onChange={(event) => void addFiles(event.target.files)}
-          />
-        </div>
-      )}
+      ) : kind === 'trip' ? photoAddActions : null}
       {error && <p className="photo-error">{error}</p>}
 
       {selectedId && (
