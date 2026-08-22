@@ -42,6 +42,7 @@ import FlagIcon from './FlagIcon'
 import TagIcon from './TagIcon'
 import BookIcon from './BookIcon'
 import StickyNoteIcon from './StickyNoteIcon'
+import RewardsIcon from './RewardsIcon'
 import { fetchLinkMetadata } from '../sync/client'
 import { copyItemSnapshot } from '../lib/items'
 import { flightStatusUrl, hasFlightStatus } from '../lib/flight'
@@ -1452,7 +1453,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           {...paymentActionProps}
         >
           <div className="detail-section-head">
-            <span className="detail-kicker">支付方式</span>
+            <span className="detail-kicker"><RewardsIcon size={14} />支付方式</span>
             <span className="btn btn-sm detail-payment-pick" aria-hidden="true">
               <span className="detail-payment-name">{pickedMethodLabel}</span>
             </span>

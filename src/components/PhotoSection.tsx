@@ -5,6 +5,7 @@ import { useStore } from '../store/useStore'
 import type { Photo, Trip } from '../types'
 import PhotoLightbox, { PhotoThumbnail, type PhotoView } from './PhotoLightbox'
 import PhotoIcon from './PhotoIcon'
+import ReceiptIcon from './ReceiptIcon'
 
 export default function PhotoSection({
   trip,
@@ -102,7 +103,7 @@ export default function PhotoSection({
     <>
       <div className="detail-section-head">
         <span className="detail-kicker">
-          {kind === 'trip' && <PhotoIcon size={14} />}
+          {kind === 'receipt' ? <ReceiptIcon size={14} /> : <PhotoIcon size={14} />}
           {kind === 'receipt' ? '收據照片' : '行程照片'}
         </span>
         {canAddPhotos && photoAddActions}
