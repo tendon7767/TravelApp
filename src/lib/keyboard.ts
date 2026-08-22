@@ -61,6 +61,7 @@ export const watchKeyboard = () => {
   const apply = (): KeyboardMetrics => {
     const metrics = readMetrics()
     root.style.setProperty('--kb', `${metrics.height}px`)
+    root.style.setProperty('--vvh-35', `${Math.round(vv.height * 0.35)}px`)
     // CSS 不能拿長度當條件；彈窗按鈕列會用這個旗標切換 sticky 行為。
     if (metrics.height > 0) root.dataset.kb = 'on'
     else delete root.dataset.kb

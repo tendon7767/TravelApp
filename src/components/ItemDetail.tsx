@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type KeyboardEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import {
   ITINERARY_CATEGORIES,
@@ -91,6 +91,14 @@ const filledNotes = (notes: Item['notes']) => notes.filter((note) => note.text.t
 const filledLinks = (links: LinkRef[]) =>
   links.filter((link) => link.kind === 'map' || link.url.trim() || link.label.trim())
 
+const autoGrowTextArea = (element: HTMLTextAreaElement | null) => {
+  if (!element) return
+  element.style.height = 'auto'
+  const style = getComputedStyle(element)
+  const borders = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth)
+  element.style.height = `${element.scrollHeight + borders}px`
+}
+
 export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChange }: Props) {
   const storedItem = useStore((state) => state.data.items.find((item) => item.id === itemId))
   const updateItem = useStore((state) => state.updateItem)
@@ -124,6 +132,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const [resolvingLink, setResolvingLink] = useState<LinkRef['kind'] | null>(null)
   const [linkLookupError, setLinkLookupError] = useState('')
   const mapDraftRef = useRef<HTMLInputElement>(null)
+  const guideTextAreaRef = useRef<HTMLTextAreaElement>(null)
+  const reviewTextAreaRef = useRef<HTMLTextAreaElement>(null)
   const [focusCostId, setFocusCostId] = useState<string | null>(null)
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null)
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
@@ -318,6 +328,29 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
+
+  // 文字變動時同步增高或縮回；layout effect 可避免使用者看到調整前的一幀。
+  useLayoutEffect(() => {
+    autoGrowTextArea(guideTextAreaRef.current)
+    autoGrowTextArea(reviewTextAreaRef.current)
+  }, [item?.guide, reviewDraft, editingSections])
+
+  // 旋轉裝置或桌面改變視窗寬度後，折行數可能不同，需要重新量內容高度。
+  useEffect(() => {
+    let frame = 0
+    const resize = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        autoGrowTextArea(guideTextAreaRef.current)
+        autoGrowTextArea(reviewTextAreaRef.current)
+      })
+    }
+    window.addEventListener('resize', resize)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('resize', resize)
+    }
+  }, [])
 
   if (!item || !storedItem || item.deleted) return <div className="empty">項目已刪除。</div>
 
@@ -1028,9 +1061,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           </div>
           {editingSections.has('guide') ? (
             <textarea
-              className="field"
-              rows={5}
+              ref={guideTextAreaRef}
+              className="field detail-auto-textarea detail-auto-guide"
+              rows={1}
               value={item.guide ?? ''}
+              onInput={(event) => autoGrowTextArea(event.currentTarget)}
               onChange={(event) => patchItem({ guide: event.target.value })}
               autoFocus={focusSection === 'guide'}
             />
@@ -1489,10 +1524,12 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               <>
                 <button className="detail-author" onClick={() => setRenaming(true)}>{me} · 改名</button>
                 <textarea
-                  className="field"
-                  rows={4}
+                  ref={reviewTextAreaRef}
+                  className="field detail-auto-textarea detail-auto-review"
+                  rows={1}
                   placeholder="實際去了之後的感想"
                   value={reviewDraft}
+                  onInput={(event) => autoGrowTextArea(event.currentTarget)}
                   onChange={(event) => {
                     setTouched(true)
                     setReviewDraft(event.target.value)

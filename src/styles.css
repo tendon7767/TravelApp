@@ -465,6 +465,37 @@ a { color: var(--accent); }
   font-size: 15px;
 }
 .field:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* 行程詳細頁的長文字欄位：內容短時維持緊湊，超過上限後才在框內捲動。 */
+.detail-auto-textarea {
+  display: block;
+  height: auto;
+  overflow-y: auto;
+  resize: none;
+  line-height: 1.5;
+  scrollbar-width: none;
+}
+.detail-auto-textarea::-webkit-scrollbar { display: none; }
+
+@media (max-width: 859px) {
+  .detail-auto-guide { --detail-auto-min-height: calc(4.5em + 18px); }
+  .detail-auto-review { --detail-auto-min-height: calc(3em + 18px); }
+  .detail-auto-textarea {
+    min-height: var(--detail-auto-min-height);
+    /* 八行與鍵盤升起後可視高度 35% 取小者；極小畫面仍保障各欄位最低行數。 */
+    max-height: max(
+      var(--detail-auto-min-height),
+      min(calc(12em + 18px), var(--vvh-35, 35dvh))
+    );
+  }
+}
+
+@media (min-width: 860px) {
+  .detail-auto-textarea {
+    min-height: calc(4.5em + 18px);
+    max-height: calc(18em + 18px);
+  }
+}
 /*
  * 文字欄位一律用 type="search"。這不是因為它們是搜尋框，而是 Chrome 刻意忽略
  * autocomplete="off"（太多網站拿它把自動填入整個關掉），只有「這是搜尋欄」這個
