@@ -1050,7 +1050,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           {editingSections.has('notes') ? (
             <>
               {item.notes.map((note) => (
-                <div key={note.id} className="detail-note-edit-row">
+                <div key={note.id} className="detail-note-edit-row" data-keyboard-reveal="">
                   <span className="detail-note-bullet" aria-hidden="true">•</span>
                   <input
                     className="field"
@@ -1122,7 +1122,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           {editingSections.has('costs') ? (
             <>
               {item.costs.map((cost) => (
-                <div key={cost.id} className="costline">
+                <div key={cost.id} className="costline" data-keyboard-reveal="">
                   <div className="costline-head">
                     <input
                       className="field cl-label"
@@ -1377,7 +1377,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     </button>
                   </div>
                 ) : (
-                  <div key={link.id} className="link-add-row">
+                  <div key={link.id} className="link-add-row" data-keyboard-reveal="">
                     <input
                       id={`web-link-${link.id}`}
                       className="field"

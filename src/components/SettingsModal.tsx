@@ -175,23 +175,25 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             open={!!hints.gas}
             onToggle={() => toggleHint('gas')}
           />
-          <input
-            id="s-gas"
-            className="field"
-            type="search"
-            enterKeyHint="done"
-            autoComplete="off"
-            inputMode="url"
-            autoCapitalize="off"
-            autoCorrect="off"
-            spellCheck={false}
-            value={urlDraft}
-            onChange={(e) => setUrlDraft(e.target.value)}
-            placeholder="https://script.google.com/macros/s/.../exec"
-          />
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
-            <button className="btn btn-sm" onClick={() => void connect()}>測試並儲存</button>
-            {status && <span className="dim" style={{ fontSize: 12 }}>{status}</span>}
+          <div data-keyboard-reveal="">
+            <input
+              id="s-gas"
+              className="field"
+              type="search"
+              enterKeyHint="done"
+              autoComplete="off"
+              inputMode="url"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              value={urlDraft}
+              onChange={(e) => setUrlDraft(e.target.value)}
+              placeholder="https://script.google.com/macros/s/.../exec"
+            />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
+              <button className="btn btn-sm" onClick={() => void connect()}>測試並儲存</button>
+              {status && <span className="dim" style={{ fontSize: 12 }}>{status}</span>}
+            </div>
           </div>
           {hints.gas && (
             <p className="settings-hint">
@@ -211,23 +213,25 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             open={!!hints.folder}
             onToggle={() => toggleHint('folder')}
           />
-          <input
-            id="s-folder"
-            className="field"
-            type="search"
-            enterKeyHint="done"
-            autoComplete="off"
-            inputMode="url"
-            autoCapitalize="off"
-            autoCorrect="off"
-            spellCheck={false}
-            value={folderDraft}
-            onChange={(e) => setFolderDraft(e.target.value)}
-            placeholder="貼上雲端硬碟資料夾網址，留空則用「旅遊資料」"
-          />
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
-            <button className="btn btn-sm" onClick={() => void checkFolder()}>確認並儲存</button>
-            {folderStatus && <span className="dim" style={{ fontSize: 12 }}>{folderStatus}</span>}
+          <div data-keyboard-reveal="">
+            <input
+              id="s-folder"
+              className="field"
+              type="search"
+              enterKeyHint="done"
+              autoComplete="off"
+              inputMode="url"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              value={folderDraft}
+              onChange={(e) => setFolderDraft(e.target.value)}
+              placeholder="貼上雲端硬碟資料夾網址，留空則用「旅遊資料」"
+            />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
+              <button className="btn btn-sm" onClick={() => void checkFolder()}>確認並儲存</button>
+              {folderStatus && <span className="dim" style={{ fontSize: 12 }}>{folderStatus}</span>}
+            </div>
           </div>
           {hints.folder && (
             <p className="settings-hint">

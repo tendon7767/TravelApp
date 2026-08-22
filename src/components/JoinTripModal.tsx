@@ -58,28 +58,30 @@ export default function JoinTripModal({ onClose }: { onClose: () => void }) {
     >
       <div>
         <label className="label" htmlFor="join-invite">邀請連結</label>
-        <input
-          id="join-invite"
-          className="field"
-          type="search"
-          enterKeyHint="done"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="https://…/#/join?u=…&s=…&k=…"
-          autoComplete="off"
-          inputMode="url"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-        />
-        <div style={{ marginTop: 8 }}>
-          <button className="btn btn-sm" onClick={() => void paste()}>從剪貼簿貼上</button>
+        <div data-keyboard-reveal="">
+          <input
+            id="join-invite"
+            className="field"
+            type="search"
+            enterKeyHint="done"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="https://…/#/join?u=…&s=…&k=…"
+            autoComplete="off"
+            inputMode="url"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+          <div style={{ marginTop: 8 }}>
+            <button className="btn btn-sm" onClick={() => void paste()}>從剪貼簿貼上</button>
+          </div>
+          {error && <p style={{ fontSize: 12, color: 'var(--danger)', margin: '8px 0 0' }}>{error}</p>}
         </div>
         <p className="dim" style={{ fontSize: 12, marginTop: 8 }}>
           從同行者那裡拿到的邀請連結，或是自己在另一台裝置上「複製邀請連結」得到的那一串。
           加入後會拉一次雲端資料，之後就跟原本一樣同步。
         </p>
-        {error && <p style={{ fontSize: 12, color: 'var(--danger)', margin: '8px 0 0' }}>{error}</p>}
       </div>
     </Modal>
   )

@@ -100,7 +100,12 @@ export default function PaymentEditor({
       </div>
 
       {method.rules.map((r) => (
-        <div key={r.id} className="card" style={{ padding: 9, marginBottom: 8 }}>
+        <div
+          key={r.id}
+          className="card"
+          style={{ padding: 9, marginBottom: 8 }}
+          data-keyboard-reveal=""
+        >
           {/* 加了欄位名稱之後三者高度不同，靠底部對齊才不會參差。 */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'flex-end' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
