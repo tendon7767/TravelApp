@@ -10,12 +10,10 @@ export default function PhotoSection({
   trip,
   itemId,
   kind,
-  embedded = false,
 }: {
   trip: Trip
   itemId: string
   kind: Photo['kind']
-  embedded?: boolean
 }) {
   const allPhotos = useStore((state) => state.data.photos)
   const pending = useStore((state) => state.pendingPhotos)
@@ -107,7 +105,7 @@ export default function PhotoSection({
           {kind === 'trip' && <PhotoIcon size={14} />}
           {kind === 'receipt' ? '收據照片' : '行程照片'}
         </span>
-        {kind === 'receipt' && canAddPhotos && photoAddActions}
+        {canAddPhotos && photoAddActions}
       </div>
 
       {views.length > 0 && (
@@ -120,7 +118,7 @@ export default function PhotoSection({
         <p className="dim photo-help">請先在行程設定連接雲端硬碟，才能加入照片。</p>
       ) : (photoApiVersion ?? 0) < 1 ? (
         <p className="photo-error">目前的 Apps Script 尚未支援照片，請重新部署後端。</p>
-      ) : kind === 'trip' ? photoAddActions : null}
+      ) : null}
       {error && <p className="photo-error">{error}</p>}
 
       {selectedId && (
@@ -134,14 +132,6 @@ export default function PhotoSection({
       )}
     </>
   )
-
-  if (embedded) {
-    return (
-      <div className="photo-section photo-section-embedded" onClick={(event) => event.stopPropagation()}>
-        {content}
-      </div>
-    )
-  }
 
   return <section className="detail-section photo-section">{content}</section>
 }

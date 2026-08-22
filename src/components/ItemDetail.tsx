@@ -660,21 +660,24 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
 
   const pickedMethod = methods.find((payment) => payment.id === item.paymentMethodId)
 
-  const paymentPicker = (
-    <div className="detail-payment-row" onClick={(event) => event.stopPropagation()}>
-      <span className="detail-key">支付方式</span>
-      <button
-        className="btn btn-sm detail-payment-pick"
-        onClick={() => setPickingPayment(true)}
-      >
-        <span className="detail-payment-name">
-          {pickedMethod
-            ? methodLabel(pickedMethod.name, pickedMethod.owner)
-            : (OTHER_PAYMENTS.find(([id]) => id === item.paymentMethodId)?.[1] ?? '未設定')}
-        </span>
-      </button>
-    </div>
-  )
+  const pickedMethodLabel = pickedMethod
+    ? methodLabel(pickedMethod.name, pickedMethod.owner)
+    : (OTHER_PAYMENTS.find(([id]) => id === item.paymentMethodId)?.[1] ?? '未設定')
+
+  // 支付方式是獨立且即選即存的設定；其他單區塊正在編輯時則跟著退到背景。
+  const paymentActionProps = editMode === 'section'
+    ? {}
+    : {
+        role: 'button' as const,
+        'aria-label': `設定支付方式，目前為${pickedMethodLabel}`,
+        tabIndex: 0,
+        onClick: () => setPickingPayment(true),
+        onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+          if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
+          event.preventDefault()
+          setPickingPayment(true)
+        },
+      }
 
   const choosePayment = (id?: string) => {
     if (id !== item.paymentMethodId) {
@@ -1110,124 +1113,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         </section>
 
         <section
-          data-active={activeSection === 'costs' || undefined}
-          className={`detail-section${
-            editingSections.has('costs') || editMode !== 'none' ? '' : ' detail-section-clickable'
-          }`}
-          {...sectionActionProps('costs')}
-        >
-          <div className="detail-section-head">
-            <span className="detail-kicker"><MoneyIcon />費用</span>
-          </div>
-          {editingSections.has('costs') ? (
-            <>
-              {item.costs.map((cost) => (
-                <div key={cost.id} className="costline" data-keyboard-reveal="">
-                  <div className="costline-head">
-                    <input
-                      className="field cl-label"
-                      type="search"
-                      enterKeyHint="done"
-                      autoComplete="off"
-                      placeholder="項目"
-                      value={cost.label}
-                      autoFocus={cost.id === focusCostId}
-                      onChange={(event) => patchCost(cost.id, { label: event.target.value })}
-                    />
-                    <button
-                      className="btn btn-sm delete-icon-btn"
-                      aria-label="刪除這筆費用"
-                      onClick={() =>
-                        patchItem({ costs: item.costs.filter((value) => value.id !== cost.id) })
-                      }
-                    >
-                      <TrashIcon />
-                    </button>
-                  </div>
-                  <NumberField
-                    className="field mono cl-price"
-                    value={cost.unitPrice}
-                    emptyAs={0}
-                    onChange={(value) => patchCost(cost.id, { unitPrice: value ?? 0 })}
-                    aria-label="單價"
-                  />
-                  <span className="dim costline-times">×</span>
-                  <NumberField
-                    className="field mono cl-qty"
-                    value={cost.qty}
-                    emptyAs={0}
-                    onChange={(value) => patchCost(cost.id, { qty: value ?? 0 })}
-                    aria-label="數量"
-                  />
-                  <div className="seg" role="group" aria-label="幣別">
-                    {[trip.foreignCurrency, trip.homeCurrency].map((code) => (
-                      <button
-                        key={code}
-                        className="seg-btn seg-btn-sm"
-                        aria-pressed={cost.currency === code}
-                        onClick={() => patchCost(cost.id, { currency: code })}
-                      >
-                        {code}
-                      </button>
-                    ))}
-                  </div>
-                  <span className="mono dim cl-sub">{formatMoney(lineTotal(cost), cost.currency)}</span>
-                </div>
-              ))}
-              <button className="btn btn-sm detail-add-row" onClick={addCost}>＋ 新增費用</button>
-              {item.costs.length > 0 && (
-                <div className="detail-total-row">
-                  <strong>合計</strong>
-                  <span className="mono">
-                    {formatTotals(totals) || formatMoney(0, trip.foreignCurrency)}
-                    {showConverted && <span className="dim"> ≈ {formatMoney(home, trip.homeCurrency)}</span>}
-                  </span>
-                </div>
-              )}
-            </>
-          ) : item.costs.length > 0 ? (
-            <>
-              <div className="detail-cost-summary">
-                <span>{item.costs.length} 筆費用總價</span>
-                <strong className="mono">{formatTotals(totals) || formatMoney(0, trip.foreignCurrency)}</strong>
-              </div>
-              <div className="detail-cost-list">
-                {item.costs.map((cost) => (
-                  <div key={cost.id} className="detail-cost-row">
-                    <span>{cost.label || '未命名費用'}</span>
-                    <span className="dim mono">{formatMoney(cost.unitPrice, cost.currency)}</span>
-                    <span className="dim mono">× {cost.qty}</span>
-                    <span className="mono">{formatMoney(lineTotal(cost), cost.currency)}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <p className="dim detail-empty-copy">-</p>
-          )}
-
-          {splitHint && (
-            <div className="detail-split-hint">
-              <div>
-                分成 {splitHint.splits} 筆各 {formatMoney(splitHint.each, splitHint.currency)}
-                {splitHint.currency === trip.homeCurrency && totals[trip.foreignCurrency] !== undefined && (
-                  <span>（約 {formatMoney(splitHint.each / trip.rate, trip.foreignCurrency)}）</span>
-                )}
-                ，可多拿 {formatMoney(splitHint.gain, splitHint.currency)} 回饋
-              </div>
-              <p>這張卡有單筆回饋上限，一次刷完會有一部分拿不到。</p>
-            </div>
-          )}
-          <div
-            className="detail-cost-independent"
-            data-disabled={(editMode === 'section' && activeSection === 'costs') || undefined}
-          >
-            {paymentPicker}
-            {isActual && <PhotoSection trip={trip} itemId={item.id} kind="receipt" embedded />}
-          </div>
-        </section>
-
-        <section
           data-active={activeSection === 'map' || undefined}
           className={`detail-section${
             editingSections.has('map') || editMode !== 'none' ? '' : ' detail-section-clickable'
@@ -1449,6 +1334,135 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           )}
         </section>
 
+        <section
+          data-active={activeSection === 'costs' || undefined}
+          className={`detail-section${
+            editingSections.has('costs') || editMode !== 'none' ? '' : ' detail-section-clickable'
+          }`}
+          {...sectionActionProps('costs')}
+        >
+          <div className="detail-section-head">
+            <span className="detail-kicker"><MoneyIcon />費用</span>
+          </div>
+          {editingSections.has('costs') ? (
+            <>
+              {item.costs.map((cost) => (
+                <div key={cost.id} className="costline" data-keyboard-reveal="">
+                  <div className="costline-head">
+                    <input
+                      className="field cl-label"
+                      type="search"
+                      enterKeyHint="done"
+                      autoComplete="off"
+                      placeholder="項目"
+                      value={cost.label}
+                      autoFocus={cost.id === focusCostId}
+                      onChange={(event) => patchCost(cost.id, { label: event.target.value })}
+                    />
+                    <button
+                      className="btn btn-sm delete-icon-btn"
+                      aria-label="刪除這筆費用"
+                      onClick={() =>
+                        patchItem({ costs: item.costs.filter((value) => value.id !== cost.id) })
+                      }
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                  <NumberField
+                    className="field mono cl-price"
+                    value={cost.unitPrice}
+                    emptyAs={0}
+                    onChange={(value) => patchCost(cost.id, { unitPrice: value ?? 0 })}
+                    aria-label="單價"
+                  />
+                  <span className="dim costline-times">×</span>
+                  <NumberField
+                    className="field mono cl-qty"
+                    value={cost.qty}
+                    emptyAs={0}
+                    onChange={(value) => patchCost(cost.id, { qty: value ?? 0 })}
+                    aria-label="數量"
+                  />
+                  <div className="seg" role="group" aria-label="幣別">
+                    {[trip.foreignCurrency, trip.homeCurrency].map((code) => (
+                      <button
+                        key={code}
+                        className="seg-btn seg-btn-sm"
+                        aria-pressed={cost.currency === code}
+                        onClick={() => patchCost(cost.id, { currency: code })}
+                      >
+                        {code}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="mono dim cl-sub">{formatMoney(lineTotal(cost), cost.currency)}</span>
+                </div>
+              ))}
+              <button className="btn btn-sm detail-add-row" onClick={addCost}>＋ 新增費用</button>
+              {item.costs.length > 0 && (
+                <div className="detail-total-row">
+                  <strong>合計</strong>
+                  <span className="mono">
+                    {formatTotals(totals) || formatMoney(0, trip.foreignCurrency)}
+                    {showConverted && <span className="dim"> ≈ {formatMoney(home, trip.homeCurrency)}</span>}
+                  </span>
+                </div>
+              )}
+            </>
+          ) : item.costs.length > 0 ? (
+            <>
+              <div className="detail-cost-summary">
+                <span>{item.costs.length} 筆費用總價</span>
+                <strong className="mono">{formatTotals(totals) || formatMoney(0, trip.foreignCurrency)}</strong>
+              </div>
+              <div className="detail-cost-list">
+                {item.costs.map((cost) => (
+                  <div key={cost.id} className="detail-cost-row">
+                    <span>{cost.label || '未命名費用'}</span>
+                    <span className="dim mono">{formatMoney(cost.unitPrice, cost.currency)}</span>
+                    <span className="dim mono">× {cost.qty}</span>
+                    <span className="mono">{formatMoney(lineTotal(cost), cost.currency)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="dim detail-empty-copy">-</p>
+          )}
+
+          {splitHint && (
+            <div className="detail-split-hint">
+              <div>
+                分成 {splitHint.splits} 筆各 {formatMoney(splitHint.each, splitHint.currency)}
+                {splitHint.currency === trip.homeCurrency && totals[trip.foreignCurrency] !== undefined && (
+                  <span>（約 {formatMoney(splitHint.each / trip.rate, trip.foreignCurrency)}）</span>
+                )}
+                ，可多拿 {formatMoney(splitHint.gain, splitHint.currency)} 回饋
+              </div>
+              <p>這張卡有單筆回饋上限，一次刷完會有一部分拿不到。</p>
+            </div>
+          )}
+        </section>
+
+        <section
+          className={`detail-section detail-payment-section${
+            editMode === 'section' ? '' : ' detail-section-clickable'
+          }`}
+          {...paymentActionProps}
+        >
+          <div className="detail-section-head">
+            <span className="detail-kicker">支付方式</span>
+            <span className="btn btn-sm detail-payment-pick" aria-hidden="true">
+              <span className="detail-payment-name">{pickedMethodLabel}</span>
+            </span>
+          </div>
+        </section>
+
+        {isActual && <PhotoSection trip={trip} itemId={item.id} kind="receipt" />}
+
+        {isActual && <PhotoSection trip={trip} itemId={item.id} kind="trip" />}
+
         {isActual && (
           <section
             data-active={activeSection === 'review' || undefined}
@@ -1499,7 +1513,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           </section>
         )}
 
-        {isActual && <PhotoSection trip={trip} itemId={item.id} kind="trip" />}
       </div>
 
       {/*

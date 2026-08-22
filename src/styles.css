@@ -1068,12 +1068,6 @@ body[data-actual='true'] {
     transition: filter 140ms ease;
   }
 
-  /* 支付方式與收據雖放在費用區塊裡，仍是獨立設定；編輯費用時不能一起操作。 */
-  .detail-cost-independent[data-disabled='true'] {
-    filter: brightness(0.78) saturate(0.5);
-    pointer-events: none;
-    transition: filter 140ms ease;
-  }
 }
 
 .detail-summary { padding-top: 16px; }
@@ -1337,7 +1331,6 @@ body[data-actual='true'] {
    單價與數量現在也是 .mono，所以要指最後一欄而不是指 .mono。 */
 .detail-cost-row > *:last-child { color: var(--text); }
 
-.detail-payment-row,
 .detail-total-row {
   display: flex;
   align-items: center;
@@ -1360,6 +1353,9 @@ body[data-actual='true'] {
   font-size: 13px;
 }
 .detail-payment-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.detail-payment-section .detail-section-head { margin-bottom: 0; }
+.detail-payment-section .detail-payment-pick { margin-left: auto; }
 
 .detail-total-row { font-size: 13px; }
 
@@ -1538,11 +1534,7 @@ body[data-actual='true'] {
 .detail-restored span { flex: 1; }
 
 .photo-section { cursor: default; }
-.photo-section-embedded {
-  margin-top: 10px;
-  padding-top: 10px;
-}
-.photo-section-embedded .photo-add-actions {
+.photo-section .photo-add-actions {
   margin-top: 0;
   margin-left: auto;
 }
