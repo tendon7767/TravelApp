@@ -72,6 +72,7 @@ export default function PhotoSection({
   }
 
   const canAddPhotos = linked && (photoApiVersion ?? 0) >= 1
+  const hasStatusMessage = !linked || (photoApiVersion ?? 0) < 1 || Boolean(error)
   const photoAddActions = (
     <div className="photo-add-actions">
       <button className="btn btn-sm" disabled={processing} onClick={() => cameraRef.current?.click()}>
@@ -134,5 +135,13 @@ export default function PhotoSection({
     </>
   )
 
-  return <section className="detail-section photo-section">{content}</section>
+  return (
+    <section
+      className="detail-section photo-section"
+      data-empty={views.length === 0 || undefined}
+      data-has-message={hasStatusMessage || undefined}
+    >
+      {content}
+    </section>
+  )
 }

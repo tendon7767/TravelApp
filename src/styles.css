@@ -1565,6 +1565,10 @@ body[data-actual='true'] {
 .detail-restored span { flex: 1; }
 
 .photo-section { cursor: default; }
+/* 沒有照片也沒有狀態提示時，整區只剩標題與新增按鈕，版面比照支付方式置中。 */
+.photo-section[data-empty='true']:not([data-has-message='true']) .detail-section-head {
+  margin-bottom: 0;
+}
 .photo-section .photo-add-actions {
   margin-top: 0;
   margin-left: auto;
