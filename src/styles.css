@@ -1217,9 +1217,12 @@ body[data-actual='true'] {
  * 站到前面來，AI 往背景靠退到後面。**不要把彩度給 AI 那塊** —— 帶彩度讀起來
  * 像「這段是重點」，跟它其實只是參考資料剛好相反。
  *
- * 兩條都用 token 兌出來，四個象限（亮／深 × 規劃／實際）自己都對，不必各寫一條：
- * --surface-2 的語意隨主題翻轉（深色比 --bg 亮是浮起、亮色比 --bg 深是凹陷），
- * 而「往 --bg 靠」在兩個方向都剛好是「退後」。
+ * 兩條都用 token 兌出來，四個象限（亮／深 × 規劃／實際）自己都對，不必各寫一條。
+ * **退後是往 --surface 靠，不是往 --bg 靠。** --surface 夾在 --bg 與 --surface-2 中間，
+ * 深色下往 --bg 混一混就會撞上區塊自己的底色（算出來 #161a21，--surface 是 #161b22），
+ * 那不是退到背景，是在區塊上挖一個看不出邊界的洞，再淡一階還會比區塊更黑。
+ * 亮色因為 --surface 是全畫面最亮的白，往 --bg 走剛好正確，所以這個坑只在深色現形。
+ * 改成在 --surface 與 --surface-2 之間取值，兩個方向都是「比區塊重一點點、比手打淡」。
  *
  * 手打那條刻意不寫在上面 `.detail-copy` 的共用規則裡：那條連 `.detail-review p`
  * 一起管，沒上色的心得氣泡會跟著被染色。
@@ -1237,7 +1240,7 @@ body[data-actual='true'] {
   margin-top: 6px;
   /* 右邊讓出右上角那顆圖示的位置，第一行才不會鑽到它底下。 */
   padding-right: 26px;
-  background: color-mix(in srgb, var(--surface-2) 45%, var(--bg));
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
 }
 
 /* 圖示跟著色塊一起退後。鮮豔的圖示壓在退後的底色上會互相打架。 */
@@ -1373,16 +1376,18 @@ body[data-actual='true'] {
 }
 
 .detail-cost-summary strong { color: var(--text); font-size: 14px; }
+
 /*
  * 格線開在清單上、每一列用 display: contents，欄位才會跨列對齊。
  * 每列各自是一個 grid 的話，欄寬由該列自己的內容決定，
  * 數字位數一不同就各對各的，看起來像沒對齊。
+ * 底色沿用 AI 資訊那塊：兩者都是「這裡有一塊資料」，行程說明手打的那塊才是最前面的一階。
  */
 .detail-cost-list {
   margin: 2px 0 8px;
   padding: 7px 9px;
   border-radius: 8px;
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto auto;
   column-gap: 8px;
