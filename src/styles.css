@@ -1213,27 +1213,40 @@ body[data-actual='true'] {
 }
 
 /*
- * AI 寫的那一段。跟自己寫的那塊分開、各自四邊圓角，中間留一道縫 ——
- * 連在一起會讀成「同一段文字換了底色」，分開才讀得出是兩個來源。
+ * 行程說明的兩塊底色。層次是「手打＝內容，AI＝附註」，所以手打帶一點主題色
+ * 站到前面來，AI 往背景靠退到後面。**不要把彩度給 AI 那塊** —— 帶彩度讀起來
+ * 像「這段是重點」，跟它其實只是參考資料剛好相反。
  *
- * 底色用 token 組出來而不是寫死：--surface-2 的語意隨主題翻轉（深色是浮起、
- * 亮色是凹陷），所以拿 --accent-bg 兌一點 --surface 疊上去，
- * 四個象限（亮／深 × 規劃／實際）都會自己跟著換。
+ * 兩條都用 token 兌出來，四個象限（亮／深 × 規劃／實際）自己都對，不必各寫一條：
+ * --surface-2 的語意隨主題翻轉（深色比 --bg 亮是浮起、亮色比 --bg 深是凹陷），
+ * 而「往 --bg 靠」在兩個方向都剛好是「退後」。
+ *
+ * 手打那條刻意不寫在上面 `.detail-copy` 的共用規則裡：那條連 `.detail-review p`
+ * 一起管，沒上色的心得氣泡會跟著被染色。
+ */
+.detail-copy-own {
+  background: color-mix(in srgb, var(--accent-bg) 25%, var(--surface-2));
+}
+
+/*
+ * AI 寫的那一段。跟手打那塊分開、各自四邊圓角，中間留一道縫 ——
+ * 連在一起會讀成「同一段文字換了底色」，分開才讀得出是兩個來源。
  */
 .detail-copy-ai {
   position: relative;
   margin-top: 6px;
   /* 右邊讓出右上角那顆圖示的位置，第一行才不會鑽到它底下。 */
   padding-right: 26px;
-  background: color-mix(in srgb, var(--accent-bg) 55%, var(--surface-2));
+  background: color-mix(in srgb, var(--surface-2) 45%, var(--bg));
 }
 
+/* 圖示跟著色塊一起退後。鮮豔的圖示壓在退後的底色上會互相打架。 */
 .detail-copy-ai-mark {
   position: absolute;
   top: 7px;
   right: 8px;
-  color: var(--accent);
-  opacity: 0.75;
+  color: var(--text-3);
+  opacity: 0.7;
 }
 
 .detail-link-list,

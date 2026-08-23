@@ -1211,7 +1211,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               const { own, ai } = splitGuide(item.guide)
               return (
                 <>
-                  {own && <p className="detail-copy">{own}</p>}
+                  {own && <p className="detail-copy detail-copy-own">{own}</p>}
                   {ai && (
                     <div className="detail-copy detail-copy-ai">
                       <SparkleIcon size={13} className="detail-copy-ai-mark" />
