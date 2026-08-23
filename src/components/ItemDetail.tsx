@@ -1,4 +1,13 @@
-import { type KeyboardEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useStore } from '../store/useStore'
 import {
   ITINERARY_CATEGORIES,
@@ -148,6 +157,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const mapDraftRef = useRef<HTMLInputElement>(null)
   const guideTextAreaRef = useRef<HTMLTextAreaElement>(null)
   const reviewTextAreaRef = useRef<HTMLTextAreaElement>(null)
+  const inactiveTapStartRef = useRef<{
+    x: number
+    y: number
+    hadEditableFocus: boolean
+  } | null>(null)
   const [focusCostId, setFocusCostId] = useState<string | null>(null)
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null)
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
@@ -501,6 +515,43 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     else discardAndClose()
   }
 
+  const beginInactiveSectionTap = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (
+      editMode !== 'section' ||
+      !window.matchMedia('(max-width: 859px)').matches ||
+      event.target !== event.currentTarget
+    ) {
+      inactiveTapStartRef.current = null
+      return
+    }
+    const active = document.activeElement
+    inactiveTapStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      hadEditableFocus:
+        active instanceof HTMLElement && active.matches('input, textarea, select, [contenteditable]'),
+    }
+  }
+
+  const finishInactiveSectionTap = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const start = inactiveTapStartRef.current
+    inactiveTapStartRef.current = null
+    if (
+      !start ||
+      editMode !== 'section' ||
+      event.target !== event.currentTarget ||
+      Math.hypot(event.clientX - start.x, event.clientY - start.y) > 8
+    ) return
+
+    // 第一次點外面只收鍵盤；等 Visual Viewport 復原後再點一次才真正取消。
+    if (start.hadEditableFocus) {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+      return
+    }
+    if (document.documentElement.dataset.kb === 'on') return
+    requestCancel()
+  }
+
   const completeEditing = async () => {
     const normalizedTime = normalizeTime(timeDraft)
     const normalizedLinks = await resolvePendingWebLinks(item.links)
@@ -717,10 +768,12 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   }
 
   const pickedMethod = methods.find((payment) => payment.id === item.paymentMethodId)
+  const pickedOtherPayment = OTHER_PAYMENTS.find(([id]) => id === item.paymentMethodId)
+  const hasPickedMethod = Boolean(pickedMethod || pickedOtherPayment)
 
   const pickedMethodLabel = pickedMethod
     ? methodLabel(pickedMethod.name, pickedMethod.owner)
-    : (OTHER_PAYMENTS.find(([id]) => id === item.paymentMethodId)?.[1] ?? '未設定')
+    : (pickedOtherPayment?.[1] ?? '未設定')
 
   // 支付方式是獨立且即選即存的設定；其他單區塊正在編輯時則跟著退到背景。
   const paymentActionProps = editMode === 'section'
@@ -938,7 +991,13 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         </button>
       </div>
 
-      <div className="scroll detail-scroll" data-edit-mode={editMode}>
+      <div
+        className="scroll detail-scroll"
+        data-edit-mode={editMode}
+        onPointerDown={beginInactiveSectionTap}
+        onPointerCancel={() => { inactiveTapStartRef.current = null }}
+        onClick={finishInactiveSectionTap}
+      >
         {restored && (
           <div className="detail-restored">
             <span>已還原上次未完成的編輯</span>
@@ -1513,8 +1572,12 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         >
           <div className="detail-section-head">
             <span className="detail-kicker"><RewardsIcon size={14} />支付方式</span>
-            <span className="btn btn-sm detail-payment-pick" aria-hidden="true">
-              <span className="detail-payment-name">{pickedMethodLabel}</span>
+            <span
+              className="detail-payment-value"
+              data-empty={!hasPickedMethod || undefined}
+              aria-hidden="true"
+            >
+              {hasPickedMethod ? pickedMethodLabel : '點此設定'}
             </span>
           </div>
         </section>

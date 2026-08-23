@@ -6,6 +6,8 @@ import type { Photo, Trip } from '../types'
 import PhotoLightbox, { PhotoThumbnail, type PhotoView } from './PhotoLightbox'
 import PhotoIcon from './PhotoIcon'
 import ReceiptIcon from './ReceiptIcon'
+import CameraIcon from './CameraIcon'
+import AlbumFolderIcon from './AlbumFolderIcon'
 
 export default function PhotoSection({
   trip,
@@ -73,13 +75,30 @@ export default function PhotoSection({
 
   const canAddPhotos = linked && (photoApiVersion ?? 0) >= 1
   const hasStatusMessage = !linked || (photoApiVersion ?? 0) < 1 || Boolean(error)
+  const cameraLabel = kind === 'receipt' ? '拍攝收據' : '拍攝行程照片'
+  const albumLabel = kind === 'receipt' ? '從相簿選取收據' : '從相簿選取行程照片'
   const photoAddActions = (
     <div className="photo-add-actions">
-      <button className="btn btn-sm" disabled={processing} onClick={() => cameraRef.current?.click()}>
-        {kind === 'receipt' ? '拍收據' : '拍照'}
+      <button
+        type="button"
+        className="btn btn-sm btn-glyph btn-plain photo-action-btn"
+        disabled={processing}
+        aria-label={cameraLabel}
+        title={cameraLabel}
+        onClick={() => cameraRef.current?.click()}
+      >
+        <CameraIcon />
       </button>
-      <button className="btn btn-sm" disabled={processing} onClick={() => albumRef.current?.click()}>
-        {processing ? '處理中…' : '從相簿選取'}
+      <button
+        type="button"
+        className="btn btn-sm btn-glyph btn-plain photo-action-btn"
+        disabled={processing}
+        aria-label={processing ? '正在處理照片' : albumLabel}
+        aria-busy={processing || undefined}
+        title={albumLabel}
+        onClick={() => albumRef.current?.click()}
+      >
+        <AlbumFolderIcon />
       </button>
       <input
         ref={cameraRef}
