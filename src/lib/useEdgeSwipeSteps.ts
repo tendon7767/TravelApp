@@ -1,6 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { DIRECTION_RATIO, FLING, FLING_MIN, LOCK_AT } from './useHorizontalSwipe'
-import { EDGE_DAMPING, STEP_RATIO } from './useSwipeSteps'
+import { DIRECTION_RATIO, LOCK_AT } from './useHorizontalSwipe'
+import { EDGE_DAMPING } from './useSwipeSteps'
+
+/*
+ * 門檻比左右撥高一截，這三個數字是一組的。
+ * 左右撥換日是一趟裡會做幾十次的事，門檻本來就該低；上下換行程是「這一則讀完了」，
+ * 一趟十幾次，而且它的起手勢跟捲動完全重疊 —— 誤觸成本高、正常觸發頻率低。
+ * 甩動那條尤其關鍵：捲到底之後順勢再滑一下，很容易就超過左右撥的 36px / 0.3，
+ * 所以拉到「明確甩一段」才收。手感要微調就只動這三個數字。
+ */
+/** 拖過螢幕高度的三成才算換頁（812pt 的機器約 244px）。 */
+const STEP_RATIO = 0.3
+/** 甩得夠快也算，但要甩過這麼長（px），一般捲動收尾的順勢動作才不會中。 */
+const FLING_MIN = 110
+/** 甩動的速度門檻（px/ms）。 */
+const FLING = 0.5
 
 interface Options {
   canPrev: boolean
@@ -19,10 +33,11 @@ interface Options {
 
 /**
  * 捲到盡頭再拖一次，滑進上一筆／下一筆。
- * 門檻與甩動判定沿用左右撥那一份（`useHorizontalSwipe` / `useSwipeSteps`），
- * 兩套各寫一份遲早會漂移成兩種手感。
+ * 方向判定與阻尼共用左右撥那一份（`useHorizontalSwipe` / `useSwipeSteps`），
+ * 只有「拖多遠才算數」自己一組（見上面那三個常數）——
+ * 那是這個手勢跟捲動重疊帶來的差異，不是兩套實作各自漂移。
  *
- * 跟橫向那支的結構差異只有兩處，都是垂直方向才有的問題：
+ * 跟橫向那支的結構差異還有兩處，都是垂直方向才有的問題：
  *   1. **盡頭只在 touchstart 判定。** 從中間一路捲到底、手不放就接著換頁的話，
  *      快速捲動的尾巴每次都會誤觸；放開再拖一次才算，就是「停在最底下再往下滑」。
  *   2. **鎖定後要 `preventDefault`**（所以是 `passive: false`）。垂直是瀏覽器自己的地盤，
