@@ -1041,6 +1041,42 @@ body[data-actual='true'] {
   overflow: hidden;
 }
 
+/*
+ * 上下滑入相鄰行程。當前這層跟著 --detail-shift 走；上一筆靜止墊在底下等著被露出，
+ * 下一筆掛在畫面下緣、跟著一起上來 —— 兩種運動用同一個變數表達，差別只在下面那兩條。
+ * 只有拖曳中才套用，平常這幾條完全不生效。
+ * `.detail-head` 的 z-index 刻意不動：它跟 `.detail-scroll` 同層的話，DOM 在後面的
+ * 捲動區會蓋到頂列上面。
+ */
+.pane-detail[data-step] > .detail-head,
+.pane-detail[data-step] > .detail-scroll,
+.pane-detail[data-step] > .editor-actions {
+  transform: translateY(var(--detail-shift, 0px));
+}
+.pane-detail[data-step] > .detail-scroll { position: relative; z-index: 1; }
+.pane-detail[data-step] > .editor-actions { position: relative; z-index: 2; }
+.pane-detail[data-step='settle'] > .detail-head,
+.pane-detail[data-step='settle'] > .detail-scroll,
+.pane-detail[data-step='settle'] > .editor-actions,
+.pane-detail[data-step='settle'] > .detail-neighbor {
+  transition: transform 0.2s ease-out;
+}
+
+/* 鄰居那一層只是畫面：點不到、捲不動，拖曳結束就整個卸載。 */
+.detail-neighbor {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  pointer-events: none;
+}
+.detail-neighbor[data-side='next'] {
+  transform: translateY(calc(100% + var(--detail-shift, 0px)));
+}
+
 .detail-head { z-index: 3; }
 /*
  * 深色下功能列的五顆圖示統一用文字色。並排的無框細線圖示只要有一顆是紅的、
@@ -1079,7 +1115,11 @@ body[data-actual='true'] {
 }
 
 /* 詳細資訊預設是閱讀頁；只有正在編輯的區塊才出現表單。 */
-.detail-scroll { background: var(--bg); }
+/*
+ * overscroll-behavior 是給「捲到盡頭再拖一次換頁」用的：不擋的話 iOS 會在盡頭做橡皮筋，
+ * 跟我們畫的位移疊在一起。順便也擋掉捲動鏈結到底下的頁面。
+ */
+.detail-scroll { background: var(--bg); overscroll-behavior: contain; }
 
 .detail-section {
   min-width: 0;

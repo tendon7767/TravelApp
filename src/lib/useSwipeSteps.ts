@@ -1,9 +1,9 @@
 import { FLING, FLING_MIN, useHorizontalSwipe } from './useHorizontalSwipe'
 
 /** 切換用的門檻比關閉那個小：走到下一天是常做的事，不該每次都拖過四分之一個螢幕。 */
-const STEP_RATIO = 0.18
+export const STEP_RATIO = 0.18
 /** 已經到頭或到尾時只讓它動一點點，手感上就知道再拖也沒有了。 */
-const EDGE_DAMPING = 0.25
+export const EDGE_DAMPING = 0.25
 
 interface Options {
   canPrev: boolean

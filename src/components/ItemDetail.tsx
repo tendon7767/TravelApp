@@ -67,6 +67,8 @@ interface Props {
   onClose: () => void
   onCopy: (item: Item) => void
   onDirtyChange: (dirty: boolean) => void
+  /** 編輯中要停掉外層「滑到上下一筆」的手勢，打字時的拖曳不該換頁。 */
+  onEditingChange?: (editing: boolean) => void
 }
 
 const SECTION_LABELS: Record<ItemDraftSection, string> = {
@@ -123,7 +125,14 @@ const autoGrowTextArea = (element: HTMLTextAreaElement | null) => {
   element.style.height = `${element.scrollHeight + borders}px`
 }
 
-export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChange }: Props) {
+export default function ItemDetail({
+  trip,
+  itemId,
+  onClose,
+  onCopy,
+  onDirtyChange,
+  onEditingChange,
+}: Props) {
   const storedItem = useStore((state) => state.data.items.find((item) => item.id === itemId))
   const updateItem = useStore((state) => state.updateItem)
   const removeItem = useStore((state) => state.removeItem)
@@ -293,6 +302,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     onDirtyChange(dirty)
     return () => onDirtyChange(false)
   }, [dirty, onDirtyChange])
+
+  useEffect(() => {
+    onEditingChange?.(editMode !== 'none')
+    return () => onEditingChange?.(false)
+  }, [editMode, onEditingChange])
 
   useEffect(() => {
     let cancelled = false

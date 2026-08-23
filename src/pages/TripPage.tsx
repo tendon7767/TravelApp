@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import ItineraryTab from '../components/ItineraryTab'
@@ -14,11 +15,16 @@ import Modal from '../components/Modal'
 import type { Item } from '../types'
 import { copyItemSnapshot } from '../lib/items'
 import { useSwipeBack } from '../lib/useSwipeBack'
+import { useEdgeSwipeSteps } from '../lib/useEdgeSwipeSteps'
+import { timeSortKey } from '../lib/date'
 import AlbumView from '../components/AlbumView'
 import SearchIcon from '../components/SearchIcon'
 import CloseIcon from '../components/CloseIcon'
 import ReviewIcon from '../components/ReviewIcon'
 import TabBar from '../components/TabBar'
+
+/** 鄰居那一層只是畫面，回呼一律接空的。 */
+const noop = () => {}
 
 export default function TripPage() {
   const { tripId } = useParams()
@@ -26,6 +32,16 @@ export default function TripPage() {
   const navigate = useNavigate()
   const [online, setOnline] = useState(() => navigator.onLine)
   const [detailDirty, setDetailDirty] = useState(false)
+  const [detailEditing, setDetailEditing] = useState(false)
+  /**
+   * 詳細頁上下滑到相鄰行程的過程。side 是要去哪一邊、shift 是當前這層的位移，
+   * settling 表示手已經放開、正在動畫收尾（那時鄰居還不能卸載）。
+   */
+  const [detailStep, setDetailStep] = useState<{
+    side: 'prev' | 'next'
+    shift: number
+    settling: boolean
+  } | null>(null)
   const [reviewDirty, setReviewDirty] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
   const [copied, setCopied] = useState<{ tripId: string; item: Item } | null>(null)
@@ -42,6 +58,7 @@ export default function TripPage() {
   const dismissOverwritten = useStore((s) => s.dismissOverwritten)
   const setActive = useStore((s) => s.setActive)
   const duplicateItem = useStore((s) => s.duplicateItem)
+  const allItems = useStore((s) => s.data.items)
   const allPlans = useStore((s) => s.data.plans)
   const plans = useMemo(
     () => allPlans.filter((p) => p.tripId === tripId && !p.deleted),
@@ -200,6 +217,69 @@ export default function TripPage() {
     disabled: !overlayDetail,
     stopPropagation: true,
   })
+
+  /*
+   * 詳細頁捲到盡頭再拖一次，就滑進上一筆／下一筆。
+   * 順序是整趟排成一條線（日期、時間），跨日接得下去 ——
+   * 停在當天最後一筆會讓人以為手勢壞了。
+   */
+  const planItems = useMemo(
+    () =>
+      allItems
+        .filter((item) => item.planId === planId && !item.deleted)
+        .sort((a, b) =>
+          a.date === b.date
+            ? timeSortKey(a.startTime) - timeSortKey(b.startTime)
+            : a.date.localeCompare(b.date),
+        ),
+    [allItems, planId],
+  )
+  const stepIndex = selectedId ? planItems.findIndex((item) => item.id === selectedId) : -1
+  const prevItemId = stepIndex > 0 ? planItems[stepIndex - 1].id : undefined
+  const nextItemId =
+    stepIndex >= 0 && stepIndex < planItems.length - 1 ? planItems[stepIndex + 1].id : undefined
+  const paneRef = useRef<HTMLDivElement>(null)
+  const settleTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const detailSteps = useEdgeSwipeSteps<HTMLDivElement>({
+    canPrev: Boolean(prevItemId),
+    canNext: Boolean(nextItemId),
+    // 編輯中（或有未存的修改）不吃這個手勢：打字時很容易誤觸，跳確認彈窗比不動更煩。
+    disabled: !overlayDetail || detailEditing || detailDirty || Boolean(detailStep?.settling),
+    scrollSelector: ':scope > .detail-scroll',
+    onShift: (dy) => setDetailStep({ side: dy > 0 ? 'prev' : 'next', shift: dy, settling: false }),
+    onRelease: (step) => {
+      const height = paneRef.current?.offsetHeight ?? window.innerHeight
+      const target = step === 0 ? 0 : step * -height
+      setDetailStep((current) => (current ? { ...current, shift: target, settling: true } : null))
+      clearTimeout(settleTimer.current)
+      settleTimer.current = setTimeout(() => {
+        /*
+         * 換內容與位移歸零要在同一次更新裡（timeout 的回呼是自動批次的），
+         * 分兩次的話中間會繪出「位置已經歸位、內容還是舊的」那一幀。
+         * 收尾時鄰居已經停在最終位置，所以看起來就是它接手了。
+         */
+        const nextId = step === -1 ? prevItemId : nextItemId
+        if (step !== 0 && nextId) setParam('sel', nextId)
+        setDetailStep(null)
+      }, 200)
+    },
+  })
+
+  // 兩個手勢掛在同一個元素上，ref 必須是穩定的：每次算繪都給新函式的話，
+  // React 會先用 null 呼叫再重掛一次，監聽等於每次算繪都拆掉重來。
+  const setDetailNode = useCallback(
+    (node: HTMLDivElement | null) => {
+      paneRef.current = node
+      detailSwipe(node)
+      detailSteps(node)
+    },
+    [detailSwipe, detailSteps],
+  )
+
+  useEffect(() => () => clearTimeout(settleTimer.current), [])
+
+  const stepNeighborId = detailStep?.side === 'prev' ? prevItemId : nextItemId
 
   if (!trip) {
     return (
@@ -367,7 +447,34 @@ export default function TripPage() {
         </div>
 
         {selectedId && plan && (
-          <div className="pane-detail" ref={detailSwipe}>
+          <div
+            className="pane-detail"
+            ref={setDetailNode}
+            data-step={detailStep ? (detailStep.settling ? 'settle' : 'drag') : undefined}
+            style={
+              detailStep
+                ? ({ '--detail-shift': `${detailStep.shift}px` } as CSSProperties)
+                : undefined
+            }
+          >
+            {/*
+              滑入相鄰行程時鄰居要顯示真的內容，所以拖曳期間才把它掛出來，放開就卸載。
+              上一筆是靜止墊在底下等著被露出，下一筆跟著當前這層一起走 ——
+              兩種運動用同一個 --detail-shift 表達，差別只在 CSS 那兩條。
+              這一層不可點也不回報狀態，它只是畫面。
+            */}
+            {detailStep && stepNeighborId && (
+              <div className="detail-neighbor" data-side={detailStep.side} aria-hidden>
+                <ItemDetail
+                  key={stepNeighborId}
+                  trip={trip}
+                  itemId={stepNeighborId}
+                  onClose={noop}
+                  onCopy={noop}
+                  onDirtyChange={noop}
+                />
+              </div>
+            )}
             <ItemDetail
               key={selectedId}
               trip={trip}
@@ -380,6 +487,7 @@ export default function TripPage() {
                 setParam('sel')
               }}
               onDirtyChange={setDetailDirty}
+              onEditingChange={setDetailEditing}
             />
           </div>
         )}
