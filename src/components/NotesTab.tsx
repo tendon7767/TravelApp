@@ -11,6 +11,7 @@ import TrashIcon from './TrashIcon'
 import PencilIcon from './PencilIcon'
 import MapPinIcon from './MapPinIcon'
 import LinkIcon from './LinkIcon'
+import ExternalLinkIcon from './ExternalLinkIcon'
 import { fetchLinkMetadata } from '../sync/client'
 import SwipePager from './SwipePager'
 
@@ -384,7 +385,15 @@ function NoteEditorModal({
                   }
                   aria-label="連結名稱"
                 />
-                <a className="btn btn-sm" href={l.url} target="_blank" rel="noreferrer">開啟</a>
+                <a
+                  className="btn btn-sm link-icon-btn"
+                  href={l.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="開啟連結"
+                >
+                  <ExternalLinkIcon />
+                </a>
                 <button
                   className="btn btn-sm delete-icon-btn"
                   onClick={() => patch({ links: draft.links.filter((v) => v.id !== l.id) })}

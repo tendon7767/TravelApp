@@ -43,6 +43,7 @@ import CloseIcon from './CloseIcon'
 import MapPinIcon from './MapPinIcon'
 import PencilIcon from './PencilIcon'
 import LinkIcon from './LinkIcon'
+import ExternalLinkIcon from './ExternalLinkIcon'
 import MoneyIcon from './MoneyIcon'
 import MapIcon from './MapIcon'
 import GlobeIcon from './GlobeIcon'
@@ -1337,7 +1338,15 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                       })
                     }
                   />
-                  <a className="btn btn-sm" href={link.url} target="_blank" rel="noreferrer">開啟</a>
+                  <a
+                    className="btn btn-sm link-icon-btn"
+                    href={link.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="在 Google Maps 開啟"
+                  >
+                    <ExternalLinkIcon />
+                  </a>
                   <button
                     className="btn btn-sm delete-icon-btn"
                     aria-label="刪除 Google Map"
@@ -1448,7 +1457,15 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                         })
                       }
                     />
-                    <a className="btn btn-sm" href={link.url} target="_blank" rel="noreferrer">開啟</a>
+                    <a
+                      className="btn btn-sm link-icon-btn"
+                      href={link.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="開啟連結"
+                    >
+                      <ExternalLinkIcon />
+                    </a>
                     <button
                       className="btn btn-sm delete-icon-btn"
                       aria-label="刪除這個連結"
@@ -1674,7 +1691,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               data-empty={!hasPickedMethod || undefined}
               aria-hidden="true"
             >
-              {hasPickedMethod ? pickedMethodLabel : '點此設定'}
+              {hasPickedMethod ? pickedMethodLabel : '-'}
             </span>
           </div>
         </section>
