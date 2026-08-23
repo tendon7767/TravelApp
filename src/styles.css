@@ -844,9 +844,11 @@ body[data-actual='true'] {
 .link-add-row { margin-bottom: 6px; }
 .link-add-row .field { flex: 1; min-width: 0; }
 .link-paste-btn {
-  width: 34px;
-  height: 34px;
+  /* .field 是 15px × 1.5 行高 + 16px 內距 + 2px 框線。 */
+  width: 40.5px;
+  height: 40.5px;
   padding: 0;
+  border-radius: var(--radius);
   color: var(--accent);
 }
 .link-paste-btn > svg { width: 20px; height: 20px; }
@@ -2078,9 +2080,11 @@ body[data-actual='true'] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  /* 跟同列的 .field 等高，表單尾端才會切齊。 */
+  width: 40.5px;
+  height: 40.5px;
   padding: 0;
+  border-radius: var(--radius);
   color: var(--danger);
 }
 .delete-icon-btn > svg { width: 19px; height: 19px; }

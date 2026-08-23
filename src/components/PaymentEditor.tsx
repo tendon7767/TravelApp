@@ -137,7 +137,7 @@ export default function PaymentEditor({
             </div>
             {method.rules.length > 1 && (
               <button
-                className="btn btn-sm btn-plain delete-icon-btn"
+                className="btn btn-sm delete-icon-btn"
                 onClick={() => onChange({ rules: method.rules.filter((v) => v.id !== r.id) })}
                 aria-label="刪除這條規則"
               >
