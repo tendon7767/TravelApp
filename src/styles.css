@@ -1055,9 +1055,10 @@ body[data-actual='true'] {
  * 兩種運動共用同一個 --detail-shift，差別只在誰在動、誰疊在上面。
  */
 /*
- * 層本身不上底色 —— 頂列與捲動區各自有自己的底，層再補一層不透明的話，
- * 當前這張就會把墊在底下的上一張整個蓋掉，讓開了也只看到一片背景。
- * 只有「蓋上來」的那張要不透明：它得遮住底下那張，而它的頂列是隱形的（連底色一起隱形）。
+ * 層本身不上底色 —— 頂列與捲動區各自有自己的底就夠了（捲動區是不透明的，
+ * 蓋上來的那張照樣遮得住底下那張）。層再補一層不透明的話有兩個壞處：
+ * 當前這張會把墊在底下的上一張整個蓋掉（讓開了也只看到一片背景），
+ * 而蓋上來的那張會在隱形頂列的位置多出一塊純色，定位的瞬間又忽然消失。
  */
 .detail-layer {
   position: absolute;
@@ -1071,7 +1072,6 @@ body[data-actual='true'] {
 /* 下一張是蓋上去的，所以疊在當前這層之上。 */
 .detail-layer[data-side='next'] {
   z-index: 2;
-  background: var(--bg);
   transform: translateY(calc(100% + var(--detail-shift, 0px)));
 }
 .detail-layer[data-side='prev'],
@@ -2287,6 +2287,11 @@ body[data-actual='true'] {
   body.detail-open { overflow: hidden; }
   /* 外殼留在全螢幕遮住背後頁面；只縮內部 flex 空間，把按鈕列推到鍵盤上緣。 */
   .pane-detail { inset: 0; padding-bottom: var(--kb, 0px); z-index: 40; }
+  /*
+   * 層是絕對定位的，而絕對定位的容器是父層的**內距框** —— 上面那條 padding-bottom
+   * 擋不住它，按鈕列會照樣長到鍵盤底下。同一段距離改由它自己讓開。
+   */
+  .detail-layer { bottom: var(--kb, 0px); }
   .pane-detail .editor-actions {
     padding: 14px 18px max(14px, calc(14px + env(safe-area-inset-bottom) - var(--kb, 0px)));
   }
