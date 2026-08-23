@@ -1044,13 +1044,17 @@ body[data-actual='true'] {
 /*
  * 上下滑入相鄰行程。**只有內容那層在動，頂列不跟著走** —— 它是這一頁的框，
  * 跟著滑走的話換頁瞬間它要彈回原位，那一下就是看得見的閃動。
- * 當前的捲動區跟著 --detail-shift 走；上一筆靜止墊在底下等著被露出，
- * 下一筆掛在畫面下緣、跟著一起上來 —— 兩種運動用同一個變數表達。
+ *
+ * 模型是一疊卡片：**之後的行程疊在上面，之前的行程墊在下面。**
+ *   - 往下一筆：當前這張不動，下一張從畫面下緣**蓋上來**。
+ *     當前跟著一起上移的話，感覺是「這一則被推走了、還沒讀完」，
+ *     而不是「我正在捲到下一則」。
+ *   - 往上一筆：當前這張往下讓開，露出靜止墊在底下的上一張。
+ * 兩種運動共用同一個 --detail-shift，差別只在誰在動、誰疊在上面。
  * 只有拖曳中才套用，平常這幾條完全不生效。
  */
-.pane-detail[data-step] > .detail-scroll {
-  position: relative;
-  z-index: 1;
+.pane-detail[data-step] > .detail-scroll { position: relative; z-index: 1; }
+.pane-detail[data-step][data-step-side='prev'] > .detail-scroll {
   transform: translateY(var(--detail-shift, 0px));
 }
 .pane-detail[data-step='settle'] > .detail-scroll,
@@ -1075,7 +1079,9 @@ body[data-actual='true'] {
  * 用 display: none 的話內容會整段上移，換過去的瞬間又跳回來。
  */
 .detail-neighbor .detail-head { visibility: hidden; }
+/* 下一張是蓋上去的，所以疊在捲動區之上 —— 但仍在頂列（z-index 3）之下。 */
 .detail-neighbor[data-side='next'] {
+  z-index: 2;
   transform: translateY(calc(100% + var(--detail-shift, 0px)));
 }
 

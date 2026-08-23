@@ -453,6 +453,7 @@ export default function TripPage() {
             className="pane-detail"
             ref={setDetailNode}
             data-step={detailStep ? (detailStep.settling ? 'settle' : 'drag') : undefined}
+            data-step-side={detailStep?.side}
             style={
               detailStep
                 ? ({ '--detail-shift': `${detailStep.shift}px` } as CSSProperties)
