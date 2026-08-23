@@ -9,7 +9,10 @@ import { newId } from './id'
 interface PresetBody {
   /** null 代表「這個項目不要帶費用」，沒寫則沿用類型層級的設定。 */
   預設費用?: { 項目: string; 單位?: string } | null
-  預設備註?: string[]
+  /** 只寫字串就是一般備註；要直接出現在行程列上的寫成 { 文字, 總覽 }。 */
+  預設備註?: (string | { 文字: string; 總覽?: boolean })[]
+  /** 一行一個元素，帶入時接成一段純文字。null 代表這個項目不要帶說明。 */
+  預設說明?: string[] | null
 }
 
 interface QuickRow extends PresetBody {
@@ -26,18 +29,35 @@ const CATEGORY_PRESETS = presets.類型 as Partial<Record<ItineraryCategory, Cat
 /** 解析後的預設值，已經處理過快選蓋掉類型的繼承。 */
 export interface Preset {
   cost?: { label: string }
-  notes: string[]
+  /** 行程說明的起手式，例如航班要填的那幾欄。 */
+  guide?: string
+  notes: { text: string; showInOverview?: boolean }[]
 }
 
+const readNotes = (rows: PresetBody['預設備註']): Preset['notes'] | undefined =>
+  rows?.map((row) =>
+    typeof row === 'string'
+      ? { text: row }
+      : { text: row.文字, showInOverview: row.總覽 || undefined },
+  )
+
+/** 「有寫這個鍵就以它為準（含寫 null 代表不要帶），沒寫才沿用上一層」。費用與說明共用這條規則。 */
+const has = (row: PresetBody | undefined, key: keyof PresetBody) =>
+  row ? Object.prototype.hasOwnProperty.call(row, key) : false
+
 const readBody = (row: PresetBody | undefined, fallback?: Preset): Preset => {
-  // 有寫 預設費用 就以它為準（寫 null 代表這個項目不要帶），沒寫才沿用上一層。
-  const overrides = row ? Object.prototype.hasOwnProperty.call(row, '預設費用') : false
-  const raw = overrides ? row?.預設費用 : undefined
+  const ownCost = has(row, '預設費用')
+  const rawCost = ownCost ? row?.預設費用 : undefined
+  const ownGuide = has(row, '預設說明')
+  const rawGuide = ownGuide ? row?.預設說明 : undefined
   return {
-    cost: overrides
-      ? (raw ? { label: raw.項目 } : undefined)
+    cost: ownCost
+      ? (rawCost ? { label: rawCost.項目 } : undefined)
       : fallback?.cost,
-    notes: row?.預設備註 ?? fallback?.notes ?? [],
+    guide: ownGuide
+      ? (rawGuide?.length ? rawGuide.join('\n') : undefined)
+      : fallback?.guide,
+    notes: readNotes(row?.預設備註) ?? fallback?.notes ?? [],
   }
 }
 
@@ -72,11 +92,11 @@ export const soleQuickItem = (category: ItineraryCategory): QuickItem =>
   quickItemsFor(category)[0] ?? { title: category, time: '', preset: categoryPreset(category) }
 
 /** 模板補了東西的區塊，詳細頁據此展開讓使用者立刻看到。 */
-export type TemplateSection = 'costs' | 'notes'
+export type TemplateSection = 'costs' | 'notes' | 'guide'
 
 export interface TemplateResult {
   /** 只包含真的要補的欄位；沒東西可補時是空物件。 */
-  patch: { costs?: CostLine[]; notes?: ItemNote[] }
+  patch: { costs?: CostLine[]; notes?: ItemNote[]; guide?: string }
   opened: TemplateSection[]
 }
 
@@ -85,7 +105,7 @@ export interface TemplateResult {
  * 純函式，詳細頁改類型與列表快選共用同一套規則，差別只在傳進來的 preset。
  */
 export const applyTemplate = (
-  item: { costs: CostLine[]; notes: ItemNote[] },
+  item: { costs: CostLine[]; notes: ItemNote[]; guide?: string },
   preset: Preset,
   trip: Pick<Trip, 'foreignCurrency'>,
 ): TemplateResult => {
@@ -106,8 +126,17 @@ export const applyTemplate = (
   }
 
   if (preset.notes.length && item.notes.length === 0) {
-    patch.notes = preset.notes.map((text) => ({ id: newId(), text }))
+    patch.notes = preset.notes.map((note) => ({
+      id: newId(),
+      text: note.text,
+      showInOverview: note.showInOverview,
+    }))
     opened.push('notes')
+  }
+
+  if (preset.guide && !item.guide?.trim()) {
+    patch.guide = preset.guide
+    opened.push('guide')
   }
 
   return { patch, opened }

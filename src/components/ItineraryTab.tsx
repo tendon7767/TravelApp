@@ -111,7 +111,7 @@ export default function ItineraryTab({
   const addQuick = (day: string, category: ItineraryCategory, quick: QuickItem) => {
     // 時間照模板給的，不管當天有沒有別的項目佔用 —— 同一時段本來就可能有兩筆。
     // 費用與備註取自該子項自己的預設值，飛機和地鐵本來就不該長一樣。
-    const { patch } = applyTemplate({ costs: [], notes: [] }, quick.preset, trip)
+    const { patch } = applyTemplate({ costs: [], notes: [], guide: '' }, quick.preset, trip)
     createItem({
       planId: plan.id,
       date: day,
