@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { ITINERARY_CATEGORIES, type ItineraryCategory, type Item, type Plan, type Trip } from '../types'
 import { eachDay, shortDate, timeSortKey } from '../lib/date'
@@ -84,12 +84,20 @@ export default function ItineraryTab({
   /*
    * 詳細頁上下滑到別的日子時，背後的列表要跟著換日 ——
    * 不然關掉詳細頁會發現列表還停在舊的那一天。從搜尋或回饋頁點進另一天的那一筆也一樣。
+   * **只在「選中的那一筆換了」時跳一次**：桌機是左右並排，列表捲得動，
+   * 每次 activeDay 一飄就跳回去的話，那條列表等於被釘住捲不動。
    */
   const selectedDate = items.find((item) => item.id === selectedId)?.date
+  const jumpedFor = useRef<string | null>(null)
   useEffect(() => {
-    if (!selectedDate || selectedDate === activeDay) return
-    jumpTo(selectedDate)
-  }, [selectedDate, activeDay, jumpTo])
+    if (!selectedId) {
+      jumpedFor.current = null
+      return
+    }
+    if (selectedId === jumpedFor.current) return
+    jumpedFor.current = selectedId
+    if (selectedDate && selectedDate !== activeDay) jumpTo(selectedDate)
+  }, [selectedId, selectedDate, activeDay, jumpTo])
 
   const byDay = useMemo(() => {
     const map = new Map<string, Item[]>()

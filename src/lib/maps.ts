@@ -101,10 +101,19 @@ export const makeLink = (input: string): LinkRef => {
  * 純啟發式，漏了只是標籤長一點，使用者自己改得掉。
  */
 export const placeNameOf = (label: string): string => {
+  // 切在分隔符前面的話，那顆逗號會留在字尾（「…bound to New Okayama port,」）。
+  const trim = (value: string) => value.replace(/[\s,、，。·・‧•\-–—/|]+$/u, '').trim()
   const text = label.replace(/\s+/g, ' ').trim()
   const dot = text.search(/\s?[·・‧•]\s?/)
-  const head = (dot > 0 ? text.slice(0, dot) : text).trim()
+  const head = trim(dot > 0 ? text.slice(0, dot) : text)
   const cut = head.search(/\s\d/)
   if (cut <= 0 || head.length - cut < 7) return head
-  return head.slice(0, cut).trim() || head
+  /*
+   * 數字那一刀切完，前面若還有逗號，逗號後那截也是地址的一部分
+   * （「…bound to New Okayama port, 甲 5165-24 Tonosho…」的「甲」）。
+   * 只在確定後面接著地址時才這樣切，一般情況下的逗號不會被動到。
+   */
+  const body = head.slice(0, cut)
+  const comma = body.search(/[,，、]/)
+  return trim(comma > 0 ? body.slice(0, comma) : body) || head
 }
