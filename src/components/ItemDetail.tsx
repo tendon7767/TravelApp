@@ -157,6 +157,12 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const [timeDraft, setTimeDraft] = useState(storedItem?.startTime ?? '')
   const [reviewDraft, setReviewDraft] = useState('')
   const [mapDraft, setMapDraft] = useState('')
+  /**
+   * 貼上那一刻從整段文字裡拆出來的地名。
+   * <input> 的值不能有換行，分享出來的「網址／地名／地址」三行貼進去會被黏成一串，
+   * 事後再拆已經分不出哪裡是地名。所以在還看得到換行的時候就先拆好收在這裡。
+   */
+  const [mapNameDraft, setMapNameDraft] = useState('')
   const [resolvingLink, setResolvingLink] = useState<LinkRef['kind'] | null>(null)
   const [linkLookupError, setLinkLookupError] = useState('')
   const mapDraftRef = useRef<HTMLInputElement>(null)
@@ -318,6 +324,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               ? initialMapUrl.current
               : (saved.mapDraft ?? ''),
         )
+        setMapNameDraft(saved.mapNameDraft ?? '')
         const restoredMode = saved.mode ?? (savedSections.size > 1 ? 'all' : 'section')
         const categoryOnly =
           restoredMode === 'section' &&
@@ -356,6 +363,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         mode: editMode === 'none' ? undefined : editMode,
         activeSection,
         mapDraft,
+        mapNameDraft,
         sections: [...editingSections],
       })
     }
@@ -371,6 +379,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     timeDraft,
     reviewDraft,
     mapDraft,
+    mapNameDraft,
   ])
 
   // 失敗訊息搬到本機留一份，並從 store 銷掉 —— 那就是「看過了」，浮標的計數立刻縮。
@@ -431,6 +440,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setFocusNoteId(null)
     setFocusLinkId(null)
     setMapDraft(storedMapUrl)
+    setMapNameDraft('')
     // 空區塊點進去就先建立第一張草稿卡；空卡不算變更，儲存時也會濾掉。
     if (section === 'costs' && item.costs.length === 0) {
       const costId = newId()
@@ -479,6 +489,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setFocusLinkId(null)
     setFocusNoteId(null)
     setMapDraft(storedMapUrl)
+    setMapNameDraft('')
     setRestored(false)
     setChoosingCategory(true)
     setFocusCostId(null)
@@ -539,6 +550,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setTimeDraft(storedItem.startTime ?? '')
     setReviewDraft(mine?.text ?? '')
     setMapDraft('')
+    setMapNameDraft('')
     setFocusCostId(null)
     setFocusNoteId(null)
     setFocusLinkId(null)
@@ -620,6 +632,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     if (isActual && reviewDraft !== (mine?.text ?? '')) setReview(item.id, reviewDraft)
     setTimeDraft(normalizedTime ?? '')
     setMapDraft('')
+    setMapNameDraft('')
     setFocusCostId(null)
     setFocusNoteId(null)
     setFocusLinkId(null)
@@ -636,6 +649,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setDraftItem(copyItemSnapshot(nextItem))
     setTimeDraft(normalizedTime)
     setMapDraft('')
+    setMapNameDraft('')
     setFocusCostId(null)
     setFocusNoteId(null)
     setFocusLinkId(null)
@@ -740,8 +754,9 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setFocusLinkId(linkId)
   }
 
-  const resolveLinkValue = async (value: string, kind: LinkRef['kind']) => {
+  const resolveLinkValue = async (value: string, kind: LinkRef['kind'], pastedLabel = '') => {
     const parsed = { ...makeLink(value), kind }
+    if (pastedLabel) parsed.label = pastedLabel
     let link = parsed
 
     // 桌機從網址列複製的是長網址，地名就寫在 /maps/place/ 裡，本地拆得出來就不必多跑一趟
@@ -784,7 +799,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setResolvingLink('map')
     let link: LinkRef
     try {
-      link = await resolveLinkValue(url, 'map')
+      link = await resolveLinkValue(url, 'map', mapNameDraft)
     } finally {
       setResolvingLink(null)
     }
@@ -857,17 +872,26 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setPickingPayment(false)
   }
 
+  /** 貼進來的整段文字（還帶著換行）拆成網址與地名，欄位裡只留乾淨的網址。 */
+  const takeMapPaste = (text: string) => {
+    setTouched(true)
+    const parsed = makeLink(text)
+    setMapDraft(/^https?:\/\//i.test(parsed.url) ? parsed.url : text.replace(/\s+/g, ' ').trim())
+    setMapNameDraft(placeNameOf(parsed.label))
+  }
+
   const pasteLinkDraft = async (kind: LinkRef['kind'], linkId?: string) => {
     setLinkLookupError('')
     try {
       const value = await navigator.clipboard.readText()
       if (kind === 'map') {
-        setMapDraft(value)
+        takeMapPaste(value)
         requestAnimationFrame(() => mapDraftRef.current?.focus())
       } else if (linkId) {
         patchItem({
           links: item.links.map((link) =>
-            link.id === linkId ? { ...link, label: value } : link,
+            // 換行壓成空白：欄位存不下換行，黏成一串會連網址都拆不出來。
+            link.id === linkId ? { ...link, label: value.replace(/\s+/g, ' ').trim() } : link,
           ),
         })
         requestAnimationFrame(() => document.getElementById(`web-link-${linkId}`)?.focus())
@@ -1159,9 +1183,15 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     spellCheck={false}
                     value={mapDraft}
                     placeholder="貼上 Google Maps 網址"
+                    /* 自己接手貼上：交給瀏覽器的話換行會被吃掉，地名就黏死在網址上了。 */
+                    onPaste={(event) => {
+                      event.preventDefault()
+                      takeMapPaste(event.clipboardData.getData('text'))
+                    }}
                     onChange={(event) => {
                       setTouched(true)
                       setMapDraft(event.target.value)
+                      setMapNameDraft('')
                     }}
                   />
                   <button
@@ -1179,6 +1209,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     onClick={() => {
                       setTouched(true)
                       setMapDraft('')
+                      setMapNameDraft('')
                     }}
                   >
                     <TrashIcon />

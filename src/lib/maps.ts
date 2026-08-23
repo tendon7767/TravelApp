@@ -61,7 +61,13 @@ export const parseLink = (url: string): ParsedLink => {
  */
 export const makeLink = (input: string): LinkRef => {
   const text = input.trim()
-  const url = text.match(/https?:\/\/\S+/)?.[0] ?? text
+  /*
+   * 只吃網址合法的那些 ASCII 字元，不是 \S+ ——
+   * <input> 會把貼進來的換行整個吃掉（不是換成空白），分享出來的
+   * 「網址換行地名換行地址」就會黏成一串，`\S+` 會把地名一起收進網址裡：
+   * 連結指到不存在的短碼，標籤只剩地址。停在第一個非網址字元才切得開。
+   */
+  const url = text.match(/https?:\/\/[\w\-.~:/?#[\]@!$&'()*+,;=%]+/i)?.[0] ?? text
   const pasted = text
     .replace(url, '')
     .split('\n')

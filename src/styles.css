@@ -1146,7 +1146,8 @@ body[data-actual='true'] {
 /* 地圖連結只是標題右側的一個圖示：有連結才出現，沒有就整個不佔位。 */
 .detail-title-row {
   display: flex;
-  align-items: flex-start;
+  /* 對齊整個標題的中線：靠上的話，名稱折成兩排時針會孤零零地吊在右上角。 */
+  align-items: center;
   gap: 8px;
 }
 
@@ -1155,14 +1156,15 @@ body[data-actual='true'] {
   flex: none;
   display: inline-flex;
   align-items: center;
-  margin-top: 2px;
+  /* 往左推一點才好按，貼著區塊右緣的東西手指構不到。 */
+  margin-right: 6px;
   color: var(--accent);
 }
 /* 點擊區靠 ::after 撐開，元素本身不放大版面才不受影響；右緣不外擴，避免橫向可拖動。 */
 .detail-map-link::after {
   content: '';
   position: absolute;
-  inset: -10px -4px -10px -10px;
+  inset: -11px -6px -11px -11px;
 }
 
 .detail-title {

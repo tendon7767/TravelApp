@@ -22,6 +22,8 @@ export interface ItemDraft {
   noteDraft?: string
   /** 基本資訊裡尚未儲存的 Google Map 網址。舊版是獨立區塊的「還沒按加入」那一格。 */
   mapDraft?: string
+  /** 貼上那一刻拆出來的地名 —— 欄位只留網址，這個沒存下來就得回頭問後端。 */
+  mapNameDraft?: string
   webDraft?: string
   /** 詳細資訊改成分區編輯後，要知道重新開啟時該還原哪一區。 */
   section?: ItemDraftSection
