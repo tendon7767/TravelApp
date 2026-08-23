@@ -2,12 +2,15 @@ import type { Item, ItemNote, Trip } from '../types'
 import { newId } from './id'
 
 /**
- * 地點分析的回傳結構。這六個欄位名同時出現在三個地方：
+ * 地點分析的回傳結構。這九個欄位名同時出現在三個地方：
  * src/data/placePrompt.md、後端的 PLACE_SCHEMA、以及這裡。改名要三處一起改。
  */
 export interface PlaceInfo {
   summary: string
   highlights: string[]
+  bestfoods: string[]
+  bestgoods: string[]
+  userreviews: string[]
   stayMinutes: number
   timing: string
   nearby: string
@@ -30,6 +33,16 @@ const stayText = (minutes: number): string => {
   return `建議停留約 ${hours} 小時`
 }
 
+const bullets = (lines: string[] | undefined): string[] =>
+  (lines ?? []).map((line) => line.trim()).filter(Boolean)
+
+/**
+ * 有標題的條列。四種清單接在一起時，沒有標題就分不出哪幾條在講什麼；
+ * highlights 例外，它緊接在 summary 後面，讀起來就是「這個地方」本身。
+ */
+const listBlock = (label: string, lines: string[]): string =>
+  lines.length ? `${label}\n${lines.map((line) => `· ${line}`).join('\n')}` : ''
+
 /** 把結構化的結果組成固定排版的文字。排版由這裡決定，不是讓模型自己排。 */
 export const formatPlaceInfo = (info: PlaceInfo): string => {
   const blocks: string[] = [AI_BLOCK_MARK]
@@ -37,8 +50,17 @@ export const formatPlaceInfo = (info: PlaceInfo): string => {
   const summary = info.summary?.trim()
   if (summary) blocks.push(summary)
 
-  const highlights = (info.highlights ?? []).map((line) => line.trim()).filter(Boolean)
+  const highlights = bullets(info.highlights)
   if (highlights.length) blocks.push(highlights.map((line) => `· ${line}`).join('\n'))
+
+  for (const [label, lines] of [
+    ['推薦餐點', bullets(info.bestfoods)],
+    ['熱門商品', bullets(info.bestgoods)],
+    ['評論摘要', bullets(info.userreviews)],
+  ] as const) {
+    const block = listBlock(label, lines)
+    if (block) blocks.push(block)
+  }
 
   // 停留時間、時段、順路擠在同一段：三行都短，各自成段會把說明拉得很長。
   const tail = [stayText(info.stayMinutes), info.timing?.trim(), info.nearby?.trim() ? `順路：${info.nearby.trim()}` : '']

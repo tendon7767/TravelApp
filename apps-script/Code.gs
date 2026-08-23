@@ -14,7 +14,7 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-23-place-ai'
+var BACKEND_VERSION = '2026-08-23-place-ai2'
 
 /** 邀請連結備份的分頁名稱。不在 SCHEMA 裡，pull/push 都不會碰到它。 */
 var INVITE_SHEET = '邀請連結'
@@ -774,12 +774,18 @@ var PLACE_SCHEMA = {
   properties: {
     summary: { type: 'string' },
     highlights: { type: 'array', items: { type: 'string' } },
+    bestfoods: { type: 'array', items: { type: 'string' } },
+    bestgoods: { type: 'array', items: { type: 'string' } },
+    userreviews: { type: 'array', items: { type: 'string' } },
     stayMinutes: { type: 'integer' },
     timing: { type: 'string' },
     nearby: { type: 'string' },
     cautions: { type: 'array', items: { type: 'string' } },
   },
-  required: ['summary', 'highlights', 'stayMinutes', 'timing', 'nearby', 'cautions'],
+  required: [
+    'summary', 'highlights', 'bestfoods', 'bestgoods', 'userreviews',
+    'stayMinutes', 'timing', 'nearby', 'cautions',
+  ],
 }
 
 function describePlace(body) {

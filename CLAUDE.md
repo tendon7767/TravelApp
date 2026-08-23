@@ -82,8 +82,11 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - **prompt 住在前端**（[src/data/placePrompt.md](src/data/placePrompt.md)），隨請求送給後端，後端 `describePlace` 只負責轉發。
   寫進 `Code.gs` 的話每調一個字都要重新部署一次後端，而 prompt 是一定會反覆調的東西。
   那個檔案**整份原封不動當成 system instruction**，所以裡面不要加任何說明或註解。
-- **`summary` / `highlights` / `stayMinutes` / `timing` / `nearby` / `cautions` 這六個欄位名同時出現在三個地方**：
-  那份 prompt、`Code.gs` 的 `PLACE_SCHEMA`、[src/lib/placeInfo.ts](src/lib/placeInfo.ts)。改文案很安全，改欄位名要三處一起。
+- **欄位名同時出現在三個地方**：那份 prompt、`Code.gs` 的 `PLACE_SCHEMA`、
+  [src/lib/placeInfo.ts](src/lib/placeInfo.ts) 的 `PlaceInfo` 與 `formatPlaceInfo`。改文案很安全，
+  **加欄位或改欄位名要三處一起改，而且會靜默失敗** —— `PLACE_SCHEMA` 是硬約束，
+  schema 裡沒有的欄位模型根本不會產出，只在 prompt 裡寫等於白寫，不會有任何錯誤訊息。
+  加了欄位就要動 `BACKEND_VERSION` 並重新部署。
 - **文字排版由 `formatPlaceInfo` 決定，不是讓模型自己排。** 每一筆長得一樣，而且之後想把
   `stayMinutes` 拉出來變成 `Item` 的真欄位時，prompt 一個字都不用改。
 - **AI 寫的那塊永遠以 `AI資訊` 開頭、永遠在說明的最底下。** 重新分析時靠那一行找到起點整塊換掉，
