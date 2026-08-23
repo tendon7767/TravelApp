@@ -2,8 +2,8 @@ import type { Item, ItemNote, Trip } from '../types'
 import { newId } from './id'
 
 /**
- * 地點分析的回傳結構。這八個欄位名同時出現在三個地方：
- * src/data/placePrompt.md、後端的 PLACE_SCHEMA、以及這裡。改名要三處一起改。
+ * 地點分析的回傳結構。欄位名出現在兩個地方：這裡（型別與 PLACE_SCHEMA）
+ * 與 src/data/placePrompt.md。兩者都在前端，改完 push 就生效。
  */
 export interface PlaceInfo {
   summary: string
@@ -15,6 +15,38 @@ export interface PlaceInfo {
   nearby: string
   cautions: string[]
 }
+
+/**
+ * 送給 Gemini 的輸出約束。**這是硬約束：schema 裡沒有的欄位模型根本不會產出**，
+ * 只在 prompt 裡寫等於白寫，而且不會有任何錯誤訊息。加欄位要三件事一起做：
+ * 這份 schema、上面的 `PlaceInfo`、還有 `formatPlaceInfo` 決定它排在哪裡。
+ *
+ * 跟 prompt 一樣住在前端隨請求送上去，後端只轉發 —— 這樣加欄位不必再重新部署後端。
+ * 型別就在正上方，兩邊對不上一眼看得出來。
+ */
+export const PLACE_SCHEMA = {
+  type: 'object',
+  properties: {
+    summary: { type: 'string' },
+    highlights: { type: 'array', items: { type: 'string' } },
+    bestfoods: { type: 'array', items: { type: 'string' } },
+    bestgoods: { type: 'array', items: { type: 'string' } },
+    stayMinutes: { type: 'integer' },
+    timing: { type: 'string' },
+    nearby: { type: 'string' },
+    cautions: { type: 'array', items: { type: 'string' } },
+  },
+  required: [
+    'summary', 'highlights', 'bestfoods', 'bestgoods',
+    'stayMinutes', 'timing', 'nearby', 'cautions',
+  ],
+}
+
+/**
+ * 用哪個模型。免費層的額度隨模型不同，撞到上限就換一個 ——
+ * 後端的 GEMINI_MODEL 指令碼屬性仍然可以蓋過它，那是不想 push 時的緊急出口。
+ */
+export const PLACE_MODEL = 'gemini-3.7-flash'
 
 /**
  * AI 寫的那一段永遠以這一行開頭，而且永遠在最底下。

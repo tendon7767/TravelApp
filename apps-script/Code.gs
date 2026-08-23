@@ -14,7 +14,7 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-23-place-ai3'
+var BACKEND_VERSION = '2026-08-23-place-ai4'
 
 /** 邀請連結備份的分頁名稱。不在 SCHEMA 裡，pull/push 都不會碰到它。 */
 var INVITE_SHEET = '邀請連結'
@@ -758,17 +758,21 @@ function usablePageTitle(value) {
 /**
  * 地點分析。走 Gemini 的 Interactions API。
  *
- * 金鑰與模型都放指令碼屬性（專案設定 → 指令碼屬性），不寫進這份檔案：
+ * 金鑰放指令碼屬性（專案設定 → 指令碼屬性），不寫進這份檔案：
  *   GEMINI_API_KEY   必填，去 aistudio.google.com 申請，免費層不必綁信用卡
- *   GEMINI_MODEL     選填，不填就用下面的預設。免費層額度隨模型不同，換模型不必改程式
+ *   GEMINI_MODEL     選填，緊急時可以在這裡蓋過前端送來的模型，不必 push
  *
- * prompt 由前端隨請求送上來，這裡只負責轉發 —— 調 prompt 是常態，
- * 寫死在後端的話每改一個字都要重新部署一次。
+ * prompt、輸出 schema 與模型都由前端隨請求送上來，這裡只負責轉發 ——
+ * 那三樣是會反覆調整的東西，留在後端的話每改一次都要走完整的部署流程，
+ * 而且忘了部署會靜默失敗（schema 沒有的欄位模型不會產出，也不報錯）。
+ *
+ * 端點刻意留在後端寫死，不接受前端指定：金鑰是放在標頭裡送去那個網址的，
+ * 讓呼叫端決定送去哪，等於任何拿到邀請連結的人都能把金鑰導去自己的伺服器。
  */
 var GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions'
 var GEMINI_DEFAULT_MODEL = 'gemini-3.7-flash'
 
-/** 回傳結構固定，前端據此組出行程說明與備註。欄位名改了要三處一起改。 */
+/** 前端沒送 schema 時的備援（例如同行者的瀏覽器還是舊的快取版本）。 */
 var PLACE_SCHEMA = {
   type: 'object',
   properties: {
@@ -802,13 +806,14 @@ function describePlace(body) {
     muteHttpExceptions: true,
     headers: { 'x-goog-api-key': key },
     payload: JSON.stringify({
-      model: props.getProperty('GEMINI_MODEL') || GEMINI_DEFAULT_MODEL,
+      // 指令碼屬性優先，那是不想 push 時的緊急出口；其次才是前端送來的。
+      model: props.getProperty('GEMINI_MODEL') || body.model || GEMINI_DEFAULT_MODEL,
       system_instruction: String(body.prompt).slice(0, 8000),
       input: String(body.input).slice(0, 8000),
       response_format: {
         type: 'text',
         mime_type: 'application/json',
-        schema: PLACE_SCHEMA,
+        schema: body.schema || PLACE_SCHEMA,
       },
     }),
   })

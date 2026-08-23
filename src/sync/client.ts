@@ -173,16 +173,22 @@ export const fetchLinkMetadata = (gasUrl: string, link: TripLink, url: string) =
  * 地點分析。prompt 從前端送上去，後端只負責轉發給 Gemini ——
  * 調 prompt 只要改 src/data/placePrompt.md 再 push，不必重新部署後端。
  */
+export interface PlaceRequest {
+  prompt: string
+  input: string
+  schema: unknown
+  model: string
+}
+
 export const describePlace = (
   gasUrl: string,
   link: TripLink,
-  prompt: string,
-  input: string,
+  request: PlaceRequest,
   signal?: AbortSignal,
 ) =>
   call<{ ok: boolean; place: PlaceInfo }>(
     gasUrl,
-    { action: 'describePlace', sheetId: link.sheetId, secret: link.secret, prompt, input },
+    { action: 'describePlace', sheetId: link.sheetId, secret: link.secret, ...request },
     signal,
   )
 

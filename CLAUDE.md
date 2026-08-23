@@ -79,14 +79,17 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 詳細頁頂列的 ✨ 拿這一筆的 Google Map 連結去問 Gemini，結果寫進行程說明與備註。
 
 - **必須有地圖連結才能按。** 沒有座標的話同名的店會分析錯，這是刻意的硬限制，不是可以放寬的驗證。
-- **prompt 住在前端**（[src/data/placePrompt.md](src/data/placePrompt.md)），隨請求送給後端，後端 `describePlace` 只負責轉發。
-  寫進 `Code.gs` 的話每調一個字都要重新部署一次後端，而 prompt 是一定會反覆調的東西。
-  那個檔案**整份原封不動當成 system instruction**，所以裡面不要加任何說明或註解。
-- **欄位名同時出現在三個地方**：那份 prompt、`Code.gs` 的 `PLACE_SCHEMA`、
-  [src/lib/placeInfo.ts](src/lib/placeInfo.ts) 的 `PlaceInfo` 與 `formatPlaceInfo`。改文案很安全，
-  **加欄位或改欄位名要三處一起改，而且會靜默失敗** —— `PLACE_SCHEMA` 是硬約束，
+- **prompt、輸出 schema、模型全都住在前端**，隨請求送上去，後端 `describePlace` 只負責轉發。
+  這三樣都會反覆調整，留在後端的話每改一次都要走完整的部署流程。
+  [placePrompt.md](src/data/placePrompt.md) **整份原封不動當成 system instruction**，
+  所以裡面不要加任何說明或註解；`PLACE_SCHEMA` 與 `PLACE_MODEL` 在
+  [placeInfo.ts](src/lib/placeInfo.ts)，跟 `PlaceInfo` 型別放在一起才看得出有沒有對不上。
+- **端點刻意留在後端寫死，永遠不要接受前端指定。** 金鑰是放在標頭裡送去那個網址的，
+  讓呼叫端決定送去哪，等於任何拿到邀請連結的人都能把金鑰導去自己的伺服器。
+- **加欄位要三件事一起做**：`placePrompt.md` 那一行、`PlaceInfo` 型別、`PLACE_SCHEMA`，
+  再決定 `formatPlaceInfo` 要把它排在哪。**漏掉 schema 會靜默失敗** —— 那是硬約束，
   schema 裡沒有的欄位模型根本不會產出，只在 prompt 裡寫等於白寫，不會有任何錯誤訊息。
-  加了欄位就要動 `BACKEND_VERSION` 並重新部署。
+  三者都在前端，push 完就生效，不必再為了欄位重新部署後端。
 - **文字排版由 `formatPlaceInfo` 決定，不是讓模型自己排。** 每一筆長得一樣，而且之後想把
   `stayMinutes` 拉出來變成 `Item` 的真欄位時，prompt 一個字都不用改。
 - **AI 寫的那塊永遠以 `AI資訊` 開頭、永遠在說明的最底下。** 重新分析時靠那一行找到起點整塊換掉，

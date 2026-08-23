@@ -47,6 +47,8 @@ import {
   buildAnalysisInput,
   formatPlaceInfo,
   mergeGuide,
+  PLACE_MODEL,
+  PLACE_SCHEMA,
 } from '../lib/placeInfo'
 import placePrompt from '../data/placePrompt.md?raw'
 import type { ProcessedPhoto } from '../photos/process'
@@ -508,8 +510,12 @@ export const useStore = create<State>((setState, getState) => {
           const { place } = await describePlace(
             settings.gasUrl,
             link,
-            placePrompt,
-            buildAnalysisInput(item, trip),
+            {
+              prompt: placePrompt,
+              input: buildAnalysisInput(item, trip),
+              schema: PLACE_SCHEMA,
+              model: PLACE_MODEL,
+            },
             abort.signal,
           )
           // 等待期間那一筆可能被刪掉或改過，重新取一次再寫，不要拿舊快照覆蓋。
