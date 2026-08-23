@@ -10,6 +10,7 @@ export interface PlaceInfo {
   highlights: string[]
   bestfoods: string[]
   bestgoods: string[]
+  userreviews: string[]
   stayMinutes: number
   timing: string
   nearby: string
@@ -31,16 +32,26 @@ export const PLACE_SCHEMA = {
     highlights: { type: 'array', items: { type: 'string' } },
     bestfoods: { type: 'array', items: { type: 'string' } },
     bestgoods: { type: 'array', items: { type: 'string' } },
+    userreviews: { type: 'array', items: { type: 'string' } },
     stayMinutes: { type: 'integer' },
     timing: { type: 'string' },
     nearby: { type: 'string' },
     cautions: { type: 'array', items: { type: 'string' } },
   },
   required: [
-    'summary', 'highlights', 'bestfoods', 'bestgoods',
+    'summary', 'highlights', 'bestfoods', 'bestgoods', 'userreviews',
     'stayMinutes', 'timing', 'nearby', 'cautions',
   ],
 }
+
+/**
+ * 讓模型自己上網查。免費額度（Gemini 3.x 每月 5,000 次）遠大於實際用量，
+ * 而且沒有綁付款方式就不可能產生費用 —— 免費層若不給用會回錯誤，不會偷偷收費。
+ *
+ * 搜尋工具與結構化輸出併用**只有 Gemini 3 以後支援**，2.5 與更舊的會直接被拒。
+ * 換模型時要一起確認，否則整條分析會壞掉。
+ */
+export const PLACE_TOOLS = [{ type: 'google_search' }]
 
 /**
  * 用哪個模型。免費層的額度隨模型不同，撞到上限就換一個 ——
@@ -95,6 +106,7 @@ export const formatPlaceInfo = (info: PlaceInfo): string => {
     ['看點', bullets(info.highlights)],
     ['推薦餐點', bullets(info.bestfoods)],
     ['熱門商品', bullets(info.bestgoods)],
+    ['評論摘要', bullets(info.userreviews)],
     // 三件事都只有一行，各自成段會把說明拉得很長，收在同一個抬頭底下。
     ['停留與時段', bullets([
       stayText(info.stayMinutes),

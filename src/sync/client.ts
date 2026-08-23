@@ -178,6 +178,7 @@ export interface PlaceRequest {
   input: string
   schema: unknown
   model: string
+  tools: unknown[]
 }
 
 export const describePlace = (

@@ -49,6 +49,7 @@ import {
   mergeGuide,
   PLACE_MODEL,
   PLACE_SCHEMA,
+  PLACE_TOOLS,
 } from '../lib/placeInfo'
 import placePrompt from '../data/placePrompt.md?raw'
 import type { ProcessedPhoto } from '../photos/process'
@@ -166,7 +167,8 @@ const syncVersions = new Map<string, number>()
 const photoUploadFlights = new Map<string, Promise<void>>()
 /** 同一筆同時只跑一次分析；離開詳細頁不影響它，fetch 本來就跟 React 無關。 */
 const aiFlights = new Map<string, Promise<void>>()
-const AI_TIMEOUT_MS = 30_000
+/** 開了搜尋之後一次要跑十幾二十秒，30 秒會把還在查的請求砍掉。 */
+const AI_TIMEOUT_MS = 60_000
 
 const invalidateTripSync = (tripId: string) => {
   syncVersions.set(tripId, (syncVersions.get(tripId) ?? 0) + 1)
@@ -515,6 +517,7 @@ export const useStore = create<State>((setState, getState) => {
               input: buildAnalysisInput(item, trip),
               schema: PLACE_SCHEMA,
               model: PLACE_MODEL,
+              tools: PLACE_TOOLS,
             },
             abort.signal,
           )

@@ -14,7 +14,7 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-23-place-ai4'
+var BACKEND_VERSION = '2026-08-23-place-search'
 
 /** 邀請連結備份的分頁名稱。不在 SCHEMA 裡，pull/push 都不會碰到它。 */
 var INVITE_SHEET = '邀請連結'
@@ -762,7 +762,7 @@ function usablePageTitle(value) {
  *   GEMINI_API_KEY   必填，去 aistudio.google.com 申請，免費層不必綁信用卡
  *   GEMINI_MODEL     選填，緊急時可以在這裡蓋過前端送來的模型，不必 push
  *
- * prompt、輸出 schema 與模型都由前端隨請求送上來，這裡只負責轉發 ——
+ * prompt、輸出 schema、模型與工具都由前端隨請求送上來，這裡只負責轉發 ——
  * 那三樣是會反覆調整的東西，留在後端的話每改一次都要走完整的部署流程，
  * 而且忘了部署會靜默失敗（schema 沒有的欄位模型不會產出，也不報錯）。
  *
@@ -815,6 +815,8 @@ function describePlace(body) {
         mime_type: 'application/json',
         schema: body.schema || PLACE_SCHEMA,
       },
+      // 搜尋工具。前端沒送就是不開，整個欄位不出現。
+      tools: body.tools && body.tools.length ? body.tools : undefined,
     }),
   })
 
@@ -833,10 +835,26 @@ function describePlace(body) {
 
   var output = interactionText(payload)
   if (!output) return { error: 'Gemini 沒有回傳內容' }
+  var place = parsePlaceJson(output)
+  if (!place) return { error: '分析結果的格式不對' }
+  return { ok: true, place: place }
+}
+
+/**
+ * 開著搜尋時模型偶爾會在 JSON 前後多吐一段文字（已知的 grounding 行為）。
+ * 直接 parse 失敗就從第一個 { 到最後一個 } 再撈一次，撈不到才算失敗。
+ */
+function parsePlaceJson(text) {
   try {
-    return { ok: true, place: JSON.parse(output) }
+    return JSON.parse(text)
+  } catch (err) {}
+  var start = text.indexOf('{')
+  var end = text.lastIndexOf('}')
+  if (start < 0 || end <= start) return null
+  try {
+    return JSON.parse(text.slice(start, end + 1))
   } catch (err) {
-    return { error: '分析結果的格式不對' }
+    return null
   }
 }
 
