@@ -2,7 +2,7 @@ import type { Item, ItemNote, Trip } from '../types'
 import { newId } from './id'
 
 /**
- * 地點分析的回傳結構。這九個欄位名同時出現在三個地方：
+ * 地點分析的回傳結構。這八個欄位名同時出現在三個地方：
  * src/data/placePrompt.md、後端的 PLACE_SCHEMA、以及這裡。改名要三處一起改。
  */
 export interface PlaceInfo {
@@ -10,7 +10,6 @@ export interface PlaceInfo {
   highlights: string[]
   bestfoods: string[]
   bestgoods: string[]
-  userreviews: string[]
   stayMinutes: number
   timing: string
   nearby: string
@@ -37,7 +36,7 @@ const bullets = (lines: string[] | undefined): string[] =>
   (lines ?? []).map((line) => line.trim()).filter(Boolean)
 
 /**
- * 有標題的條列。四種清單接在一起時，沒有標題就分不出哪幾條在講什麼；
+ * 有標題的條列。幾種清單接在一起時，沒有標題就分不出哪幾條在講什麼；
  * highlights 例外，它緊接在 summary 後面，讀起來就是「這個地方」本身。
  */
 const listBlock = (label: string, lines: string[]): string =>
@@ -56,7 +55,6 @@ export const formatPlaceInfo = (info: PlaceInfo): string => {
   for (const [label, lines] of [
     ['推薦餐點', bullets(info.bestfoods)],
     ['熱門商品', bullets(info.bestgoods)],
-    ['評論摘要', bullets(info.userreviews)],
   ] as const) {
     const block = listBlock(label, lines)
     if (block) blocks.push(block)
