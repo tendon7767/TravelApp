@@ -1191,7 +1191,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     }
                   />
                   <button
-                    className="btn btn-sm delete-icon-btn"
+                    className="btn btn-sm btn-plain delete-icon-btn"
                     aria-label="刪除這筆備註"
                     onClick={() =>
                       patchItem({ notes: item.notes.filter((value) => value.id !== note.id) })
@@ -1264,7 +1264,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   />
                   <a className="btn btn-sm" href={link.url} target="_blank" rel="noreferrer">開啟</a>
                   <button
-                    className="btn btn-sm delete-icon-btn"
+                    className="btn btn-sm btn-plain delete-icon-btn"
                     aria-label="刪除 Google Map"
                     onClick={() =>
                       patchItem({ links: item.links.filter((value) => value.id !== link.id) })
@@ -1295,7 +1295,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     }
                   />
                   <button
-                    className="btn btn-sm link-paste-btn"
+                    className="btn btn-sm btn-plain link-paste-btn"
                     aria-label="貼上 Google Map 網址"
                     title="貼上"
                     onClick={() => void pasteLinkDraft('map')}
@@ -1371,7 +1371,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     />
                     <a className="btn btn-sm" href={link.url} target="_blank" rel="noreferrer">開啟</a>
                     <button
-                      className="btn btn-sm delete-icon-btn"
+                      className="btn btn-sm btn-plain delete-icon-btn"
                       aria-label="刪除這個連結"
                       onClick={() =>
                         patchItem({ links: item.links.filter((value) => value.id !== link.id) })
@@ -1404,7 +1404,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                       }
                     />
                     <button
-                      className="btn btn-sm link-paste-btn"
+                      className="btn btn-sm btn-plain link-paste-btn"
                       aria-label="貼上相關連結網址"
                       title="貼上"
                       onClick={() => void pasteLinkDraft('web', link.id)}
@@ -1412,7 +1412,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                       <PasteIcon />
                     </button>
                     <button
-                      className="btn btn-sm delete-icon-btn"
+                      className="btn btn-sm btn-plain delete-icon-btn"
                       aria-label="刪除這個連結"
                       onClick={() =>
                         patchItem({ links: item.links.filter((value) => value.id !== link.id) })
@@ -1479,7 +1479,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                       onChange={(event) => patchCost(cost.id, { label: event.target.value })}
                     />
                     <button
-                      className="btn btn-sm delete-icon-btn"
+                      className="btn btn-sm btn-plain delete-icon-btn"
                       aria-label="刪除這筆費用"
                       onClick={() =>
                         patchItem({ costs: item.costs.filter((value) => value.id !== cost.id) })

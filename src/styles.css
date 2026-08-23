@@ -849,6 +849,7 @@ body[data-actual='true'] {
   padding: 0;
   color: var(--accent);
 }
+.link-paste-btn > svg { width: 20px; height: 20px; }
 .link-lookup-error { font-size: 11px; margin: 5px 0 0; }
 
 @media (max-width: 420px) {
@@ -2082,6 +2083,7 @@ body[data-actual='true'] {
   padding: 0;
   color: var(--danger);
 }
+.delete-icon-btn > svg { width: 19px; height: 19px; }
 
 @media (min-width: 620px) {
   .costline .cl-sub { flex: none; width: 78px; }

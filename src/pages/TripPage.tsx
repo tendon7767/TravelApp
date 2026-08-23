@@ -326,7 +326,6 @@ export default function TripPage() {
               <SearchPanel
                 plan={plan}
                 onPick={(id) => navigateParam('sel', id)}
-                onClose={() => navigateParam('q')}
               />
             </div>
           )}

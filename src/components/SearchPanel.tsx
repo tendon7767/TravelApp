@@ -8,7 +8,6 @@ import CategoryIcon from './CategoryIcon'
 interface Props {
   plan: Plan
   onPick: (id: string) => void
-  onClose: () => void
 }
 
 /** 標題、遊玩說明、備註、連結、費用項目全找 —— 「租車的預約連結在哪一列」這種問題不該用捲的。 */
@@ -17,7 +16,7 @@ const haystack = (i: Item): string =>
     .join(' ')
     .toLowerCase()
 
-export default function SearchPanel({ plan, onPick, onClose }: Props) {
+export default function SearchPanel({ plan, onPick }: Props) {
   const allItems = useStore((s) => s.data.items)
   const allReviews = useStore((s) => s.data.reviews)
   const [q, setQ] = useState('')
@@ -47,20 +46,17 @@ export default function SearchPanel({ plan, onPick, onClose }: Props) {
 
   return (
     <>
-      <div className="sec" style={{ display: 'flex', gap: 8 }}>
+      <div className="sec">
         <input
           className="field"
           type="search"
-          style={{ flex: 1, minWidth: 0 }}
+          style={{ width: '100%' }}
           placeholder="搜尋行程、備註、連結、費用項目"
           autoComplete="off"
           autoFocus
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <button className="btn" onClick={onClose} aria-label="關閉搜尋">
-          ✕
-        </button>
       </div>
 
       {q.trim() && hits.length === 0 && <div className="empty">找不到「{q.trim()}」。</div>}

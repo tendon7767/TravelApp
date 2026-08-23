@@ -333,7 +333,7 @@ function NoteEditorModal({
                 aria-label="內容"
               />
               <button
-                className="btn btn-sm delete-icon-btn"
+                className="btn btn-sm btn-plain delete-icon-btn"
                 onClick={() => setBlocks(draft.blocks.filter((v) => v.id !== b.id))}
                 aria-label="刪除這一行"
               >
@@ -386,7 +386,7 @@ function NoteEditorModal({
                 />
                 <a className="btn btn-sm" href={l.url} target="_blank" rel="noreferrer">開啟</a>
                 <button
-                  className="btn btn-sm delete-icon-btn"
+                  className="btn btn-sm btn-plain delete-icon-btn"
                   onClick={() => patch({ links: draft.links.filter((v) => v.id !== l.id) })}
                   aria-label="刪除這個連結"
                 >

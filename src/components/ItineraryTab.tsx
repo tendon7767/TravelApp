@@ -15,6 +15,7 @@ import MapPinIcon from './MapPinIcon'
 import LinkIcon from './LinkIcon'
 import PhotoIcon from './PhotoIcon'
 import ReceiptIcon from './ReceiptIcon'
+import CloseIcon from './CloseIcon'
 
 interface Props {
   trip: Trip
@@ -247,7 +248,13 @@ export default function ItineraryTab({
                   {pickedCategory ? (
                     <button className="btn btn-sm" onClick={() => setPickedCategory(null)}>‹ 上一層</button>
                   ) : (
-                    <button className="btn btn-sm" onClick={closeAdd} aria-label="關閉新增">✕</button>
+                    <button
+                      className="btn btn-sm btn-glyph btn-plain"
+                      onClick={closeAdd}
+                      aria-label="關閉新增"
+                    >
+                      <CloseIcon size={20} />
+                    </button>
                   )}
                 </div>
 
