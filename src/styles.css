@@ -491,9 +491,16 @@ a { color: var(--accent); }
 }
 
 @media (min-width: 860px) {
+  /*
+   * 桌機不設高度上限，讓 .pane-scroll 接手 —— 這裡的捲軸是關掉的
+   * （見上面 scrollbar-width），有上限就等於「會捲但看不出來能捲」，
+   * 滾輪還停在框裡不傳給外層。說明欄常常裝著一整塊 AI 資訊，那不是邊角情形。
+   * 按鈕列是捲動區的兄弟（flex: none），長多高都還釘在底部。
+   * min-height 留著，短欄位才不會塌成一行。
+   */
   .detail-auto-textarea {
     min-height: calc(4.5em + 18px);
-    max-height: calc(18em + 18px);
+    overflow-y: hidden;
   }
 }
 /*
