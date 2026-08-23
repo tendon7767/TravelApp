@@ -14,7 +14,7 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-23-place-search'
+var BACKEND_VERSION = '2026-08-23-place-search2'
 
 /** 邀請連結備份的分頁名稱。不在 SCHEMA 裡，pull/push 都不會碰到它。 */
 var INVITE_SHEET = '邀請連結'
@@ -822,9 +822,7 @@ function describePlace(body) {
 
   var code = res.getResponseCode()
   var text = res.getContentText()
-  if (code === 429) return { error: '這一分鐘的請求太多了，等一下再按' }
-  if (code === 400 || code === 403) return { error: 'Gemini 拒絕了請求，檢查金鑰與模型名稱' }
-  if (code < 200 || code >= 300) return { error: 'Gemini 回應 ' + code }
+  if (code < 200 || code >= 300) return { error: geminiError(code, text) }
 
   var payload
   try {
@@ -856,6 +854,36 @@ function parsePlaceJson(text) {
   } catch (err) {
     return null
   }
+}
+
+/**
+ * 把 Google 回的錯誤原文帶出來，不要自己編一句安慰話。
+ *
+ * 429 有兩種完全不同的意思：真的送太快（等一下就好），以及這個配額本來就是零
+ * （例如免費層不開放某個功能）—— 後者等再久都不會好。兩者的差別只寫在
+ * quotaId 裡（常常直接帶著 FreeTier 或功能名稱），吞掉的話就永遠分不出來。
+ */
+function geminiError(code, text) {
+  var detail = ''
+  var quota = ''
+  try {
+    var body = JSON.parse(text)
+    if (body && body.error) {
+      detail = String(body.error.message || '')
+      var details = body.error.details || []
+      for (var i = 0; i < details.length; i++) {
+        var violations = details[i].violations || []
+        for (var j = 0; j < violations.length; j++) {
+          if (violations[j].quotaId) quota = String(violations[j].quotaId)
+        }
+      }
+    }
+  } catch (err) {
+    detail = String(text).slice(0, 300)
+  }
+
+  var prefix = code === 429 ? '配額或速率被擋（429）' : 'Gemini 回應 ' + code
+  return [prefix, quota && ('配額：' + quota), detail].filter(Boolean).join(' · ').slice(0, 400)
 }
 
 /** 從最後一段模型輸出把文字接起來。中間可能夾著別種 step，所以由後往前找。 */
