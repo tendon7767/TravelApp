@@ -74,6 +74,28 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - 縮圖靠 service worker 的 CacheFirst 規則（見 [vite.config.ts](vite.config.ts)）離線可看，刪除照片時要一併清快取。
 - 後端能力靠 `ping` 回傳的 `capabilities.photos` 判斷。舊後端會靜默忽略 `photos` 集合，所以偵測到不支援時要保留 `lastPushedAt` 不前進，重新部署後才補得回來。
 
+## 地點分析（AI）
+
+詳細頁頂列的 ✨ 拿這一筆的 Google Map 連結去問 Gemini，結果寫進行程說明與備註。
+
+- **必須有地圖連結才能按。** 沒有座標的話同名的店會分析錯，這是刻意的硬限制，不是可以放寬的驗證。
+- **prompt 住在前端**（[src/data/placePrompt.md](src/data/placePrompt.md)），隨請求送給後端，後端 `describePlace` 只負責轉發。
+  寫進 `Code.gs` 的話每調一個字都要重新部署一次後端，而 prompt 是一定會反覆調的東西。
+  那個檔案**整份原封不動當成 system instruction**，所以裡面不要加任何說明或註解。
+- **`summary` / `highlights` / `stayMinutes` / `timing` / `nearby` / `cautions` 這六個欄位名同時出現在三個地方**：
+  那份 prompt、`Code.gs` 的 `PLACE_SCHEMA`、[src/lib/placeInfo.ts](src/lib/placeInfo.ts)。改文案很安全，改欄位名要三處一起。
+- **文字排版由 `formatPlaceInfo` 決定，不是讓模型自己排。** 每一筆長得一樣，而且之後想把
+  `stayMinutes` 拉出來變成 `Item` 的真欄位時，prompt 一個字都不用改。
+- **AI 寫的那塊永遠以 `AI資訊` 開頭、永遠在說明的最底下。** 重新分析時靠那一行找到起點整塊換掉，
+  使用者手寫的內容都在它上面，不會被碰到。
+- **AI 寫的備註刻意不加記號**（跟手寫的長一樣），代價是重新分析時挑不出上一輪的來換，
+  只能用內容比對擋掉一字不差的重複。模型換句話說就會多一條。
+- **分析狀態放 store 不放元件**（`ai.pending` / `ai.errors`，模組層級的 `aiFlights` 跟 `syncFlights` 同一區）。
+  請求要跑好幾秒而使用者按完就走，狀態跟著元件卸載的話回來就看不出還在跑，還會再按一次。
+  失敗訊息「進去看過就從 store 移除」，所以左下角浮標的計數會自己縮到消失；詳細頁自己另外留一份本機副本才不會一閃就沒。
+- 後端能力由 `ping` 的 `capabilities.ai` 判斷。金鑰與模型放 Apps Script 的**指令碼屬性**
+  （`GEMINI_API_KEY` 必填、`GEMINI_MODEL` 選填），不寫進 `Code.gs`。
+
 ## 配色主題
 
 深色是預設，亮色是 `settings.theme` 選出來的（純本機偏好，不上傳）。旗標寫在 `<html>` 上而不是 `.app` 上，因為彈窗是 `createPortal` 到 `body` 的，掛在 `.app` 上蓋不到它們；同理 `TripPage` 也把 `data-actual` 補寫一份到 `body`，實際版的配色才跟得到浮層。

@@ -14,7 +14,7 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-19-invite'
+var BACKEND_VERSION = '2026-08-23-place-ai'
 
 /** 邀請連結備份的分頁名稱。不在 SCHEMA 裡，pull/push 都不會碰到它。 */
 var INVITE_SHEET = '邀請連結'
@@ -202,8 +202,14 @@ function doPost(e) {
         return json(saveInvite(body))
       case 'uploadPhoto':
         return json(uploadPhoto(body))
+      case 'describePlace':
+        return json(describePlace(body))
       case 'ping':
-        return json({ ok: true, version: BACKEND_VERSION, capabilities: { photos: 1, invite: 1 } })
+        return json({
+          ok: true,
+          version: BACKEND_VERSION,
+          capabilities: { photos: 1, invite: 1, ai: 1 },
+        })
       default:
         return json({ error: 'unknown action' })
     }
@@ -749,6 +755,95 @@ function usablePageTitle(value) {
  * 手機版 Google Maps 只給短網址；一般網站的標題也因瀏覽器同源政策無法直接讀取。
  * 後端最多追蹤五次重新導向，再從 Maps 網址取地名或從 HTML <title> 取顯示名稱。
  */
+/**
+ * 地點分析。走 Gemini 的 Interactions API。
+ *
+ * 金鑰與模型都放指令碼屬性（專案設定 → 指令碼屬性），不寫進這份檔案：
+ *   GEMINI_API_KEY   必填，去 aistudio.google.com 申請，免費層不必綁信用卡
+ *   GEMINI_MODEL     選填，不填就用下面的預設。免費層額度隨模型不同，換模型不必改程式
+ *
+ * prompt 由前端隨請求送上來，這裡只負責轉發 —— 調 prompt 是常態，
+ * 寫死在後端的話每改一個字都要重新部署一次。
+ */
+var GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions'
+var GEMINI_DEFAULT_MODEL = 'gemini-3.7-flash'
+
+/** 回傳結構固定，前端據此組出行程說明與備註。欄位名改了要三處一起改。 */
+var PLACE_SCHEMA = {
+  type: 'object',
+  properties: {
+    summary: { type: 'string' },
+    highlights: { type: 'array', items: { type: 'string' } },
+    stayMinutes: { type: 'integer' },
+    timing: { type: 'string' },
+    nearby: { type: 'string' },
+    cautions: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['summary', 'highlights', 'stayMinutes', 'timing', 'nearby', 'cautions'],
+}
+
+function describePlace(body) {
+  openChecked(body)
+  if (!body.prompt || !body.input) return { error: 'bad request' }
+
+  var props = PropertiesService.getScriptProperties()
+  var key = props.getProperty('GEMINI_API_KEY')
+  if (!key) return { error: '後端沒有設定 GEMINI_API_KEY' }
+
+  // 金鑰走標頭不走網址參數：Apps Script 的執行記錄會留下網址。
+  var res = UrlFetchApp.fetch(GEMINI_ENDPOINT, {
+    method: 'post',
+    contentType: 'application/json',
+    muteHttpExceptions: true,
+    headers: { 'x-goog-api-key': key },
+    payload: JSON.stringify({
+      model: props.getProperty('GEMINI_MODEL') || GEMINI_DEFAULT_MODEL,
+      system_instruction: String(body.prompt).slice(0, 8000),
+      input: String(body.input).slice(0, 8000),
+      response_format: {
+        type: 'text',
+        mime_type: 'application/json',
+        schema: PLACE_SCHEMA,
+      },
+    }),
+  })
+
+  var code = res.getResponseCode()
+  var text = res.getContentText()
+  if (code === 429) return { error: '這一分鐘的請求太多了，等一下再按' }
+  if (code === 400 || code === 403) return { error: 'Gemini 拒絕了請求，檢查金鑰與模型名稱' }
+  if (code < 200 || code >= 300) return { error: 'Gemini 回應 ' + code }
+
+  var payload
+  try {
+    payload = JSON.parse(text)
+  } catch (err) {
+    return { error: 'Gemini 的回應不是 JSON' }
+  }
+
+  var output = interactionText(payload)
+  if (!output) return { error: 'Gemini 沒有回傳內容' }
+  try {
+    return { ok: true, place: JSON.parse(output) }
+  } catch (err) {
+    return { error: '分析結果的格式不對' }
+  }
+}
+
+/** 從最後一段模型輸出把文字接起來。中間可能夾著別種 step，所以由後往前找。 */
+function interactionText(payload) {
+  var steps = (payload && payload.steps) || []
+  for (var i = steps.length - 1; i >= 0; i--) {
+    var content = steps[i].content || []
+    var parts = []
+    for (var j = 0; j < content.length; j++) {
+      if (content[j].type === 'text' && content[j].text) parts.push(content[j].text)
+    }
+    if (parts.length) return parts.join('')
+  }
+  return ''
+}
+
 function expandUrl(body) {
   openChecked(body)
   var current = checkedPublicUrl(body.url)

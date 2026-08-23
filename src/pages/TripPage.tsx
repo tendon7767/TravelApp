@@ -4,6 +4,7 @@ import { useStore } from '../store/useStore'
 import ItineraryTab from '../components/ItineraryTab'
 import ReviewTab from '../components/ReviewTab'
 import ItemDetail from '../components/ItemDetail'
+import AiStatusBar from '../components/AiStatusBar'
 import TripSettings from '../components/TripSettings'
 import SearchPanel from '../components/SearchPanel'
 import ExpensesTab from '../components/ExpensesTab'
@@ -381,6 +382,10 @@ export default function TripPage() {
               onDirtyChange={setDetailDirty}
             />
           </div>
+        )}
+
+        {plan && (tab === 'itinerary' || selectedId) && (
+          <AiStatusBar planId={plan.id} onSelect={(id) => navigateParam('sel', id)} />
         )}
       </div>
 

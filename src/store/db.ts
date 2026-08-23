@@ -44,6 +44,8 @@ export interface Settings {
   photoApiVersion?: number
   /** 後端宣告的邀請連結備份版本；舊後端不認得 saveInvite，跳過就好。 */
   inviteApiVersion?: number
+  /** 後端宣告的地點分析版本；未支援時 AI 按鈕會說要重新部署。 */
+  aiApiVersion?: number
 }
 
 export interface TripLinkState {

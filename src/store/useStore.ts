@@ -29,6 +29,7 @@ import {
 import {
   buildInviteLink,
   createRemoteTrip,
+  describePlace,
   fetchFolderInfo,
   mergeRemote,
   parseFolderId,
@@ -41,6 +42,13 @@ import {
 } from '../sync/client'
 import { collectTripRecords } from '../sync/collect'
 import { copyItemSnapshot } from '../lib/items'
+import {
+  appendCautions,
+  buildAnalysisInput,
+  formatPlaceInfo,
+  mergeGuide,
+} from '../lib/placeInfo'
+import placePrompt from '../data/placePrompt.md?raw'
 import type { ProcessedPhoto } from '../photos/process'
 import {
   cacheThumbnail,
@@ -60,11 +68,23 @@ export interface SyncState {
   overwritten: { id: string; by: string }[]
 }
 
+/**
+ * 地點分析的狀態刻意放在 store 而不是元件裡：請求要跑好幾秒，
+ * 而使用者按完就會離開詳細頁 —— 狀態跟著元件卸載的話，回來就看不出還在跑。
+ */
+export interface AiState {
+  /** 正在分析的項目 id。 */
+  pending: string[]
+  /** 失敗的項目 id → 原因。進去看過就移除，所以浮標的計數會自己縮到消失。 */
+  errors: Record<string, string>
+}
+
 interface State {
   data: AppData
   settings: Settings
   ready: boolean
   sync: SyncState
+  ai: AiState
   /**
    * 只在本機編輯時遞增，同步拉回來的資料不算。
    * 介面靠它判斷「有東西該推上去了」，而不會被自己拉回來的更新再觸發一次同步而無限循環。
@@ -96,6 +116,11 @@ interface State {
   duplicateItem: (source: Item, targetPlanId: string, targetDate: string) => Item | undefined
   updateItem: (id: string, patch: Partial<Item>) => void
   removeItem: (id: string) => void
+
+  /** 用 Google Map 連結分析這個地點，結果寫進行程說明與備註。 */
+  analyzePlace: (itemId: string) => Promise<void>
+  /** 看過失敗訊息了，從浮標的計數移除。 */
+  dismissAiError: (itemId: string) => void
 
   queuePhoto: (tripId: string, itemId: string, photo: ProcessedPhoto) => Promise<void>
   retryPhoto: (id: string) => void
@@ -137,6 +162,9 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined
 const syncFlights = new Map<string, Promise<void>>()
 const syncVersions = new Map<string, number>()
 const photoUploadFlights = new Map<string, Promise<void>>()
+/** 同一筆同時只跑一次分析；離開詳細頁不影響它，fetch 本來就跟 React 無關。 */
+const aiFlights = new Map<string, Promise<void>>()
+const AI_TIMEOUT_MS = 30_000
 
 const invalidateTripSync = (tripId: string) => {
   syncVersions.set(tripId, (syncVersions.get(tripId) ?? 0) + 1)
@@ -173,6 +201,7 @@ export const useStore = create<State>((setState, getState) => {
     settings: defaultSettings(),
     ready: false,
     sync: { busy: false, overwritten: [] },
+    ai: { pending: [], errors: {} },
     localRev: 0,
     pendingPhotos: [],
 
@@ -190,6 +219,7 @@ export const useStore = create<State>((setState, getState) => {
             ...settings,
             photoApiVersion: pong.capabilities?.photos,
             inviteApiVersion: pong.capabilities?.invite,
+            aiApiVersion: pong.capabilities?.ai,
           }
           await saveSettings(settings)
         } catch {
@@ -431,6 +461,84 @@ export const useStore = create<State>((setState, getState) => {
 
     updateItem: (id, patch) => mutate((d) => ({ ...d, items: patchIn(d.items, id, patch) })),
 
+    dismissAiError: (itemId) => {
+      const { [itemId]: gone, ...errors } = getState().ai.errors
+      if (gone === undefined) return
+      setState({ ai: { ...getState().ai, errors } })
+    },
+
+    analyzePlace: (itemId) => {
+      const existing = aiFlights.get(itemId)
+      if (existing) return existing
+
+      const setPending = (on: boolean) => {
+        const ai = getState().ai
+        const pending = on
+          ? [...ai.pending.filter((id) => id !== itemId), itemId]
+          : ai.pending.filter((id) => id !== itemId)
+        setState({ ai: { ...ai, pending } })
+      }
+      const fail = (message: string) => {
+        const ai = getState().ai
+        setState({ ai: { ...ai, errors: { ...ai.errors, [itemId]: message } } })
+      }
+
+      const flight = (async () => {
+        const { data, settings } = getState()
+        const item = data.items.find((row) => row.id === itemId)
+        if (!item || item.deleted) return
+        const plan = data.plans.find((row) => row.id === item.planId)
+        const trip = data.trips.find((row) => row.id === plan?.tripId)
+        const link = trip ? settings.tripLinks?.[trip.id] : undefined
+
+        if (!trip || !link || !settings.gasUrl) {
+          fail('這趟旅程還沒接上同步，沒辦法分析。')
+          return
+        }
+        if ((settings.aiApiVersion ?? 0) < 1) {
+          fail('請先重新部署支援地點分析的 Apps Script。')
+          return
+        }
+
+        // 逾時要自己管：後端卡住的話請求不會自己回來，浮標會一直掛著。
+        const abort = new AbortController()
+        const timer = setTimeout(() => abort.abort(), AI_TIMEOUT_MS)
+        setPending(true)
+        try {
+          const { place } = await describePlace(
+            settings.gasUrl,
+            link,
+            placePrompt,
+            buildAnalysisInput(item, trip),
+            abort.signal,
+          )
+          // 等待期間那一筆可能被刪掉或改過，重新取一次再寫，不要拿舊快照覆蓋。
+          const fresh = getState().data.items.find((row) => row.id === itemId)
+          if (!fresh || fresh.deleted) return
+          getState().updateItem(itemId, {
+            guide: mergeGuide(fresh.guide, formatPlaceInfo(place)),
+            notes: appendCautions(fresh.notes, place.cautions ?? []),
+          })
+          getState().dismissAiError(itemId)
+        } catch (err) {
+          fail(
+            abort.signal.aborted
+              ? '分析等太久了，再試一次。'
+              : err instanceof Error ? err.message : '分析失敗。',
+          )
+        } finally {
+          clearTimeout(timer)
+          setPending(false)
+        }
+      })()
+
+      aiFlights.set(itemId, flight)
+      void flight.finally(() => {
+        if (aiFlights.get(itemId) === flight) aiFlights.delete(itemId)
+      })
+      return flight
+    },
+
     /** 軟刪除：墓碑是 M4 同步用的，刪除前由介面負責跟使用者確認。 */
     removeItem: (id) =>
       mutate((d) => {
@@ -620,6 +728,7 @@ export const useStore = create<State>((setState, getState) => {
         gasUrl,
         photoApiVersion: pong?.capabilities?.photos,
         inviteApiVersion: pong?.capabilities?.invite,
+        aiApiVersion: pong?.capabilities?.ai,
       }
       setState({ settings })
       await saveSettings(settings)

@@ -1,4 +1,5 @@
 import type { AppData } from '../types'
+import type { PlaceInfo } from '../lib/placeInfo'
 import { normalizeStoredDate, normalizeStoredTime } from '../lib/date'
 import { normalizeItemNotes } from '../lib/itemNotes'
 
@@ -31,12 +32,17 @@ export type SyncedCollection = (typeof SYNCED_COLLECTIONS)[number]
  * 只要用 text/plain 送出就屬於「簡單請求」，瀏覽器不會發預檢，回應也帶得回來。
  * 換成 application/json 會觸發預檢而整個失敗 —— 這是這裡唯一不能改的細節。
  */
-const call = async <T>(gasUrl: string, payload: Record<string, unknown>): Promise<T> => {
+const call = async <T>(
+  gasUrl: string,
+  payload: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<T> => {
   const res = await fetch(gasUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload),
     redirect: 'follow',
+    signal,
   })
   if (!res.ok) throw new Error(`伺服器回應 ${res.status}`)
   const data = (await res.json()) as T & { error?: string }
@@ -45,10 +51,11 @@ const call = async <T>(gasUrl: string, payload: Record<string, unknown>): Promis
 }
 
 export const ping = (gasUrl: string) =>
-  call<{ ok: boolean; version?: string; capabilities?: { photos?: number; invite?: number } }>(
-    gasUrl,
-    { action: 'ping' },
-  )
+  call<{
+    ok: boolean
+    version?: string
+    capabilities?: { photos?: number; invite?: number; ai?: number }
+  }>(gasUrl, { action: 'ping' })
 
 /**
  * 在試算表裡留一份邀請連結。本機資料被瀏覽器清掉時，試算表 ID 與密鑰會一起消失，
@@ -161,6 +168,23 @@ export const fetchLinkMetadata = (gasUrl: string, link: TripLink, url: string) =
     secret: link.secret,
     url,
   })
+
+/**
+ * 地點分析。prompt 從前端送上去，後端只負責轉發給 Gemini ——
+ * 調 prompt 只要改 src/data/placePrompt.md 再 push，不必重新部署後端。
+ */
+export const describePlace = (
+  gasUrl: string,
+  link: TripLink,
+  prompt: string,
+  input: string,
+  signal?: AbortSignal,
+) =>
+  call<{ ok: boolean; place: PlaceInfo }>(
+    gasUrl,
+    { action: 'describePlace', sheetId: link.sheetId, secret: link.secret, prompt, input },
+    signal,
+  )
 
 export const newSecret = (): string =>
   Array.from(crypto.getRandomValues(new Uint8Array(12)))

@@ -59,6 +59,7 @@ import PlaneIcon from './PlaneIcon'
 import PhotoSection from './PhotoSection'
 import { tagCharOf } from '../lib/reviewHues'
 import PasteIcon from './PasteIcon'
+import SparkleIcon from './SparkleIcon'
 
 interface Props {
   trip: Trip
@@ -135,6 +136,10 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const ruleFocus = useStore((state) => state.settings.rewardRuleFocus)
   const reviewHues = useStore((state) => state.settings.reviewHues?.[trip.id])
   const tripLink = useStore((state) => state.settings.tripLinks?.[trip.id])
+  const analyzePlace = useStore((state) => state.analyzePlace)
+  const dismissAiError = useStore((state) => state.dismissAiError)
+  const aiPending = useStore((state) => state.ai.pending.includes(itemId))
+  const aiError = useStore((state) => state.ai.errors[itemId])
   const isActual = useStore((state) =>
     state.data.plans.some(
       (plan) => plan.id === storedItem?.planId && plan.kind === 'actual' && !plan.deleted,
@@ -172,6 +177,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const [restored, setRestored] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [touched, setTouched] = useState(false)
+  /**
+   * 失敗訊息在這裡留一份。一讀到就從 store 銷掉 —— 那代表「看過了」，左下角浮標的
+   * 計數立刻縮；但這一頁要繼續看得到，直到你按重試或知道了。
+   */
+  const [seenAiError, setSeenAiError] = useState('')
 
   const reviews = useMemo(
     () => allReviews.filter((review) => review.itemId === itemId && !review.deleted),
@@ -347,6 +357,13 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     mapDraft,
   ])
 
+  // 失敗訊息搬到本機留一份，並從 store 銷掉 —— 那就是「看過了」，浮標的計數立刻縮。
+  useEffect(() => {
+    if (!aiError) return
+    setSeenAiError(aiError)
+    dismissAiError(itemId)
+  }, [aiError, dismissAiError, itemId])
+
   useEffect(() => {
     if (!dirty) return
     const warn = (event: BeforeUnloadEvent) => {
@@ -432,6 +449,15 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     ...(isActual ? (['review'] as const) : []),
   ]
   const hasEditing = editMode !== 'none'
+  // 分析讀的是已儲存的資料，所以看 storedItem 而不是草稿。
+  const savedMapLink = storedItem.links.some((link) => link.kind === 'map' && link.url.trim())
+  const aiDisabledReason = hasEditing
+    ? '請先完成或取消編輯'
+    : aiPending
+      ? '分析中'
+      : !savedMapLink
+        ? '需要先加入 Google Map 連結'
+        : ''
 
   const beginEditAll = () => {
     setFocusLinkId(null)
@@ -960,6 +986,15 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           <BackIcon size={22} />
         </button>
         <span className="detail-head-gap" />
+        <button
+          className="btn btn-sm btn-glyph btn-plain"
+          onClick={() => void analyzePlace(itemId)}
+          disabled={Boolean(aiDisabledReason)}
+          aria-label="用 AI 分析這個地點"
+          title={aiDisabledReason || '用 AI 分析這個地點'}
+        >
+          <SparkleIcon size={20} />
+        </button>
         <ConfirmButton
           label={<TrashIcon size={20} />}
           ariaLabel="刪除這個項目"
@@ -1002,6 +1037,23 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           <div className="detail-restored">
             <span>已還原上次未完成的編輯</span>
             <button className="btn btn-sm" onClick={() => setRestored(false)}>知道了</button>
+          </div>
+        )}
+
+        {seenAiError && (
+          <div className="detail-restored detail-ai-error">
+            <span>{seenAiError}</span>
+            <button
+              className="btn btn-sm"
+              disabled={Boolean(aiDisabledReason)}
+              onClick={() => {
+                setSeenAiError('')
+                void analyzePlace(itemId)
+              }}
+            >
+              重試
+            </button>
+            <button className="btn btn-sm" onClick={() => setSeenAiError('')}>知道了</button>
           </div>
         )}
 
