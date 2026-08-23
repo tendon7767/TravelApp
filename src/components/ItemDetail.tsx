@@ -1223,8 +1223,12 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           </div>
           {editingSections.has('notes') ? (
             <>
-              {item.notes.map((note) => (
-                <div key={note.id} className="detail-note-edit-row" data-keyboard-reveal="">
+              {item.notes.map((note, index) => (
+                <div
+                  key={note.id}
+                  className="detail-note-edit-row"
+                  data-keyboard-reveal={index === item.notes.length - 1 ? 'detail-notes-tail' : ''}
+                >
                   <span className="detail-note-bullet" aria-hidden="true">•</span>
                   <input
                     className="field"
@@ -1253,7 +1257,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   </button>
                 </div>
               ))}
-              <button className="btn btn-sm detail-add-row" onClick={addNoteCard}>
+              <button
+                className="btn btn-sm detail-add-row"
+                data-keyboard-reveal="detail-notes-tail"
+                onClick={addNoteCard}
+              >
                 ＋ 新增備註
               </button>
             </>
@@ -1402,9 +1410,13 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           </div>
           {editingSections.has('links') ? (
             <>
-              {webLinks.map((link) => (
+              {webLinks.map((link, index) => (
                 link.url ? (
-                  <div key={link.id} className="link-edit-row">
+                  <div
+                    key={link.id}
+                    className="link-edit-row"
+                    data-keyboard-reveal={index === webLinks.length - 1 ? 'detail-links-tail' : ''}
+                  >
                     <input
                       className="field"
                       type="search"
@@ -1433,7 +1445,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                     </button>
                   </div>
                 ) : (
-                  <div key={link.id} className="link-add-row" data-keyboard-reveal="">
+                  <div
+                    key={link.id}
+                    className="link-add-row"
+                    data-keyboard-reveal={index === webLinks.length - 1 ? 'detail-links-tail' : ''}
+                  >
                     <input
                       id={`web-link-${link.id}`}
                       className="field"
@@ -1475,7 +1491,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   </div>
                 )
               ))}
-              <button className="btn btn-sm detail-add-row" onClick={addWebLinkCard}>
+              <button
+                className="btn btn-sm detail-add-row"
+                data-keyboard-reveal="detail-links-tail"
+                onClick={addWebLinkCard}
+              >
                 ＋ 新增連結
               </button>
               {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
@@ -1517,8 +1537,12 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
           </div>
           {editingSections.has('costs') ? (
             <>
-              {item.costs.map((cost) => (
-                <div key={cost.id} className="costline" data-keyboard-reveal="">
+              {item.costs.map((cost, index) => (
+                <div
+                  key={cost.id}
+                  className="costline"
+                  data-keyboard-reveal={index === item.costs.length - 1 ? 'detail-costs-tail' : ''}
+                >
                   <div className="costline-head">
                     <input
                       className="field cl-label"
@@ -1570,7 +1594,13 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   <span className="mono dim cl-sub">{formatMoney(lineTotal(cost), cost.currency)}</span>
                 </div>
               ))}
-              <button className="btn btn-sm detail-add-row" onClick={addCost}>＋ 新增費用</button>
+              <button
+                className="btn btn-sm detail-add-row"
+                data-keyboard-reveal="detail-costs-tail"
+                onClick={addCost}
+              >
+                ＋ 新增費用
+              </button>
               {item.costs.length > 0 && (
                 <div className="detail-total-row">
                   <strong>合計</strong>

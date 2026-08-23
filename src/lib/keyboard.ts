@@ -83,20 +83,29 @@ export const watchKeyboard = () => {
     if (metrics.height === 0 && !withoutKeyboard) return
     const active = focusedEditable()
     if (!active) return
-    // 有附屬操作的輸入區可以宣告整組都要可見；沒有標記時仍只揭露焦點欄位。
+    // 有附屬操作的輸入區可以宣告整組都要可見；相同的非空值會合併成同一揭露範圍。
+    // 沒有標記時仍只揭露焦點欄位，空值則只揭露最近的標記容器。
     const target = active.closest<HTMLElement>('[data-keyboard-reveal]') ?? active
     const scroller = scrollParentOf(target)
     if (!scroller) return
 
     const box = scroller.getBoundingClientRect()
-    const rect = target.getBoundingClientRect()
+    const group = target.dataset.keyboardReveal
+    const revealTargets = group
+      ? Array.from(scroller.querySelectorAll<HTMLElement>('[data-keyboard-reveal]')).filter(
+          (element) => element.dataset.keyboardReveal === group,
+        )
+      : [target]
+    const rects = revealTargets.map((element) => element.getBoundingClientRect())
+    const rectTop = Math.min(...rects.map((rect) => rect.top))
+    const rectBottom = Math.max(...rects.map((rect) => rect.bottom))
     const top = Math.max(box.top, metrics.visibleTop) + REVEAL_MARGIN_PX
     const bottom = Math.min(box.bottom, metrics.visibleBottom) - REVEAL_MARGIN_PX
     if (bottom <= top) return
 
     let delta = 0
-    if (rect.bottom > bottom) delta = rect.bottom - bottom
-    else if (rect.top < top) delta = rect.top - top
+    if (rectBottom > bottom) delta = rectBottom - bottom
+    else if (rectTop < top) delta = rectTop - top
     if (Math.abs(delta) < REVEAL_EPSILON_PX) return
 
     scroller.scrollTo({
