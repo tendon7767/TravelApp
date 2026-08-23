@@ -1042,22 +1042,18 @@ body[data-actual='true'] {
 }
 
 /*
- * 上下滑入相鄰行程。當前這層跟著 --detail-shift 走；上一筆靜止墊在底下等著被露出，
- * 下一筆掛在畫面下緣、跟著一起上來 —— 兩種運動用同一個變數表達，差別只在下面那兩條。
+ * 上下滑入相鄰行程。**只有內容那層在動，頂列不跟著走** —— 它是這一頁的框，
+ * 跟著滑走的話換頁瞬間它要彈回原位，那一下就是看得見的閃動。
+ * 當前的捲動區跟著 --detail-shift 走；上一筆靜止墊在底下等著被露出，
+ * 下一筆掛在畫面下緣、跟著一起上來 —— 兩種運動用同一個變數表達。
  * 只有拖曳中才套用，平常這幾條完全不生效。
- * `.detail-head` 的 z-index 刻意不動：它跟 `.detail-scroll` 同層的話，DOM 在後面的
- * 捲動區會蓋到頂列上面。
  */
-.pane-detail[data-step] > .detail-head,
-.pane-detail[data-step] > .detail-scroll,
-.pane-detail[data-step] > .editor-actions {
+.pane-detail[data-step] > .detail-scroll {
+  position: relative;
+  z-index: 1;
   transform: translateY(var(--detail-shift, 0px));
 }
-.pane-detail[data-step] > .detail-scroll { position: relative; z-index: 1; }
-.pane-detail[data-step] > .editor-actions { position: relative; z-index: 2; }
-.pane-detail[data-step='settle'] > .detail-head,
 .pane-detail[data-step='settle'] > .detail-scroll,
-.pane-detail[data-step='settle'] > .editor-actions,
 .pane-detail[data-step='settle'] > .detail-neighbor {
   transition: transform 0.2s ease-out;
 }
@@ -1073,6 +1069,12 @@ body[data-actual='true'] {
   background: var(--bg);
   pointer-events: none;
 }
+/*
+ * 鄰居的頂列藏起來但**留著位置**：畫面上只該有一條頂列（真的那條固定在上面），
+ * 而它佔的高度要留著，那一層的內容才會停在換頁後的同一個位置 ——
+ * 用 display: none 的話內容會整段上移，換過去的瞬間又跳回來。
+ */
+.detail-neighbor .detail-head { visibility: hidden; }
 .detail-neighbor[data-side='next'] {
   transform: translateY(calc(100% + var(--detail-shift, 0px)));
 }

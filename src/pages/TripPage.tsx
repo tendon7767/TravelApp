@@ -262,7 +262,9 @@ export default function TripPage() {
         const nextId = step === -1 ? prevItemId : nextItemId
         if (step !== 0 && nextId) setParam('sel', nextId)
         setDetailStep(null)
-      }, 200)
+        // 比 CSS 那段 0.2s 多一點：剛好同一個數字的話，偶爾會在動畫還差幾 px
+        // 的時候就換內容，那一下就是「定位時閃一下」。
+      }, 240)
     },
   })
 

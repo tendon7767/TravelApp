@@ -88,15 +88,23 @@ export const makeLink = (input: string): LinkRef => {
 }
 
 /**
- * Google 短網址展開後的 /maps/place/ 那一段，有些地點是「地名 門牌 地區 郵遞區號 國名」
- * 全部串在一起，整串當標籤會接到行程名稱後面佔掉一整行。
- * 切在第一個「以數字開頭的詞」之前（門牌、郵遞區號都長這樣），切完是空的就整串保留 ——
- * 7-ELEVEN 這種本身以數字開頭的店名不能被吃掉。
- * 後面那截太短則不切：「星巴克 101門市」的 101 是店名的一部分，不是地址。
+ * 從「地名混著地址」的一串字裡挑出地名。
+ * 短網址展開後的 `/maps/place/` 那一段、以及 Google 地圖的頁面標題，
+ * 常常是地名接著整串地址，原封不動接到行程名稱後面會佔掉一整行。
+ *
+ * 兩道規則，由可靠到不可靠：
+ *   1. **中點**（`地名 · 地址`）。Google 的頁面標題就長這樣，這是最明確的界線。
+ *   2. 第一個「以數字開頭的詞」之前（門牌、郵遞區號都長這樣）。切完是空的就整串保留 ——
+ *      `7-ELEVEN` 這種本身以數字開頭的店名不能被吃掉；後面那截太短也不切，
+ *      「星巴克 101門市」的 101 是店名的一部分，不是地址。
+ *
+ * 純啟發式，漏了只是標籤長一點，使用者自己改得掉。
  */
 export const placeNameOf = (label: string): string => {
   const text = label.replace(/\s+/g, ' ').trim()
-  const cut = text.search(/\s\d/)
-  if (cut <= 0 || text.length - cut < 7) return text
-  return text.slice(0, cut).trim() || text
+  const dot = text.search(/\s?[·・‧•]\s?/)
+  const head = (dot > 0 ? text.slice(0, dot) : text).trim()
+  const cut = head.search(/\s\d/)
+  if (cut <= 0 || head.length - cut < 7) return head
+  return head.slice(0, cut).trim() || head
 }
