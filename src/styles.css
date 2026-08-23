@@ -1709,7 +1709,7 @@ body[data-actual='true'] {
 .photo-lightbox-actions {
   justify-content: center;
   gap: 12px;
-  padding: 8px 18px max(12px, calc(8px + env(safe-area-inset-bottom)));
+  padding: 14px 18px max(14px, calc(14px + env(safe-area-inset-bottom)));
 }
 .photo-lightbox-error { padding: 0 12px 8px; color: #ffb4ab; text-align: center; font-size: 11px; }
 
@@ -2148,7 +2148,7 @@ body[data-actual='true'] {
   /* 外殼留在全螢幕遮住背後頁面；只縮內部 flex 空間，把按鈕列推到鍵盤上緣。 */
   .pane-detail { inset: 0; padding-bottom: var(--kb, 0px); z-index: 40; }
   .pane-detail .editor-actions {
-    padding: 8px 18px max(12px, calc(8px + env(safe-area-inset-bottom) - var(--kb, 0px)));
+    padding: 14px 18px max(14px, calc(14px + env(safe-area-inset-bottom) - var(--kb, 0px)));
   }
   .editor-actions .btn {
     min-height: 40px;
@@ -2362,12 +2362,12 @@ body[data-actual='true'] {
      這段留白由按鈕列自己給，不能還給 .sheetbody 的 padding-bottom ——
      那會把釘住的位置往上推 14px，就不貼底了。 */
   margin: 12px -14px 0;
-  padding: 8px 18px max(12px, calc(8px + env(safe-area-inset-bottom) - var(--kb, 0px)));
+  padding: 14px 18px max(14px, calc(14px + env(safe-area-inset-bottom) - var(--kb, 0px)));
 }
 :root[data-kb] .sheetactions {
   position: static;
-  padding-top: 6px;
-  padding-bottom: 8px;
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 /* 只有一顆「關閉」的那條：整條是按鈕，膠囊只是裡面置中的 span，
@@ -2381,9 +2381,9 @@ body[data-actual='true'] {
 .sheet-close-wide .btn { width: 100%; }
 .sheet-close-wide:active .btn { transform: scale(0.98); }
 .editor-actions {
-  padding: 8px 18px max(12px, calc(8px + env(safe-area-inset-bottom) - var(--kb, 0px)));
+  padding: 14px 18px max(14px, calc(14px + env(safe-area-inset-bottom) - var(--kb, 0px)));
 }
-:root[data-kb] .editor-actions { padding-top: 6px; padding-bottom: 8px; }
+:root[data-kb] .editor-actions { padding-top: 10px; padding-bottom: 10px; }
 
 .sheetactions .btn,
 .editor-actions .btn,
@@ -2412,18 +2412,41 @@ body[data-actual='true'] {
 
 @media (max-width: 619px) {
   .sheetactions:not(.sheet-close-wide),
-  .editor-actions { justify-content: center; }
+  .editor-actions:has(> .btn + .btn) {
+    position: relative;
+    justify-content: space-evenly;
+    gap: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
   .sheetactions:not(.sheet-close-wide) .btn,
-  .editor-actions .btn:not(.detail-leave-wide) {
-    flex: 0 1 40%;
+  .editor-actions:has(> .btn + .btn) .btn {
+    flex: 0 1 38%;
     max-width: 160px;
   }
+  /* 外觀維持收窄；透明點擊層則各自吃滿操作列的左半與右半。 */
+  .sheetactions:not(.sheet-close-wide) > .btn,
+  .editor-actions:has(> .btn + .btn) > .btn { position: static; }
+  .sheetactions:not(.sheet-close-wide) > .btn::after,
+  .editor-actions:has(> .btn + .btn) > .btn::after {
+    inset: 0 auto;
+    width: 50%;
+  }
+  .sheetactions:not(.sheet-close-wide) > .btn:first-child::after,
+  .editor-actions:has(> .btn + .btn) > .btn:first-child::after { left: 0; }
+  .sheetactions:not(.sheet-close-wide) > .btn:last-child::after,
+  .editor-actions:has(> .btn + .btn) > .btn:last-child::after { right: 0; }
 }
 
 .editor-actions .detail-leave-wide {
   width: 100%;
   min-height: 40px;
 }
+
+/* 單顆取消／關閉比照 sheet 的關閉列：外觀不變，整個操作列背景都能按。 */
+.editor-actions:has(> .detail-leave-wide:only-child) { position: relative; }
+.editor-actions:has(> .detail-leave-wide:only-child) > .detail-leave-wide { position: static; }
+.editor-actions:has(> .detail-leave-wide:only-child) > .detail-leave-wide::after { inset: 0; }
 
 /*
  * 只有桌機需要的出口。旅程頁的返回已經在導航列裡，這裡剩下詳細頁 ——

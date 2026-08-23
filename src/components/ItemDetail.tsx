@@ -1723,7 +1723,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       </div>
 
       {/*
-        * 沒在編輯時只剩「離開」可按，而手機是用右滑返回的 ——
+        * 沒在編輯時只剩「關閉」可按，而手機是用右滑返回的 ——
         * 那條按鈕列只留給沒有手勢的桌機，手機不算繪，不留一條空的橫條。
         */}
       {editMode === 'all' ? (
@@ -1757,7 +1757,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         </div>
       ) : (
         <div className="editor-actions wide-only">
-          <button className="btn detail-leave-wide" onClick={requestCancel}>離開</button>
+          <button className="btn detail-leave-wide" onClick={requestCancel}>關閉</button>
         </div>
       )}
     </>
