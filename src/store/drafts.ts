@@ -1,7 +1,7 @@
 import { del, get, set } from 'idb-keyval'
 import type { Item } from '../types'
 
-export type ItemDraftSection = 'basic' | 'guide' | 'map' | 'notes' | 'links' | 'costs' | 'review'
+export type ItemDraftSection = 'basic' | 'guide' | 'notes' | 'links' | 'costs' | 'review'
 export type ItemDraftMode = 'section' | 'all'
 
 /**
@@ -20,6 +20,7 @@ export interface ItemDraft {
   activeSection?: ItemDraftSection | 'category'
   /** 尚未按下「加入」的單筆輸入；快速編輯時也要能在 iOS 回收後救回來。 */
   noteDraft?: string
+  /** 基本資訊裡尚未儲存的 Google Map 網址。舊版是獨立區塊的「還沒按加入」那一格。 */
   mapDraft?: string
   webDraft?: string
   /** 詳細資訊改成分區編輯後，要知道重新開啟時該還原哪一區。 */

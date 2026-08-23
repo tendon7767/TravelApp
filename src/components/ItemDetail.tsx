@@ -18,10 +18,9 @@ import {
   type Trip,
 } from '../types'
 import { newId } from '../lib/id'
-import { makeLink, parseLink } from '../lib/maps'
+import { makeLink, parseLink, placeNameOf } from '../lib/maps'
 import { formatMoney, formatTotals, lineTotal, sumByCurrency, toHome } from '../lib/money'
 import { normalizeTime, shortDate } from '../lib/date'
-import { isSubmitEnter } from '../lib/keys'
 import ConfirmButton from './ConfirmButton'
 import NumberField from './NumberField'
 import { methodLabel, OWNERLESS } from '../lib/owners'
@@ -45,7 +44,6 @@ import PencilIcon from './PencilIcon'
 import LinkIcon from './LinkIcon'
 import ExternalLinkIcon from './ExternalLinkIcon'
 import MoneyIcon from './MoneyIcon'
-import MapIcon from './MapIcon'
 import GlobeIcon from './GlobeIcon'
 import ReviewIcon from './ReviewIcon'
 import FlagIcon from './FlagIcon'
@@ -74,7 +72,6 @@ interface Props {
 const SECTION_LABELS: Record<ItemDraftSection, string> = {
   basic: '基本資訊',
   guide: '行程說明',
-  map: 'Google Map',
   notes: '備註',
   links: '相關連結',
   costs: '費用',
@@ -100,8 +97,9 @@ const isBlankCost = (cost: CostLine) =>
 
 const filledCosts = (costs: CostLine[]) => costs.filter((cost) => !isBlankCost(cost))
 const filledNotes = (notes: Item['notes']) => notes.filter((note) => note.text.trim())
+/* 地圖連結一律帶著網址（解析完才建立），所以不必再為它留例外。 */
 const filledLinks = (links: LinkRef[]) =>
-  links.filter((link) => link.kind === 'map' || link.url.trim() || link.label.trim())
+  links.filter((link) => link.url.trim() || link.label.trim())
 
 /**
  * 貼上地圖連結時把地名接在既有標題後面，不覆蓋 ——
@@ -193,6 +191,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const others = reviews.filter((review) => review.author !== me && review.text.trim())
   const initialReviewText = useRef(mine?.text ?? '')
   const initialCategory = useRef(storedItem?.category)
+  const initialMapUrl = useRef(storedItem?.links.find((link) => link.kind === 'map')?.url ?? '')
   const item = draftItem?.id === storedItem?.id ? draftItem : storedItem
 
   const methods = useMemo(
@@ -278,8 +277,11 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         ? 'category'
         : editingSections.values().next().value
       : undefined
-  const pendingSectionInput = editMode === 'section' && Boolean(mapDraft.trim())
-  const dirty = itemDirty || reviewDraft !== (mine?.text ?? '') || pendingSectionInput
+  // 地圖網址是基本資訊裡的一格草稿，跟已存的那筆連結比才知道有沒有動過。
+  const storedMapUrl = storedItem?.links.find((link) => link.kind === 'map')?.url ?? ''
+  const mapDirty =
+    (editMode === 'all' || editingSections.has('basic')) && mapDraft.trim() !== storedMapUrl
+  const dirty = itemDirty || reviewDraft !== (mine?.text ?? '') || mapDirty
 
   useEffect(() => {
     onDirtyChange(dirty)
@@ -302,8 +304,20 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         setDraftItem(restoredItem)
         setTimeDraft(saved.timeDraft)
         setReviewDraft(saved.reviewDraft)
-        setMapDraft(saved.mapDraft ?? '')
-        const savedSections = new Set(saved.sections ?? (saved.section ? [saved.section] : []))
+        // 舊草稿的 Google Map 是獨立區塊，現在併進基本資訊。
+        const legacySections = (saved.sections ?? (saved.section ? [saved.section] : [])) as string[]
+        const savedSections = new Set(
+          legacySections.map((name) => (name === 'map' ? 'basic' : name)) as ItemDraftSection[],
+        )
+        // 舊版的 mapDraft 是「還沒按加入的那一格」，空的代表當時在改既有連結的標籤；
+        // 新版那一格就是網址本身，空的代表要刪掉，所以舊草稿要把已存的網址補回去。
+        setMapDraft(
+          saved.mapDraft?.trim()
+            ? saved.mapDraft
+            : legacySections.includes('map')
+              ? initialMapUrl.current
+              : (saved.mapDraft ?? ''),
+        )
         const restoredMode = saved.mode ?? (savedSections.size > 1 ? 'all' : 'section')
         const categoryOnly =
           restoredMode === 'section' &&
@@ -404,7 +418,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const totals = sumByCurrency(item.costs)
   const home = toHome(totals, trip)
   const showConverted = !totals[trip.homeCurrency] || Object.keys(totals).length > 1
-  const mapLinks = item.links.filter((link) => link.kind === 'map')
+  const mapLink = item.links.find((link) => link.kind === 'map')
   const webLinks = item.links.filter((link) => link.kind === 'web')
 
   const patchItem = (patch: Partial<Item>) => {
@@ -416,6 +430,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     setFocusCostId(null)
     setFocusNoteId(null)
     setFocusLinkId(null)
+    setMapDraft(storedMapUrl)
     // 空區塊點進去就先建立第一張草稿卡；空卡不算變更，儲存時也會濾掉。
     if (section === 'costs' && item.costs.length === 0) {
       const costId = newId()
@@ -444,7 +459,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
   const editableSections: ItemDraftSection[] = [
     'basic',
     'guide',
-    'map',
     'notes',
     'costs',
     'links',
@@ -458,12 +472,13 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
     : aiPending
       ? '分析中'
       : !savedMapLink
-        ? '需要先加入 Google Map 連結'
+        ? '需要先在基本資訊加入 Google Map 連結'
         : ''
 
   const beginEditAll = () => {
     setFocusLinkId(null)
     setFocusNoteId(null)
+    setMapDraft(storedMapUrl)
     setRestored(false)
     setChoosingCategory(true)
     setFocusCostId(null)
@@ -582,14 +597,15 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
 
   const completeEditing = async () => {
     const normalizedTime = normalizeTime(timeDraft)
-    const normalizedLinks = await resolvePendingWebLinks(item.links)
+    const withMap = await applyMapDraft(item)
+    const normalizedLinks = await resolvePendingWebLinks(withMap.links)
     const nextItem = {
-      ...item,
-      notes: filledNotes(item.notes),
+      ...withMap,
+      notes: filledNotes(withMap.notes),
       links: normalizedLinks,
-      costs: filledCosts(item.costs),
+      costs: filledCosts(withMap.costs),
     }
-    if (itemDirty) {
+    if (itemDirty || mapDirty) {
       updateItem(item.id, {
         date: nextItem.date,
         startTime: normalizedTime,
@@ -638,12 +654,20 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
 
     switch (section) {
       case 'basic':
+        // 地圖連結併進這一區之後，地名會接在標題後面，兩者必須一起寫回去。
+        // 只寫 links 的話那段標題會靜默消失 —— 草稿留著新標題、store 裡沒有，
+        // 畫面看起來存好了，重開才發現變回「午餐」。
         patch = {
           title: nextItem.title,
           date: nextItem.date,
           startTime: normalizedTime || undefined,
+          links: filledLinks(nextItem.links),
         }
-        nextItem = { ...nextItem, startTime: normalizedTime || undefined }
+        nextItem = {
+          ...nextItem,
+          startTime: normalizedTime || undefined,
+          links: filledLinks(nextItem.links),
+        }
         break
       case 'guide':
         patch = { guide: nextItem.guide }
@@ -655,12 +679,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
       case 'costs':
         patch = { costs: filledCosts(nextItem.costs) }
         nextItem = { ...nextItem, costs: filledCosts(nextItem.costs) }
-        break
-      case 'map':
-        // 地名接到標題後面了，這裡要一起寫回去。只寫 links 的話那段標題會靜默消失 ——
-        // 草稿留著新標題、store 裡沒有，畫面看起來存好了，重開才發現變回「午餐」。
-        patch = { title: nextItem.title, links: filledLinks(nextItem.links) }
-        nextItem = { ...nextItem, links: filledLinks(nextItem.links) }
         break
       case 'links':
         patch = { links: filledLinks(nextItem.links) }
@@ -736,36 +754,49 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         link = {
           ...parsed,
           url: metadata.url || parsed.url,
-          label: metadata.label.trim() || parsed.label || (kind === 'map' ? item.title : ''),
+          // 地圖以「貼上的文字」為準：手機分享出來的第一行就是乾淨的地名，
+          // 後端只能從展開後的網址猜，那一段常常是地名連著整串地址。
+          label:
+            kind === 'map'
+              ? parsed.label || metadata.label.trim()
+              : metadata.label.trim() || parsed.label,
         }
       } catch {
         setLinkLookupError('無法讀取連結名稱，已使用預設備援名稱。')
       }
     }
+    if (kind === 'map') link = { ...link, label: placeNameOf(link.label) }
     if (!link.label && kind === 'map') link = { ...link, label: item.title }
     return link
   }
 
-  const addMapLink = async (finishSection = false) => {
-    if (!mapDraft.trim() || resolvingLink) return
-    if (item.links.some((link) => link.kind === 'map')) return
+  /**
+   * 地圖網址是基本資訊裡的一格草稿，按儲存才解析（跟先前獨立區塊的行為一樣）。
+   * 清空欄位就是刪掉那筆連結；網址沒動過就原封不動，不必再跑一趟後端。
+   */
+  const applyMapDraft = async (source: Item): Promise<Item> => {
+    const url = mapDraft.trim()
+    const current = source.links.find((link) => link.kind === 'map')
+    if (url === (current?.url ?? '')) return source
+    if (!url) return { ...source, links: source.links.filter((link) => link.kind !== 'map') }
+
     setLinkLookupError('')
     setResolvingLink('map')
     let link: LinkRef
     try {
-      link = await resolveLinkValue(mapDraft, 'map')
+      link = await resolveLinkValue(url, 'map')
     } finally {
       setResolvingLink(null)
     }
-    const title = appendPlaceName(item.title, link.label)
-    const nextItem = { ...item, title, links: [...item.links, link] }
-    setMapDraft('')
-    if (finishSection && editMode === 'section') {
-      commitSection('map', nextItem)
-    } else {
-      patchItem({ title, links: nextItem.links })
-      if (!link.label) setFocusLinkId(link.id)
+    return {
+      ...source,
+      title: appendPlaceName(source.title, link.label),
+      links: [...source.links.filter((value) => value.kind !== 'map'), link],
     }
+  }
+
+  const saveBasicSection = async () => {
+    commitSection('basic', await applyMapDraft(item))
   }
 
   const resolvePendingWebLinks = async (links: LinkRef[]) => {
@@ -852,7 +883,8 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         return (
           item.title !== storedItem.title ||
           item.date !== storedItem.date ||
-          normalizeTime(timeDraft) !== normalizeTime(storedItem.startTime ?? '')
+          normalizeTime(timeDraft) !== normalizeTime(storedItem.startTime ?? '') ||
+          mapDirty
         )
       case 'guide':
         return (item.guide ?? '') !== (storedItem.guide ?? '')
@@ -860,8 +892,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
         return JSON.stringify(filledNotes(item.notes)) !== JSON.stringify(filledNotes(storedItem.notes))
       case 'costs':
         return JSON.stringify(filledCosts(item.costs)) !== JSON.stringify(filledCosts(storedItem.costs))
-      case 'map':
-        return JSON.stringify(mapLinks) !== JSON.stringify(storedItem.links.filter((link) => link.kind === 'map'))
       case 'links':
         return JSON.stringify(filledLinks(webLinks)) !== JSON.stringify(
           filledLinks(storedItem.links.filter((link) => link.kind === 'web')),
@@ -877,16 +907,10 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
 
   const sectionAction = (() => {
     if (editMode !== 'section' || !activeSection || activeSection === 'category') return undefined
-    if (activeSection === 'map' && mapDraft.trim()) {
+    if (activeSection === 'basic') {
       return {
-        disabled: resolvingLink !== null,
-        run: () => void addMapLink(true),
-      }
-    }
-    if (activeSection === 'map' && mapLinks.length === 0 && !activeSectionDirty) {
-      return {
-        disabled: true,
-        run: () => void addMapLink(true),
+        disabled: !activeSectionDirty || resolvingLink !== null,
+        run: () => void saveBasicSection(),
       }
     }
     if (activeSection === 'links') {
@@ -1119,10 +1143,69 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                   />
                 </div>
               </div>
+              <div className="detail-field detail-field-map">
+                <label className="label" htmlFor="d-map">Google Map</label>
+                <div className="link-add-row">
+                  <input
+                    id="d-map"
+                    ref={mapDraftRef}
+                    className="field"
+                    type="search"
+                    enterKeyHint="done"
+                    autoComplete="off"
+                    inputMode="url"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={mapDraft}
+                    placeholder="貼上 Google Maps 網址"
+                    onChange={(event) => {
+                      setTouched(true)
+                      setMapDraft(event.target.value)
+                    }}
+                  />
+                  <button
+                    className="btn btn-sm link-paste-btn"
+                    aria-label="貼上 Google Map 網址"
+                    title="貼上"
+                    onClick={() => void pasteLinkDraft('map')}
+                  >
+                    <PasteIcon />
+                  </button>
+                  <button
+                    className="btn btn-sm delete-icon-btn"
+                    aria-label="清除 Google Map 連結"
+                    disabled={!mapDraft.trim()}
+                    onClick={() => {
+                      setTouched(true)
+                      setMapDraft('')
+                    }}
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+                {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
+              </div>
             </div>
           ) : (
             <>
-              <h2 className="detail-title">{item.title || '未命名行程'}</h2>
+              <div className="detail-title-row">
+                <h2 className="detail-title">{item.title || '未命名行程'}</h2>
+                {mapLink?.url && (
+                  <a
+                    className="detail-map-link"
+                    href={mapLink.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="在 Google Maps 開啟"
+                    title="在 Google Maps 開啟"
+                    /* 這一區未編輯時整塊是 role="button"，不擋冒泡會連帶進入編輯。 */
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <MapPinIcon size={17} />
+                  </a>
+                )}
+              </div>
               <div className="detail-meta">
                 <span>{shortDate(item.date)}</span>
                 <span>{item.startTime || '未設定時間'}</span>
@@ -1302,121 +1385,6 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="dim detail-empty-copy">-</p>
-          )}
-        </section>
-
-        <section
-          data-active={activeSection === 'map' || undefined}
-          className={`detail-section${
-            editingSections.has('map') || editMode !== 'none' ? '' : ' detail-section-clickable'
-          }`}
-          {...sectionActionProps('map')}
-        >
-          <div className="detail-section-head">
-            <span className="detail-kicker"><MapIcon />Google Map</span>
-          </div>
-          {editingSections.has('map') ? (
-            <>
-              {mapLinks.map((link) => (
-                <div key={link.id} className="link-edit-row">
-                  <input
-                    className="field"
-                    type="search"
-                    enterKeyHint="done"
-                    autoComplete="off"
-                    style={{ flex: 1, minWidth: 0 }}
-                    value={link.label}
-                    placeholder={link.url}
-                    autoFocus={link.id === focusLinkId}
-                    onChange={(event) =>
-                      patchItem({
-                        links: item.links.map((value) =>
-                          value.id === link.id ? { ...value, label: event.target.value } : value,
-                        ),
-                      })
-                    }
-                  />
-                  <a
-                    className="btn btn-sm link-icon-btn"
-                    href={link.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="在 Google Maps 開啟"
-                  >
-                    <ExternalLinkIcon />
-                  </a>
-                  <button
-                    className="btn btn-sm delete-icon-btn"
-                    aria-label="刪除 Google Map"
-                    onClick={() =>
-                      patchItem({ links: item.links.filter((value) => value.id !== link.id) })
-                    }
-                  >
-                    <TrashIcon />
-                  </button>
-                </div>
-              ))}
-              {mapLinks.length === 0 && (
-                <div className="link-add-row">
-                  <input
-                    ref={mapDraftRef}
-                    className="field"
-                    type="search"
-                    enterKeyHint="done"
-                    autoComplete="off"
-                    inputMode="url"
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    value={mapDraft}
-                    placeholder="貼上 Google Maps 網址"
-                    autoFocus={focusSection === 'map'}
-                    onChange={(event) => setMapDraft(event.target.value)}
-                    onKeyDown={(event) =>
-                      isSubmitEnter(event) && void addMapLink(editMode === 'section')
-                    }
-                  />
-                  <button
-                    className="btn btn-sm link-paste-btn"
-                    aria-label="貼上 Google Map 網址"
-                    title="貼上"
-                    onClick={() => void pasteLinkDraft('map')}
-                  >
-                    <PasteIcon />
-                  </button>
-                  {editMode === 'all' && (
-                    <button
-                      className="btn"
-                      disabled={resolvingLink !== null}
-                      onClick={() => void addMapLink()}
-                    >
-                      {resolvingLink === 'map' ? '解析中…' : '加入'}
-                    </button>
-                  )}
-                </div>
-              )}
-              {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
-            </>
-          ) : mapLinks.length > 0 ? (
-            mapLinks.map((link) => (
-              <div key={link.id} className="detail-link-card">
-                <div className="detail-link-content">
-                  <span className="detail-link-icon"><MapPinIcon size={16} /></span>
-                  <span className="detail-link-label">{link.label || 'Google Map 地點'}</span>
-                </div>
-                <a
-                  className="btn btn-sm detail-link-external"
-                  href={link.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  開啟地圖
-                </a>
-              </div>
-            ))
           ) : (
             <p className="dim detail-empty-copy">-</p>
           )}
@@ -1766,7 +1734,7 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
             onClick={() => void completeEditing()}
             disabled={!dirty || resolvingLink !== null}
           >
-            {resolvingLink === 'web' ? '讀取中…' : '儲存'}
+            {resolvingLink ? (resolvingLink === 'map' ? '解析中…' : '讀取中…') : '儲存'}
           </button>
         </div>
       ) : editMode === 'section' ? (

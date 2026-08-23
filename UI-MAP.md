@@ -33,7 +33,8 @@
 │   ├── 日期標題（當日合計）                          .dayhead
 │   ├── 行程列                                       .row
 │   │   └── 點開 → 詳細頁                            .pane-detail / ItemDetail.tsx
-│   │       ├── 區段（時間、地點、花費、照片、心得）
+│   │       ├── 區段（基本資訊、花費、照片、心得）
+│   │       │      └── 地圖連結在基本資訊：標題右側的針＝開地圖，編輯時是時間下面那格
 │   │       └── 取消／儲存                            .editor-actions
 │   ├── now 鈕                                       .now-fab
 │   └── 心得模式（同一頁的另一種樣子）                 ReviewTab.tsx / mode=review

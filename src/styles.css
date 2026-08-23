@@ -1143,7 +1143,31 @@ body[data-actual='true'] {
   letter-spacing: 0.04em;
 }
 
+/* 地圖連結只是標題右側的一個圖示：有連結才出現，沒有就整個不佔位。 */
+.detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.detail-map-link {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 2px;
+  color: var(--accent);
+}
+/* 點擊區靠 ::after 撐開，元素本身不放大版面才不受影響；右緣不外擴，避免橫向可拖動。 */
+.detail-map-link::after {
+  content: '';
+  position: absolute;
+  inset: -10px -4px -10px -10px;
+}
+
 .detail-title {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   color: var(--text);
   font-size: 19px;
@@ -1166,6 +1190,12 @@ body[data-actual='true'] {
 }
 
 .detail-form-stack .label:not(:first-child) { margin-top: 5px; }
+
+/* 地圖網址自己一整排，接在日期時間底下。 */
+.detail-field-map { margin-top: 5px; }
+/* 表單最後一排，那 6px 是給連結區「下面還有一排」用的，這裡不需要。 */
+.detail-field-map .link-add-row { margin-bottom: 0; }
+.detail-summary-editing .detail-field-map { margin-top: 3px; }
 
 /* 日期與時間並排，編輯表單不必為了兩個窄欄位各吃掉一整列。 */
 .detail-field-row {
