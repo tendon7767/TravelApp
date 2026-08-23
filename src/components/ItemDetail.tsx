@@ -784,12 +784,15 @@ export default function ItemDetail({
           ...parsed,
           url: metadata.url || parsed.url,
           /*
-           * 後端展開回來的名字最準，貼上的文字只是它拿不到時的備援（離線、短碼壞掉）。
-           * 曾經反過來排過一版：以為地名連著整串地址是後端猜的。其實不是 ——
-           * 那是手機剪貼簿黏成一串之後、地名被收進網址裡，剩下的那截地址。
-           * 網址一旦拆對，後端不管長短網址都只回地名。
+           * **地圖以貼上的文字為準，後端展開只是備援。** 手機分享出來的那一行就是
+           * Google 地圖自己給的地名，最準；後端只能從展開後的網址猜，而那一段
+           * 對某些地點就是整串地址（實測「草間彌生『赤南瓜』」回來的是門牌與郵遞區號）。
+           * 一般網頁相反：那裡沒有可貼的名字，頁面標題才是名字。
            */
-          label: metadata.label.trim() || parsed.label,
+          label:
+            kind === 'map'
+              ? parsed.label || metadata.label.trim()
+              : metadata.label.trim() || parsed.label,
         }
       } catch {
         setLinkLookupError('無法讀取連結名稱，已使用預設備援名稱。')

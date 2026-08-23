@@ -1042,47 +1042,55 @@ body[data-actual='true'] {
 }
 
 /*
- * 上下滑入相鄰行程。**只有內容那層在動，頂列不跟著走** —— 它是這一頁的框，
- * 跟著滑走的話換頁瞬間它要彈回原位，那一下就是看得見的閃動。
+ * 詳細頁的每一筆都是獨立一層，堆在同一個框裡；平常只有「這一筆」存在，
+ * 拖曳時鄰居才多長一層出來。層是用行程 id 當 key 的，換頁只是改 data-side ——
+ * 整個 ItemDetail 重建的話，心得草稿要重載、照片的 <img> 要重掛，那一幀就會閃。
  *
- * 模型是一疊卡片：**之後的行程疊在上面，之前的行程墊在下面。**
+ * 運動的模型是一疊卡片：**之後的行程疊在上面，之前的行程墊在下面。**
  *   - 往下一筆：當前這張不動，下一張從畫面下緣**蓋上來**。
  *     當前跟著一起上移的話，感覺是「這一則被推走了、還沒讀完」，
  *     而不是「我正在捲到下一則」。
- *   - 往上一筆：當前這張往下讓開，露出靜止墊在底下的上一張。
+ *   - 往上一筆：當前這張的**捲動區**往下讓開（頂列不動，它是這一頁的框），
+ *     露出靜止墊在底下的上一張。
  * 兩種運動共用同一個 --detail-shift，差別只在誰在動、誰疊在上面。
- * 只有拖曳中才套用，平常這幾條完全不生效。
  */
-.pane-detail[data-step] > .detail-scroll { position: relative; z-index: 1; }
-.pane-detail[data-step][data-step-side='prev'] > .detail-scroll {
-  transform: translateY(var(--detail-shift, 0px));
-}
-.pane-detail[data-step='settle'] > .detail-scroll,
-.pane-detail[data-step='settle'] > .detail-neighbor {
-  transition: transform 0.2s ease-out;
-}
-
-/* 鄰居那一層只是畫面：點不到、捲不動，拖曳結束就整個卸載。 */
-.detail-neighbor {
+/*
+ * 層本身不上底色 —— 頂列與捲動區各自有自己的底，層再補一層不透明的話，
+ * 當前這張就會把墊在底下的上一張整個蓋掉，讓開了也只看到一片背景。
+ * 只有「蓋上來」的那張要不透明：它得遮住底下那張，而它的頂列是隱形的（連底色一起隱形）。
+ */
+.detail-layer {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--bg);
-  pointer-events: none;
 }
+.detail-layer[data-side='prev'] { z-index: 0; }
+/* 下一張是蓋上去的，所以疊在當前這層之上。 */
+.detail-layer[data-side='next'] {
+  z-index: 2;
+  background: var(--bg);
+  transform: translateY(calc(100% + var(--detail-shift, 0px)));
+}
+.detail-layer[data-side='prev'],
+.detail-layer[data-side='next'] { pointer-events: none; }
 /*
- * 鄰居的頂列藏起來但**留著位置**：畫面上只該有一條頂列（真的那條固定在上面），
+ * 鄰居的頂列藏起來但**留著位置**：畫面上只該有一條頂列（當前那層的），
  * 而它佔的高度要留著，那一層的內容才會停在換頁後的同一個位置 ——
  * 用 display: none 的話內容會整段上移，換過去的瞬間又跳回來。
  */
-.detail-neighbor .detail-head { visibility: hidden; }
-/* 下一張是蓋上去的，所以疊在捲動區之上 —— 但仍在頂列（z-index 3）之下。 */
-.detail-neighbor[data-side='next'] {
-  z-index: 2;
-  transform: translateY(calc(100% + var(--detail-shift, 0px)));
+.detail-layer[data-side='prev'] .detail-head,
+.detail-layer[data-side='next'] .detail-head { visibility: hidden; }
+
+.pane-detail[data-step][data-step-side='prev'] > .detail-layer[data-side='current'] > .detail-scroll {
+  position: relative;
+  transform: translateY(var(--detail-shift, 0px));
+}
+.pane-detail[data-step='settle'] .detail-layer,
+.pane-detail[data-step='settle'] .detail-layer > .detail-scroll {
+  transition: transform 0.2s ease-out;
 }
 
 .detail-head { z-index: 3; }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
@@ -34,11 +34,17 @@ export default function TripPage() {
   const [detailDirty, setDetailDirty] = useState(false)
   const [detailEditing, setDetailEditing] = useState(false)
   /**
-   * 詳細頁上下滑到相鄰行程的過程。side 是要去哪一邊、shift 是當前這層的位移，
+   * 詳細頁上下滑到相鄰行程的過程。
+   * **兩端的 id 記在這裡，不即時去算 prev/next** —— 換頁分成兩次算繪
+   * （網址那次由 router 送、清掉這個狀態是我們自己送，兩者不保證合併成一次），
+   * 中間那一次若重算鄰居，畫面會先跳回舊的那筆再跳到新的，那就是看得見的閃動。
+   * 記著 from/to 的話，中間那次算出來跟前一次一模一樣，等於沒發生。
    * settling 表示手已經放開、正在動畫收尾（那時鄰居還不能卸載）。
    */
   const [detailStep, setDetailStep] = useState<{
     side: 'prev' | 'next'
+    fromId: string
+    toId?: string
     shift: number
     settling: boolean
   } | null>(null)
@@ -246,24 +252,30 @@ export default function TripPage() {
     canNext: Boolean(nextItemId),
     // 編輯中（或有未存的修改）不吃這個手勢：打字時很容易誤觸，跳確認彈窗比不動更煩。
     disabled: !overlayDetail || detailEditing || detailDirty || Boolean(detailStep?.settling),
-    scrollSelector: ':scope > .detail-scroll',
-    onShift: (dy) => setDetailStep({ side: dy > 0 ? 'prev' : 'next', shift: dy, settling: false }),
+    scrollSelector: ':scope > .detail-layer[data-side="current"] > .detail-scroll',
+    onShift: (dy) => {
+      if (!selectedId) return
+      const side = dy > 0 ? 'prev' : 'next'
+      setDetailStep({
+        side,
+        fromId: selectedId,
+        toId: side === 'prev' ? prevItemId : nextItemId,
+        shift: dy,
+        settling: false,
+      })
+    },
     onRelease: (step) => {
       const height = paneRef.current?.offsetHeight ?? window.innerHeight
       const target = step === 0 ? 0 : step * -height
       setDetailStep((current) => (current ? { ...current, shift: target, settling: true } : null))
       clearTimeout(settleTimer.current)
       settleTimer.current = setTimeout(() => {
-        /*
-         * 換內容與位移歸零要在同一次更新裡（timeout 的回呼是自動批次的），
-         * 分兩次的話中間會繪出「位置已經歸位、內容還是舊的」那一幀。
-         * 收尾時鄰居已經停在最終位置，所以看起來就是它接手了。
-         */
-        const nextId = step === -1 ? prevItemId : nextItemId
-        if (step !== 0 && nextId) setParam('sel', nextId)
-        setDetailStep(null)
         // 比 CSS 那段 0.2s 多一點：剛好同一個數字的話，偶爾會在動畫還差幾 px
-        // 的時候就換內容，那一下就是「定位時閃一下」。
+        // 的時候就換內容，那一下也是一種閃動。
+        const nextId = step === -1 ? prevItemId : nextItemId
+        // 換網址而已；這一疊要等新網址真的到了才收（見底下那個 layout effect）。
+        if (step !== 0 && nextId) setParam('sel', nextId)
+        else setDetailStep(null)
       }, 240)
     },
   })
@@ -281,7 +293,35 @@ export default function TripPage() {
 
   useEffect(() => () => clearTimeout(settleTimer.current), [])
 
-  const stepNeighborId = detailStep?.side === 'prev' ? prevItemId : nextItemId
+  /*
+   * 新網址到了才把這一疊收掉，而且要在瀏覽器繪之前（layout effect）——
+   * 收掉的那一刻鄰居已經停在最終位置，它只是從「鄰居」變成「這一筆」，
+   * 同一個 key 同一個實例，不重建也就不會閃。
+   */
+  useLayoutEffect(() => {
+    if (detailStep?.settling && detailStep.toId === selectedId) setDetailStep(null)
+  }, [detailStep, selectedId])
+
+  /**
+   * 疊在框裡的那幾層，**以行程 id 當 key**。
+   * 換頁時只是把 data-side 從 next 改成 current，React 認得同一個 key 就不會重建 ——
+   * 重建的話心得草稿要重新載入、照片的 <img> 要重新掛，那一幀就是看得見的閃動。
+   * DOM 順序固定「上一筆在前」，疊在底下的那層才不會靠 z-index 硬搶。
+   */
+  const detailLayers: { id: string; side: 'prev' | 'current' | 'next' }[] =
+    detailStep?.toId
+      ? detailStep.side === 'prev'
+        ? [
+            { id: detailStep.toId, side: 'prev' },
+            { id: detailStep.fromId, side: 'current' },
+          ]
+        : [
+            { id: detailStep.fromId, side: 'current' },
+            { id: detailStep.toId, side: 'next' },
+          ]
+      : selectedId
+        ? [{ id: selectedId, side: 'current' }]
+        : []
 
   if (!trip) {
     return (
@@ -460,38 +500,36 @@ export default function TripPage() {
                 : undefined
             }
           >
-            {/*
-              滑入相鄰行程時鄰居要顯示真的內容，所以拖曳期間才把它掛出來，放開就卸載。
-              上一筆是靜止墊在底下等著被露出，下一筆跟著當前這層一起走 ——
-              兩種運動用同一個 --detail-shift 表達，差別只在 CSS 那兩條。
-              這一層不可點也不回報狀態，它只是畫面。
-            */}
-            {detailStep && stepNeighborId && (
-              <div className="detail-neighbor" data-side={detailStep.side} aria-hidden>
-                <ItemDetail
-                  key={stepNeighborId}
-                  trip={trip}
-                  itemId={stepNeighborId}
-                  onClose={noop}
-                  onCopy={noop}
-                  onDirtyChange={noop}
-                />
-              </div>
-            )}
-            <ItemDetail
-              key={selectedId}
-              trip={trip}
-              itemId={selectedId}
-              onClose={() => setParam('sel')}
-              onCopy={(item) => {
-                const snapshot = copyItemSnapshot(item)
-                if (!snapshot) return
-                setCopied({ tripId: trip.id, item: snapshot })
-                setParam('sel')
-              }}
-              onDirtyChange={setDetailDirty}
-              onEditingChange={setDetailEditing}
-            />
+            {detailLayers.map(({ id, side }) => {
+              const current = side === 'current'
+              return (
+                <div
+                  key={id}
+                  className="detail-layer"
+                  data-side={side}
+                  aria-hidden={current ? undefined : true}
+                >
+                  {/* 鄰居只是畫面：不可點、不回報狀態，也不該把關閉與複製接上去。 */}
+                  <ItemDetail
+                    trip={trip}
+                    itemId={id}
+                    onClose={current ? () => setParam('sel') : noop}
+                    onCopy={
+                      current
+                        ? (item) => {
+                            const snapshot = copyItemSnapshot(item)
+                            if (!snapshot) return
+                            setCopied({ tripId: trip.id, item: snapshot })
+                            setParam('sel')
+                          }
+                        : noop
+                    }
+                    onDirtyChange={current ? setDetailDirty : noop}
+                    onEditingChange={current ? setDetailEditing : noop}
+                  />
+                </div>
+              )
+            })}
           </div>
         )}
 
