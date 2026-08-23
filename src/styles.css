@@ -1212,6 +1212,30 @@ body[data-actual='true'] {
   word-break: break-word;
 }
 
+/*
+ * AI 寫的那一段。跟自己寫的那塊分開、各自四邊圓角，中間留一道縫 ——
+ * 連在一起會讀成「同一段文字換了底色」，分開才讀得出是兩個來源。
+ *
+ * 底色用 token 組出來而不是寫死：--surface-2 的語意隨主題翻轉（深色是浮起、
+ * 亮色是凹陷），所以拿 --accent-bg 兌一點 --surface 疊上去，
+ * 四個象限（亮／深 × 規劃／實際）都會自己跟著換。
+ */
+.detail-copy-ai {
+  position: relative;
+  margin-top: 6px;
+  /* 右邊讓出右上角那顆圖示的位置，第一行才不會鑽到它底下。 */
+  padding-right: 26px;
+  background: color-mix(in srgb, var(--accent-bg) 55%, var(--surface-2));
+}
+
+.detail-copy-ai-mark {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  color: var(--accent);
+  opacity: 0.75;
+}
+
 .detail-link-list,
 .detail-note-list { display: grid; gap: 6px; }
 

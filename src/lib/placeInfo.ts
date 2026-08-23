@@ -70,12 +70,9 @@ export const PLACE_MODEL = 'gemini-3.7-flash'
 export const AI_BLOCK_MARK = 'AI資訊'
 
 /**
- * 使用者自己寫的內容與 AI 區塊之間的分界。行程說明是純文字（.detail-copy 是 pre-wrap），
- * 所以這條線是真的字元，會被存下來、也會出現在編輯時的欄位裡。
- * 刻意只有十格：長的分隔線在窄螢幕會折成兩行，比沒有線還醜。
+ * 舊資料裡畫過的分隔線。現在改用底色區分兩塊，不再產生它，
+ * 但既有的行程說明裡還留著，切割與合併時都要認得並吃掉。
  */
-const AI_DIVIDER = '──────────'
-/** 認出自己畫過的線，長度不拘 —— 重新分析時要連它一起吃掉。 */
 const DIVIDER_LINE = /^─+$/
 
 /** 段落抬頭。單一窄字元，讀起來像一小條色塊，不佔寬度也不會影響折行。 */
@@ -146,8 +143,35 @@ export const mergeGuide = (guide: string | undefined, block: string): string => 
   }
 
   const kept = (cut >= 0 ? lines.slice(0, cut) : lines).join('\n').replace(/\s+$/, '')
-  // 上面沒有東西就不畫線 —— 沒有分界可分的時候那條線只是雜訊。
-  return kept ? `${kept}\n\n${AI_DIVIDER}\n${block}` : block
+  return kept ? `${kept}\n\n${block}` : block
+}
+
+/**
+ * 顯示用：把說明拆成「使用者自己寫的」與「AI 寫的」兩段，詳細頁各自用不同底色算繪。
+ * `AI資訊` 那一行與舊資料的分隔線都不回傳 —— 右上角的圖示已經在講同一件事，
+ * 兩個記號並存只是重複。但它們必須留在存下來的字串裡，`mergeGuide` 靠標記定位。
+ */
+export const splitGuide = (guide: string | undefined): { own: string; ai: string } => {
+  const lines = (guide ?? '').split('\n')
+  let cut = -1
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].trim() === AI_BLOCK_MARK) {
+      cut = i
+      break
+    }
+  }
+  if (cut < 0) return { own: (guide ?? '').trim(), ai: '' }
+
+  let ownEnd = cut
+  while (ownEnd > 0) {
+    const above = lines[ownEnd - 1].trim()
+    if (above !== '' && !DIVIDER_LINE.test(above)) break
+    ownEnd -= 1
+  }
+  return {
+    own: lines.slice(0, ownEnd).join('\n').trim(),
+    ai: lines.slice(cut + 1).join('\n').trim(),
+  }
 }
 
 /**

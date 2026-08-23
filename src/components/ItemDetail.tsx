@@ -60,6 +60,7 @@ import PhotoSection from './PhotoSection'
 import { tagCharOf } from '../lib/reviewHues'
 import PasteIcon from './PasteIcon'
 import SparkleIcon from './SparkleIcon'
+import { splitGuide } from '../lib/placeInfo'
 
 interface Props {
   trip: Trip
@@ -1205,7 +1206,21 @@ export default function ItemDetail({ trip, itemId, onClose, onCopy, onDirtyChang
               autoFocus={focusSection === 'guide'}
             />
           ) : item.guide?.trim() ? (
-            <p className="detail-copy">{item.guide}</p>
+            // 自己寫的與 AI 寫的分成兩塊，底色不同 —— 一眼看得出哪一段要自己驗證。
+            (() => {
+              const { own, ai } = splitGuide(item.guide)
+              return (
+                <>
+                  {own && <p className="detail-copy">{own}</p>}
+                  {ai && (
+                    <div className="detail-copy detail-copy-ai">
+                      <SparkleIcon size={13} className="detail-copy-ai-mark" />
+                      {ai}
+                    </div>
+                  )}
+                </>
+              )
+            })()
           ) : (
             <p className="dim detail-empty-copy">-</p>
           )}
