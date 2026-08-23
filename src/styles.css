@@ -1709,7 +1709,7 @@ body[data-actual='true'] {
 .photo-lightbox-actions {
   justify-content: center;
   gap: 12px;
-  padding: 12px 18px max(18px, calc(12px + env(safe-area-inset-bottom)));
+  padding: 8px 18px max(12px, calc(8px + env(safe-area-inset-bottom)));
 }
 .photo-lightbox-error { padding: 0 12px 8px; color: #ffb4ab; text-align: center; font-size: 11px; }
 
@@ -2148,10 +2148,10 @@ body[data-actual='true'] {
   /* 外殼留在全螢幕遮住背後頁面；只縮內部 flex 空間，把按鈕列推到鍵盤上緣。 */
   .pane-detail { inset: 0; padding-bottom: var(--kb, 0px); z-index: 40; }
   .pane-detail .editor-actions {
-    padding: 12px 18px max(18px, calc(12px + env(safe-area-inset-bottom) - var(--kb, 0px)));
+    padding: 8px 18px max(12px, calc(8px + env(safe-area-inset-bottom) - var(--kb, 0px)));
   }
   .editor-actions .btn {
-    min-height: 42px;
+    min-height: 40px;
   }
 }
 
@@ -2362,9 +2362,13 @@ body[data-actual='true'] {
      這段留白由按鈕列自己給，不能還給 .sheetbody 的 padding-bottom ——
      那會把釘住的位置往上推 14px，就不貼底了。 */
   margin: 12px -14px 0;
-  padding: 12px 18px max(18px, calc(12px + env(safe-area-inset-bottom) - var(--kb, 0px)));
+  padding: 8px 18px max(12px, calc(8px + env(safe-area-inset-bottom) - var(--kb, 0px)));
 }
-:root[data-kb] .sheetactions { position: static; }
+:root[data-kb] .sheetactions {
+  position: static;
+  padding-top: 6px;
+  padding-bottom: 8px;
+}
 
 /* 只有一顆「關閉」的那條：整條是按鈕，膠囊只是裡面置中的 span，
    所以點哪裡都關得掉。按下去的縮放要自己補，span 不是 :active 的那個元素。 */
@@ -2377,8 +2381,9 @@ body[data-actual='true'] {
 .sheet-close-wide .btn { width: 100%; }
 .sheet-close-wide:active .btn { transform: scale(0.98); }
 .editor-actions {
-  padding: 12px 18px max(18px, calc(12px + env(safe-area-inset-bottom) - var(--kb, 0px)));
+  padding: 8px 18px max(12px, calc(8px + env(safe-area-inset-bottom) - var(--kb, 0px)));
 }
+:root[data-kb] .editor-actions { padding-top: 6px; padding-bottom: 8px; }
 
 .sheetactions .btn,
 .editor-actions .btn,
@@ -2386,21 +2391,38 @@ body[data-actual='true'] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 42px;
+  min-height: 40px;
   font-weight: 600;
+}
+
+/* 視覺維持 40px，但把實際觸控範圍上下各延伸 2px。 */
+.sheetactions:not(.sheet-close-wide) .btn,
+.editor-actions .btn,
+.photo-lightbox-actions .btn { position: relative; }
+.sheetactions:not(.sheet-close-wide) .btn::after,
+.editor-actions .btn::after,
+.photo-lightbox-actions .btn::after {
+  content: '';
+  position: absolute;
+  inset: -2px 0;
 }
 
 .sheetactions .btn,
 .editor-actions .btn { min-width: 92px; }
 
 @media (max-width: 619px) {
-  .sheetactions .btn,
-  .editor-actions .btn { flex: 1; }
+  .sheetactions:not(.sheet-close-wide),
+  .editor-actions { justify-content: center; }
+  .sheetactions:not(.sheet-close-wide) .btn,
+  .editor-actions .btn:not(.detail-leave-wide) {
+    flex: 0 1 40%;
+    max-width: 160px;
+  }
 }
 
 .editor-actions .detail-leave-wide {
   width: 100%;
-  min-height: 42px;
+  min-height: 40px;
 }
 
 /*
