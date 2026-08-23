@@ -332,6 +332,9 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 ## 部署
 
 - 前端：push 到 `main` 觸發 [.github/workflows/deploy.yml](.github/workflows/deploy.yml)，建置時用 `GITHUB_PAGES_BASE` 帶入 repo 名稱當 base。
+  - **請使用者在手機上驗證前，先要他按一次設定裡的「檢查更新」。** service worker 雖然是 autoUpdate，
+    但畫面上已經載入的那份 JS 不會被換掉，放著不管要冷啟動兩次才吃得到新版（見 [update.ts](src/lib/update.ts)）。
+    「手機上跟修之前一模一樣」有一半機會只是還在跑舊快取，先排除掉再查程式。
 - 後端：**改完 `Code.gs` 必須「部署 → 管理部署作業 → 編輯 → 版本選新版本 → 部署」。直接存檔不會更新線上版本**，這是最常見的坑。改動後端行為時同步更新 `BACKEND_VERSION`；用瀏覽器直接開部署網址就能看到目前線上是哪一版。
 
 使用者端的完整設定步驟在 [SETUP.md](SETUP.md)。README.md 仍是 Vite 樣板，沒有專案資訊。
