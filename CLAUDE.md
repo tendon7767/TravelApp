@@ -17,6 +17,14 @@ export PATH="$HOME/.local/node/bin:$PATH"
 | `npm run lint` | oxlint |
 | `npm run preview` | 預覽建置產物 |
 
+`.claude/launch.json` 的 `runtimeExecutable` 寫成 `node`（靠 PATH 找），不寫任何一台機器的絕對路徑，
+Windows 與 mac 才共用得了同一份設定。**preview 啟動器是直接 spawn 行程，不一定經過登入 shell**，
+所以上面那條 `export` 對它未必生效；node 不在系統路徑的機器要把它接到 PATH 上的目錄，只需做一次：
+
+```bash
+sudo ln -sf "$HOME/.local/node/bin/node" /usr/local/bin/node
+```
+
 沒有測試框架，沒有測試檔。驗證改動的方式是 `npm run build` 加上在 preview 裡實際操作。
 
 後端 `apps-script/Code.gs` 無法從本機執行或測試，只能貼到 Apps Script 專案裡部署。
