@@ -15,6 +15,8 @@ import ExternalLinkIcon from './ExternalLinkIcon'
 import { fetchLinkMetadata } from '../sync/client'
 import SwipePager from './SwipePager'
 import DragHandleIcon from './DragHandleIcon'
+import CheckSquareIcon from './CheckSquareIcon'
+import BulletIcon from './BulletIcon'
 import { moveItem, useDragSort } from '../lib/useDragSort'
 
 const PACKING_TITLE = '打包清單'
@@ -324,7 +326,7 @@ function NoteEditorModal({
                 title={b.kind === 'check' ? '改成文字段落' : '改成勾選項'}
                 aria-label={b.kind === 'check' ? '改成文字段落' : '改成勾選項'}
               >
-                {b.kind === 'check' ? '☑' : '•'}
+                {b.kind === 'check' ? <CheckSquareIcon /> : <BulletIcon />}
               </button>
               <input
                 className="field"
