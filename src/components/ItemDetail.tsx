@@ -31,6 +31,7 @@ import {
   clearItemDraft,
   loadItemDraft,
   saveItemDraft,
+  type GuidePart,
   type ItemDraftMode,
   type ItemDraftSection,
 } from '../store/drafts'
@@ -61,7 +62,7 @@ import { moveItem, useDragSort } from '../lib/useDragSort'
 import { tagCharOf } from '../lib/reviewHues'
 import PasteIcon from './PasteIcon'
 import SparkleIcon from './SparkleIcon'
-import { splitGuide } from '../lib/placeInfo'
+import { joinGuide, splitGuide } from '../lib/placeInfo'
 
 interface Props {
   trip: Trip
@@ -164,6 +165,22 @@ export default function ItemDetail({
    * 最後掛上的心得欄位會搶走焦點，整個畫面被拖到最下面。
    */
   const [focusSection, setFocusSection] = useState<ItemDraftSection | null>(null)
+  /**
+   * 行程說明點哪一塊就只開哪一格：手打的、或 AI 寫的。null 是兩格都開（編輯全部）。
+   * 整塊一起編的話，想改手打那段的一個字，底下整片 AI 資訊也進了同一個輸入框，
+   * 很容易連它一起動到 —— 而那塊是下次分析會整塊換掉的東西。
+   */
+  const [guidePart, setGuidePart] = useState<GuidePart | null>(null)
+  /**
+   * 編輯中的兩格內容。不從 `item.guide` 即時切 —— `splitGuide` 會修掉頭尾空白，
+   * 打到結尾按 Enter 那一下會被當場吃掉。這裡保持原樣，`joinGuide` 寫回去時才收乾淨。
+   */
+  const [guideDraft, setGuideDraft] = useState({ own: '', ai: '' })
+  /**
+   * 進編輯的當下有沒有 AI 那塊。不直接看草稿內容 —— 那樣把 AI 格清空的瞬間
+   * 格子自己就消失了，游標跟著沒了，想再打回去也沒得打。清空要到儲存才生效。
+   */
+  const [guideAiSlot, setGuideAiSlot] = useState(false)
   const [draftItem, setDraftItem] = useState(() => copyItemSnapshot(storedItem))
   const [timeDraft, setTimeDraft] = useState(storedItem?.startTime ?? '')
   const [reviewDraft, setReviewDraft] = useState('')
@@ -178,6 +195,7 @@ export default function ItemDetail({
   const [linkLookupError, setLinkLookupError] = useState('')
   const mapDraftRef = useRef<HTMLInputElement>(null)
   const guideTextAreaRef = useRef<HTMLTextAreaElement>(null)
+  const guideAiTextAreaRef = useRef<HTMLTextAreaElement>(null)
   const reviewTextAreaRef = useRef<HTMLTextAreaElement>(null)
   const inactiveTapStartRef = useRef<{
     x: number
@@ -324,6 +342,10 @@ export default function ItemDetail({
           restoredItem.links.push({ id: newId(), kind: 'web', url: '', label: saved.webDraft })
         }
         setDraftItem(restoredItem)
+        setGuidePart(saved.guidePart ?? null)
+        const restoredGuide = splitGuide(restoredItem.guide)
+        setGuideDraft(restoredGuide)
+        setGuideAiSlot(restoredGuide.ai.trim() !== '')
         setTimeDraft(saved.timeDraft)
         setReviewDraft(saved.reviewDraft)
         // 舊草稿的 Google Map 是獨立區塊，現在併進基本資訊。
@@ -365,6 +387,10 @@ export default function ItemDetail({
   useEffect(() => {
     if (!hydrated || touched || !storedItem) return
     setDraftItem(copyItemSnapshot(storedItem))
+    // 說明的兩格也要跟著刷新 —— 分析剛跑完的那一筆就是這樣把 AI 那塊帶進來的。
+    const guideParts = splitGuide(storedItem.guide)
+    setGuideDraft(guideParts)
+    setGuideAiSlot(guideParts.ai.trim() !== '')
     setTimeDraft(storedItem.startTime ?? '')
     setReviewDraft(mine?.text ?? '')
   }, [hydrated, touched, storedItem, mine?.text])
@@ -378,6 +404,7 @@ export default function ItemDetail({
         reviewDraft,
         mode: editMode === 'none' ? undefined : editMode,
         activeSection,
+        guidePart: guidePart ?? undefined,
         mapDraft,
         mapNameDraft,
         sections: [...editingSections],
@@ -389,6 +416,7 @@ export default function ItemDetail({
     editingSections,
     editMode,
     activeSection,
+    guidePart,
     dirty,
     item,
     itemId,
@@ -418,8 +446,9 @@ export default function ItemDetail({
   // 文字變動時同步增高或縮回；layout effect 可避免使用者看到調整前的一幀。
   useLayoutEffect(() => {
     autoGrowTextArea(guideTextAreaRef.current)
+    autoGrowTextArea(guideAiTextAreaRef.current)
     autoGrowTextArea(reviewTextAreaRef.current)
-  }, [item?.guide, reviewDraft, editingSections])
+  }, [guideDraft, reviewDraft, editingSections])
 
   // 旋轉裝置或桌面改變視窗寬度後，折行數可能不同，需要重新量內容高度。
   useEffect(() => {
@@ -428,6 +457,7 @@ export default function ItemDetail({
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
         autoGrowTextArea(guideTextAreaRef.current)
+        autoGrowTextArea(guideAiTextAreaRef.current)
         autoGrowTextArea(reviewTextAreaRef.current)
       })
     }
@@ -476,7 +506,18 @@ export default function ItemDetail({
     setDraftItem((current) => (current ? { ...current, ...patch } : current))
   }
 
-  const beginEdit = (section: ItemDraftSection) => {
+  /** 兩格分開改，但存回去的仍是同一個 `guide` 字串 —— 資料結構與同步層都不必動。 */
+  const patchGuide = (patch: Partial<typeof guideDraft>) => {
+    const next = { ...guideDraft, ...patch }
+    setGuideDraft(next)
+    patchItem({ guide: joinGuide(next.own, next.ai) })
+  }
+
+  const beginEdit = (section: ItemDraftSection, part: GuidePart = 'own') => {
+    setGuidePart(section === 'guide' ? part : null)
+    const guideParts = splitGuide(item.guide)
+    setGuideDraft(guideParts)
+    setGuideAiSlot(guideParts.ai.trim() !== '')
     setFocusCostId(null)
     setFocusNoteId(null)
     setFocusLinkId(null)
@@ -527,6 +568,11 @@ export default function ItemDetail({
         : ''
 
   const beginEditAll = () => {
+    // 編輯全部就是兩格都開，沒有「只編其中一塊」的問題。
+    setGuidePart(null)
+    const guideParts = splitGuide(item.guide)
+    setGuideDraft(guideParts)
+    setGuideAiSlot(guideParts.ai.trim() !== '')
     setFocusLinkId(null)
     setFocusNoteId(null)
     setMapDraft(storedMapUrl)
@@ -551,6 +597,30 @@ export default function ItemDetail({
         if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
         event.preventDefault()
         beginEdit(section)
+      },
+    }
+  }
+
+  /**
+   * 行程說明裡的兩塊各自是一個入口。整個區塊本身也是可點的（點抬頭或空白處＝改手打那塊），
+   * 所以這裡一定要擋掉冒泡 —— 不擋的話兩層一起觸發，最後開到的是外層那一個。
+   */
+  const guidePartProps = (part: GuidePart) => {
+    if (editMode !== 'none') return {}
+    const label = part === 'ai' ? '編輯 AI 資訊' : '編輯行程說明'
+    const begin = (event: { stopPropagation: () => void }) => {
+      event.stopPropagation()
+      beginEdit('guide', part)
+    }
+    return {
+      role: 'button' as const,
+      'aria-label': label,
+      tabIndex: 0,
+      onClick: (event: ReactMouseEvent<HTMLElement>) => begin(event),
+      onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
+        event.preventDefault()
+        begin(event)
       },
     }
   }
@@ -588,6 +658,7 @@ export default function ItemDetail({
 
   const cancelEditing = () => {
     setDraftItem(copyItemSnapshot(storedItem))
+    setGuidePart(null)
     setTimeDraft(storedItem.startTime ?? '')
     setReviewDraft(mine?.text ?? '')
     setMapDraft('')
@@ -680,6 +751,7 @@ export default function ItemDetail({
     setEditingSections(new Set())
     setEditMode('none')
     setFocusSection(null)
+    setGuidePart(null)
     setChoosingCategory(false)
     setTouched(false)
     setRestored(false)
@@ -697,6 +769,7 @@ export default function ItemDetail({
     setEditingSections(new Set())
     setEditMode('none')
     setFocusSection(null)
+    setGuidePart(null)
     setChoosingCategory(false)
     setTouched(false)
     setRestored(false)
@@ -1356,24 +1429,58 @@ export default function ItemDetail({
             <span className="detail-kicker"><BookIcon />行程說明</span>
           </div>
           {editingSections.has('guide') ? (
-            <textarea
-              ref={guideTextAreaRef}
-              className="field detail-auto-textarea detail-auto-guide"
-              rows={1}
-              value={item.guide ?? ''}
-              onInput={(event) => autoGrowTextArea(event.currentTarget)}
-              onChange={(event) => patchItem({ guide: event.target.value })}
-              autoFocus={focusSection === 'guide'}
-            />
+            /*
+             * 點哪一塊就只開哪一格，另一塊照原樣顯示在旁邊：看得到、改不到。
+             * guidePart 是 null 時（編輯全部）兩格都開。
+             */
+            <>
+              {guidePart === 'ai' ? (
+                guideDraft.own ? (
+                  <p className="detail-copy detail-copy-own">{guideDraft.own}</p>
+                ) : null
+              ) : (
+                <textarea
+                  ref={guideTextAreaRef}
+                  className="field detail-auto-textarea detail-auto-guide"
+                  rows={1}
+                  value={guideDraft.own}
+                  onInput={(event) => autoGrowTextArea(event.currentTarget)}
+                  onChange={(event) => patchGuide({ own: event.target.value })}
+                  autoFocus={focusSection === 'guide'}
+                />
+              )}
+              {guidePart === 'own' ? (
+                guideDraft.ai.trim() ? (
+                  <div className="detail-copy detail-copy-ai">
+                    <SparkleIcon size={13} className="detail-copy-ai-mark" />
+                    {guideDraft.ai}
+                  </div>
+                ) : null
+              ) : guideAiSlot ? (
+                <textarea
+                  ref={guideAiTextAreaRef}
+                  className="field detail-auto-textarea detail-auto-guide detail-auto-guide-ai"
+                  rows={1}
+                  value={guideDraft.ai}
+                  onInput={(event) => autoGrowTextArea(event.currentTarget)}
+                  onChange={(event) => patchGuide({ ai: event.target.value })}
+                  autoFocus={focusSection === 'guide' && guidePart === 'ai'}
+                />
+              ) : null}
+            </>
           ) : item.guide?.trim() ? (
             // 自己寫的與 AI 寫的分成兩塊，底色不同 —— 一眼看得出哪一段要自己驗證。
             (() => {
               const { own, ai } = splitGuide(item.guide)
               return (
                 <>
-                  {own && <p className="detail-copy detail-copy-own">{own}</p>}
+                  {own && (
+                    <p className="detail-copy detail-copy-own" {...guidePartProps('own')}>
+                      {own}
+                    </p>
+                  )}
                   {ai && (
-                    <div className="detail-copy detail-copy-ai">
+                    <div className="detail-copy detail-copy-ai" {...guidePartProps('ai')}>
                       <SparkleIcon size={13} className="detail-copy-ai-mark" />
                       {ai}
                     </div>

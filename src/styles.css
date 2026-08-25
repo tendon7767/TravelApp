@@ -477,6 +477,15 @@ a { color: var(--accent); }
 }
 .detail-auto-textarea::-webkit-scrollbar { display: none; }
 
+/*
+ * 行程說明的 AI 那格。兩格同時開著時（編輯全部）得看得出哪一格是哪一塊，
+ * 所以底色沿用它在閱讀狀態下的那一階；縫隙也跟 `.detail-copy-ai` 對齊。
+ */
+.detail-auto-guide-ai {
+  margin-top: 6px;
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
+}
+
 @media (max-width: 859px) {
   .detail-auto-guide { --detail-auto-min-height: calc(4.5em + 18px); }
   .detail-auto-review { --detail-auto-min-height: calc(3em + 18px); }

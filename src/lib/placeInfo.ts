@@ -175,6 +175,23 @@ export const splitGuide = (guide: string | undefined): { own: string; ai: string
 }
 
 /**
+ * `splitGuide` 的反向操作：兩格分開編輯完之後組回同一個字串。
+ * 排版跟 `mergeGuide` 產生的一模一樣（標記自成一行、兩塊之間空一行），
+ * 重新分析時才切得回同一個位置。
+ *
+ * AI 那格被清空就連標記一起拿掉 —— 只留一行標記的話，畫面上是一塊空的 AI 區，
+ * 而下次分析又會接在它下面。頭尾的空白也在這裡收乾淨：編輯中的兩格保持原樣
+ * （打字打到結尾的換行不能被吃掉），存進資料的字串則永遠是整齊的。
+ */
+export const joinGuide = (own: string, ai: string): string => {
+  const kept = own.replace(/\s+$/, '')
+  const block = ai.trim()
+  if (!block) return kept
+  const tail = `${AI_BLOCK_MARK}\n\n${block}`
+  return kept ? `${kept}\n\n${tail}` : tail
+}
+
+/**
  * 提醒接在既有備註後面。AI 寫的備註刻意不加記號（跟手寫的長一樣），
  * 所以沒辦法在重新分析時挑出上一輪的來換掉 —— 改用內容比對擋掉一字不差的重複。
  * 模型換句話說的話還是會多一條，那時候手動刪掉。

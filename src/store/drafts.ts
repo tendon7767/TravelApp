@@ -3,6 +3,8 @@ import type { Item } from '../types'
 
 export type ItemDraftSection = 'basic' | 'guide' | 'notes' | 'links' | 'costs' | 'review'
 export type ItemDraftMode = 'section' | 'all'
+/** 行程說明分成手打與 AI 兩塊，點哪一塊就只編哪一塊。 */
+export type GuidePart = 'own' | 'ai'
 
 /**
  * 未送出的編輯內容存進 IndexedDB。
@@ -18,6 +20,8 @@ export interface ItemDraft {
   mode?: ItemDraftMode
   /** 單區塊模式正在編輯哪一區；category 沒有放進 editingSections，另外記。 */
   activeSection?: ItemDraftSection | 'category'
+  /** 行程說明正在編哪一格；沒有就是兩格都開（編輯全部）。 */
+  guidePart?: GuidePart
   /** 尚未按下「加入」的單筆輸入；快速編輯時也要能在 iOS 回收後救回來。 */
   noteDraft?: string
   /** 基本資訊裡尚未儲存的 Google Map 網址。舊版是獨立區塊的「還沒按加入」那一格。 */
