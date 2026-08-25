@@ -309,7 +309,13 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - **回饋計算只認 `kind === 'actual'` 的版本**（[src/lib/rewards.ts](src/lib/rewards.ts)）。一張卡可有多組同時累積的規則；消費上限不獨立儲存，它恆等於 `rewardCap / rate`。
 - **「還可刷」看哪一條規則由 `focusedRule()` 決定**（[src/lib/rewards.ts](src/lib/rewards.ts)），回饋頁與選擇支付方式的選單共用它，否則同一張卡在兩個畫面會報出不同的數字。預設擇優挑回饋率最高的那條，使用者點過某條規則就存進 `settings.rewardRuleFocus`。「停用與否」問的是另一件事（這張還有沒有任何回饋可拿），跟看哪條規則無關。
 - **現金與其他借 `paymentMethodId` 存保留字** `'cash'` / `'other'`。它們不是支付方式記錄（沒有規則、不該出現在回饋頁），但仍要能標在花費上。`computeMethod` 是用 id 比對挑出自己的花費，保留字永遠比不中 = 沒有回饋，正好是要的行為，所以資料結構與同步層都不必為它們改。
-- **橫向手勢在旅程頁裡是「換一格」，不是返回。** 判定與門檻集中在 [useHorizontalSwipe.ts](src/lib/useHorizontalSwipe.ts)，上面長出兩個用法：`useSwipeBack`（只有詳細頁還在用，往右滑關閉）與 `useSwipeSteps`（行程換日、回饋換持有人、筆記換筆記）。離開一趟旅程改走導航列的「首頁」那一格；`.tabbar` 由旅程頁與旅程列表共用（[TabBar.tsx](src/components/TabBar.tsx)），在列表頁時另外三格指向 `settings.activeTripId` 那一趟。最左緣 24px 仍讓給 iOS 自己的返回手勢 —— 這個 App 的網址參數都用 `replace` 寫入，歷史不累積，系統手勢會直接離開整個旅程頁。關閉一律走 `requestNavigation()`，未儲存的修改才攔得到。
+- **橫向手勢在旅程頁裡是「換一格」，不是返回。** 判定與門檻集中在 [useHorizontalSwipe.ts](src/lib/useHorizontalSwipe.ts)，上面長出兩個用法：`useSwipeBack`（只有詳細頁還在用，往右滑關閉）與 `useSwipeSteps`（行程換日、回饋換持有人、筆記換筆記）。離開一趟旅程改走導航列的「首頁」那一格；`.tabbar` 由旅程頁與旅程列表共用（[TabBar.tsx](src/components/TabBar.tsx)），在列表頁時另外三格指向 `settings.activeTripId` 那一趟。最左緣 24px 仍讓給 iOS 自己的返回手勢。關閉一律走 `requestNavigation()`，未儲存的修改才攔得到。
+  - **打開詳細頁是唯一會往歷史推一筆的地方**（`openDetail`／`closeDetail`，其餘參數一律 `replace`，歷史不累積）。
+    系統的返回手勢與 Android 的返回鍵在詳細頁裡因此是「回行程列表」，不是離開整趟旅程 ——
+    那是這一頁最常按的返回，卻是代價最大的一次。**詳細頁裡再換一筆不再疊**（搜尋結果、上下滑動換行程都是 `replace`），
+    否則要按上十幾次才退得出去。**關閉走 `navigate(-1)` 把那一筆收回去**，不是再蓋一個沒有 `sel` 的網址 ——
+    不收的話按過 ✕ 的人再按返回鍵又會回到詳細頁，看起來像關不掉。深連結直接開在詳細頁時沒有那一筆可收，
+    旗標是 false，退回原本的 `replace`。
 - **詳細頁捲到盡頭再拖一次，就滑進上一筆／下一筆**（[useEdgeSwipeSteps.ts](src/lib/useEdgeSwipeSteps.ts)）。方向判定與阻尼共用左右撥那一份，但**「拖多遠才算數」自己一組**：螢幕高的 30%（左右撥是 18%）、甩動要 110px 與 0.5 px/ms（左右撥是 36px 與 0.3）。左右撥換日一趟做幾十次，門檻本來就該低；上下換行程一趟十幾次，而且起手勢跟捲動完全重疊 —— 誤觸成本高、正常觸發頻率低，所以高一截。手感要微調就只動那三個常數。跟橫向那支的結構差異還有兩處，都是垂直才有的問題：**盡頭只在 touchstart 判定**（從中間一路捲到底、手不放就接著換頁的話，快速捲動的尾巴每次都會誤觸；放開再拖一次才算），以及**鎖定後要 `preventDefault`**（所以是 `passive: false`，並在 `.detail-scroll` 補 `overscroll-behavior: contain`）—— 垂直是瀏覽器自己的地盤，不擋它會在盡頭做橡皮筋，跟我們畫的位移疊在一起。順序是整趟排成一條線（日期、時間），跨日接得下去；編輯中或有未存修改就整個停用，打字時很容易誤觸，跳確認彈窗比不動更煩。
 - **換頁的兩個更新不保證合併成一次算繪。** 網址那次是 react-router 送的、收掉浮層是我們自己送的，
   中間會多出一次算繪；那一次若重算鄰居是誰，畫面會先跳回舊的那筆再跳到新的 —— 這就是

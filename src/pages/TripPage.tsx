@@ -215,11 +215,52 @@ export default function TripPage() {
     requestNavigation(() => setParam(key, value))
 
   /*
+   * 打開詳細頁是全 App 唯一會往歷史推一筆的地方（其他參數一律 replace，歷史不累積）。
+   * 手機的返回鍵在詳細頁裡要回得到行程列表，而不是直接離開整趟旅程 ——
+   * 那是這一頁最常按的返回，卻是代價最大的一次。
+   *
+   * 詳細頁裡再換一筆（搜尋結果、上下滑動換行程）不再疊，否則返回要按上十幾次
+   * 才退得出去。所以只有「從沒開到開」推那一筆。
+   */
+  const pushedDetail = useRef(false)
+
+  const openDetail = (id: string) =>
+    requestNavigation(() => {
+      const next = new URLSearchParams(params)
+      next.set('sel', id)
+      if (selectedId) {
+        setParams(next, { replace: true })
+        return
+      }
+      pushedDetail.current = true
+      setParams(next)
+    })
+
+  /*
+   * 關閉走 `navigate(-1)` 把剛才推的那一筆收回去，不是再推（或再蓋）一個沒有 sel 的網址 ——
+   * 不收的話按過 ✕ 的人再按返回鍵又會回到詳細頁，看起來像關不掉。
+   * 深連結直接開在詳細頁時沒有那一筆可收（旗標是 false），就退回原本的 replace。
+   */
+  const closeDetail = () => {
+    if (!pushedDetail.current) {
+      setParam('sel')
+      return
+    }
+    pushedDetail.current = false
+    navigate(-1)
+  }
+
+  // 返回鍵、切分頁…… 不管是誰把 sel 清掉的，那一筆都已經不在了。
+  useEffect(() => {
+    if (!selectedId) pushedDetail.current = false
+  }, [selectedId])
+
+  /*
    * 詳細頁還是往右拖曳關閉。旅程頁那一層不再吃這個手勢 ——
    * 左右撥在分頁裡各有各的用途（換日、換持有人、換筆記），出口改成導航列的「首頁」。
    */
   const detailSwipe = useSwipeBack<HTMLDivElement>({
-    onDismiss: () => requestNavigation(() => setParam('sel')),
+    onDismiss: () => requestNavigation(closeDetail),
     disabled: !overlayDetail,
     stopPropagation: true,
   })
@@ -448,7 +489,7 @@ export default function TripPage() {
             <div className="pane-scroll">
               <SearchPanel
                 plan={plan}
-                onPick={(id) => navigateParam('sel', id)}
+                onPick={openDetail}
               />
             </div>
           )}
@@ -461,7 +502,7 @@ export default function TripPage() {
               plan={plan}
               selectedId={selectedId}
               copiedItem={copiedItem}
-              onSelect={(id) => navigateParam('sel', id)}
+              onSelect={openDetail}
               onPaste={(date) => {
                 if (copiedItem) duplicateItem(copiedItem, plan.id, date)
               }}
@@ -474,13 +515,13 @@ export default function TripPage() {
               <ExpensesTab
                 trip={trip}
                 plan={plan}
-                onSelect={(id) => navigateParam('sel', id)}
+                onSelect={openDetail}
                 onBack={() => navigateParam('tab', 'itinerary')}
               />
             </div>
           )}
           {!searching && tab === 'rewards' && (
-            <RewardsTab trip={trip} plan={plan} onSelect={(id) => navigateParam('sel', id)} />
+            <RewardsTab trip={trip} plan={plan} onSelect={openDetail} />
           )}
           {!searching && tab === 'notes' && <NotesTab trip={trip} />}
           {!searching && tab === 'album' && actualPlan && (
@@ -513,14 +554,14 @@ export default function TripPage() {
                   <ItemDetail
                     trip={trip}
                     itemId={id}
-                    onClose={current ? () => setParam('sel') : noop}
+                    onClose={current ? closeDetail : noop}
                     onCopy={
                       current
                         ? (item) => {
                             const snapshot = copyItemSnapshot(item)
                             if (!snapshot) return
                             setCopied({ tripId: trip.id, item: snapshot })
-                            setParam('sel')
+                            closeDetail()
                           }
                         : noop
                     }
@@ -534,7 +575,7 @@ export default function TripPage() {
         )}
 
         {plan && (tab === 'itinerary' || selectedId) && (
-          <AiStatusBar planId={plan.id} onSelect={(id) => navigateParam('sel', id)} />
+          <AiStatusBar planId={plan.id} onSelect={openDetail} />
         )}
       </div>
 
