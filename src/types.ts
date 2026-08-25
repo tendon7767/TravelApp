@@ -75,6 +75,12 @@ export interface Item extends SyncFields {
    * 刻意只准一層：主筆自己不能有 sourceItemId，否則刪除與傳播都要處理遞迴。
    */
   sourceItemId?: string
+  /**
+   * 這一筆是連住排出來的其中一晚（由 `setStayCheckout` 建立）。
+   * **同步不等於連住**：入住、退房那種手動挑來源的從筆只是想共用內容，不是一晚，
+   * 不能算進晚數，改退房日時也不能被當成多出來的那幾天刪掉。
+   */
+  stayNight?: boolean
 }
 
 /**

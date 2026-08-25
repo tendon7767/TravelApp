@@ -14,7 +14,7 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-26-stay-sync'
+var BACKEND_VERSION = '2026-08-26-stay-night'
 
 /** 邀請連結備份的分頁名稱。不在 SCHEMA 裡，pull/push 都不會碰到它。 */
 var INVITE_SHEET = '邀請連結'
@@ -38,7 +38,7 @@ var SCHEMA = {
     fields: [
       'id', 'planId', 'date', 'startTime', 'title', 'guide',
       'notes', 'links', 'costs',
-      'category', 'paymentMethodId', 'sourceItemId',
+      'category', 'paymentMethodId', 'sourceItemId', 'stayNight',
     ],
     json: ['notes', 'links', 'costs'],
     dates: ['date'],

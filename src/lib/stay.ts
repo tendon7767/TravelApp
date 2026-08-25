@@ -27,11 +27,19 @@ export const mirrorPatch = (source: Item): MirroredPatch => ({
 export const touchesMirrored = (patch: Partial<Item>): boolean =>
   MIRRORED_FIELDS.some((field) => field in patch)
 
-/** 索引自這一筆的從筆，依日期排好。 */
+/** 索引自這一筆的從筆，依日期排好。含手動挑來源的那種，不是只有連住的晚。 */
 export const followersOf = (items: Item[], sourceId: string): Item[] =>
   items
     .filter((item) => item.sourceItemId === sourceId && !item.deleted)
     .sort((a, b) => a.date.localeCompare(b.date))
+
+/**
+ * 連住排出來的那幾晚。
+ * **同步不等於連住** —— 入住、退房那種手動挑來源的從筆只是共用內容，
+ * 不算一晚，也不歸 `setStayCheckout` 管，所以晚數與退房日只能數這一份。
+ */
+export const stayNightsOf = (items: Item[], sourceId: string): Item[] =>
+  followersOf(items, sourceId).filter((item) => item.stayNight)
 
 /**
  * 可以被這一筆索引的對象：同一個行程版本裡的住宿、還沒索引別人、也不是自己。
@@ -65,8 +73,8 @@ export const nightsBetween = (checkIn: string, checkout: string): string[] => {
   return out
 }
 
-/** 從筆的日期反推退房日：最後一晚的隔天。沒有從筆就沒有退房日可言。 */
+/** 連住的日期反推退房日：最後一晚的隔天。沒有連住就沒有退房日可言。 */
 export const checkoutOf = (items: Item[], sourceId: string): string | undefined => {
-  const rows = followersOf(items, sourceId)
+  const rows = stayNightsOf(items, sourceId)
   return rows.length ? addDays(rows[rows.length - 1].date, 1) : undefined
 }

@@ -1,5 +1,5 @@
 import { get, set } from 'idb-keyval'
-import { emptyData, type AppData, type Review } from '../types'
+import { emptyData, type AppData, type Item, type Review } from '../types'
 import { normalizeStoredDate, normalizeStoredTime } from '../lib/date'
 import { normalizeItemNotes } from '../lib/itemNotes'
 
@@ -103,6 +103,23 @@ const migrateItem = (value: AppData['items'][number]): AppData['items'][number] 
   } as AppData['items'][number]
 }
 
+/**
+ * `stayNight` 是後來才加的：在它之前，連住排出來的每一晚跟「手動挑來源同步內容」的
+ * 那種從筆長得一模一樣。分不出來的話晚數會虛報，改退房日還會把入住那筆一起刪掉。
+ * 判準用日期：連住的晚一定晚於主筆那天，而入住／退房那種是為了共用內容才連的，
+ * 跟主筆同一天。只跑在沒有任何一筆帶記號的舊資料上，跑過就不會再動。
+ */
+const markLegacyStayNights = (items: Item[]): Item[] => {
+  const linked = items.filter((item) => item.sourceItemId && !item.deleted)
+  if (!linked.length || linked.some((item) => item.stayNight)) return items
+  const dateById = new Map(items.map((item) => [item.id, item.date]))
+  return items.map((item) => {
+    if (!item.sourceItemId || item.deleted) return item
+    const head = dateById.get(item.sourceItemId)
+    return head && item.date > head ? { ...item, stayNight: true } : item
+  })
+}
+
 export const loadData = async (): Promise<AppData> => {
   const raw = await get<AppData>(DATA_KEY)
   if (!raw) return emptyData()
@@ -131,7 +148,7 @@ export const loadData = async (): Promise<AppData> => {
       endDate: normalizeStoredDate(trip.endDate) ?? trip.endDate,
     })),
     plans: raw.plans ?? [],
-    items: (raw.items ?? []).map(migrateItem),
+    items: markLegacyStayNights((raw.items ?? []).map(migrateItem)),
     reviews: [...(raw.reviews ?? []), ...migratedReviews],
     photos: raw.photos ?? [],
     notes: raw.notes ?? [],

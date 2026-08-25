@@ -42,7 +42,7 @@ import {
 } from '../sync/client'
 import { collectTripRecords } from '../sync/collect'
 import { copyItemSnapshot } from '../lib/items'
-import { followersOf, mirrorPatch, nightsBetween, touchesMirrored } from '../lib/stay'
+import { followersOf, mirrorPatch, nightsBetween, stayNightsOf, touchesMirrored } from '../lib/stay'
 import {
   appendCautions,
   buildAnalysisInput,
@@ -475,6 +475,7 @@ export const useStore = create<State>((setState, getState) => {
         // 複製出來的是獨立一份。留著記號的話，複製一筆從筆就會憑空多出一晚，
         // 連住的晚數與退房日都是從從筆的日期推回去的，當場就對不上。
         sourceItemId: undefined,
+        stayNight: undefined,
         notes: snapshot.notes.map((note) => ({ ...note, id: newId() })),
         links: snapshot.links.map((link) => ({ ...link, id: newId() })),
         costs: snapshot.costs.map((cost) => ({ ...cost, id: newId() })),
@@ -523,7 +524,9 @@ export const useStore = create<State>((setState, getState) => {
       const wanted = nightsBetween(source.date, checkout).filter(
         (date) => date >= trip.startDate && date <= trip.endDate,
       )
-      const existing = followersOf(data.items, sourceId)
+      // 只管連住排出來的那幾晚。手動挑來源的從筆（入住、退房）只是共用內容，
+      // 不算一晚也不歸這裡管 —— 拿 followersOf 來算的話，改退房日會把入住那筆一起刪掉。
+      const existing = stayNightsOf(data.items, sourceId)
 
       // 縮短時多出來的那幾天要下墓碑，連同它們的心得與照片 —— 借 removeItem 走同一條路，
       // 照片快取的清理才不會漏。介面已經先跟使用者確認過要刪哪幾天了。
@@ -543,6 +546,7 @@ export const useStore = create<State>((setState, getState) => {
           costs: [],
           ...mirrorPatch(source),
           sourceItemId: sourceId,
+          stayNight: true,
           ...stamp(),
         }))
       if (created.length) mutate((d) => ({ ...d, items: [...d.items, ...created] }))
@@ -558,11 +562,20 @@ export const useStore = create<State>((setState, getState) => {
       if (data.items.some((item) => item.sourceItemId === id && !item.deleted)) return
       mutate((d) => ({
         ...d,
-        items: patchIn(d.items, id, { ...mirrorPatch(source), sourceItemId: sourceId }),
+        // 手動挑來源＝只想共用內容，不是連住的一晚。
+        items: patchIn(d.items, id, {
+          ...mirrorPatch(source),
+          sourceItemId: sourceId,
+          stayNight: undefined,
+        }),
       }))
     },
 
-    unlinkItem: (id) => mutate((d) => ({ ...d, items: patchIn(d.items, id, { sourceItemId: undefined }) })),
+    unlinkItem: (id) =>
+      mutate((d) => ({
+        ...d,
+        items: patchIn(d.items, id, { sourceItemId: undefined, stayNight: undefined }),
+      })),
 
     dismissAiError: (itemId) => {
       const { [itemId]: gone, ...errors } = getState().ai.errors
@@ -664,7 +677,7 @@ export const useStore = create<State>((setState, getState) => {
           // 不能跟著主筆一起消失，也不能留著一個指向墓碑的記號讓那幾格永遠鎖住。
           items: patchIn(d.items, id, { deleted: true } as Partial<Item>).map((item) =>
             item.sourceItemId === id && !item.deleted
-              ? { ...item, sourceItemId: undefined, updatedAt: now, updatedBy: by }
+              ? { ...item, sourceItemId: undefined, stayNight: undefined, updatedAt: now, updatedBy: by }
               : item,
           ),
           reviews: d.reviews.map((r) =>

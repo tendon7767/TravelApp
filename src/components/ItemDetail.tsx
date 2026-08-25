@@ -63,7 +63,7 @@ import { tagCharOf } from '../lib/reviewHues'
 import PasteIcon from './PasteIcon'
 import SparkleIcon from './SparkleIcon'
 import { joinGuide, splitGuide } from '../lib/placeInfo'
-import { checkoutOf, followersOf, mirrorPatch, nightsBetween, staySources } from '../lib/stay'
+import { checkoutOf, followersOf, mirrorPatch, nightsBetween, stayNightsOf, staySources } from '../lib/stay'
 
 interface Props {
   trip: Trip
@@ -522,6 +522,7 @@ export default function ItemDetail({
     : undefined
   const mirrored = Boolean(syncSource)
   const stayFollowers = followersOf(allItems, storedItem.id)
+  const stayOwnNights = stayNightsOf(allItems, storedItem.id)
   const stayCheckout = checkoutOf(allItems, storedItem.id)
   const isStay = item.category === '住宿'
   const sourceOptions = mirrored || stayFollowers.length ? [] : staySources(allItems, storedItem)
@@ -530,8 +531,12 @@ export default function ItemDetail({
    * 晚數與退房日一律從主筆算，從筆才看得到「這是第幾晚、住到哪天」。
    */
   const stayHead = mirrored ? syncSource : storedItem
-  const stayHeadFollowers = stayHead ? followersOf(allItems, stayHead.id) : []
-  const stayNights = stayHeadFollowers.length ? stayHeadFollowers.length + 1 : 0
+  /*
+   * 晚數只數連住排出來的那幾晚。手動挑來源的從筆（入住、退房）只是共用內容，
+   * 算進去的話「共 N 晚」會虛報，而入住跟主筆同一天，更不可能是另外一晚。
+   */
+  const stayHeadNights = stayHead ? stayNightsOf(allItems, stayHead.id) : []
+  const stayNights = stayHeadNights.length ? stayHeadNights.length + 1 : 0
   const stayHeadCheckout = stayHead ? checkoutOf(allItems, stayHead.id) : undefined
   /*
    * 連住成立之後就不給改類型。改成別的類型，這幾筆之間的連動與那幾格的鎖
@@ -1141,7 +1146,7 @@ export default function ItemDetail({
   const submitCheckout = () => {
     if (!checkoutDraft) return
     const wanted = new Set(nightsBetween(storedItem.date, checkoutDraft))
-    const cut = stayFollowers.filter((row) => !wanted.has(row.date)).map((row) => row.date)
+    const cut = stayOwnNights.filter((row) => !wanted.has(row.date)).map((row) => row.date)
     if (cut.length) setConfirmingStayCut(cut)
     else applyCheckout(checkoutDraft)
   }
@@ -1186,7 +1191,7 @@ export default function ItemDetail({
       <p style={{ margin: 0 }}>把退房日改成 {shortDate(checkoutDraft)}，這幾天的住宿會被刪掉：</p>
       <ul className="detail-stay-cut">
         {confirmingStayCut.map((date) => {
-          const row = stayFollowers.find((value) => value.date === date)
+          const row = stayOwnNights.find((value) => value.date === date)
           const reviews = row
             ? allReviews.filter((value) => value.itemId === row.id && !value.deleted).length
             : 0
@@ -1440,9 +1445,9 @@ export default function ItemDetail({
                 <div className="detail-field detail-field-date">
                   <label className="label" htmlFor="d-date">日期</label>
                   {/*
-                    * 同步中的那幾晚是連住排出來的，日期改掉就跟連住的區間對不上 ——
-                    * 晚數與退房日都是從這些日期推回來的。時間留著可以改，
-                    * 每晚幾點回房本來就各自不同，那不影響連住怎麼算。
+                    * 同步中就不給改日期。連住那幾晚改掉會跟區間對不上（晚數與退房日
+                    * 都是從這些日期推回來的），入住那種手動連的挪到別天也只是奇怪。
+                    * 時間留著可以改 —— 每晚幾點回房本來就各自不同，不影響連住怎麼算。
                     */}
                   {mirrored ? (
                     <p className="detail-mirrored-value mono">{shortDate(item.date)}</p>
@@ -1540,7 +1545,7 @@ export default function ItemDetail({
                 * 一直擺在外面會佔著每一筆住宿的版面。已經連住或已經同步的看不到它們。
                 * 這裡讀的是已儲存的那一筆，草稿裡還沒存的標題會在儲存時才傳播下去。
                 */}
-              {isStay && !mirrored && stayFollowers.length === 0 && (
+              {isStay && !mirrored && stayOwnNights.length === 0 && (
                 <div className="detail-stay-buttons">
                   <button className="btn btn-sm" onClick={openCheckout}>新增連住</button>
                   {sourceOptions.length > 0 && (
@@ -1591,12 +1596,22 @@ export default function ItemDetail({
                 * 晚數與退房日一律從主筆算，從筆才知道自己屬於哪一段連住。
                 * 按鈕都在這一區裡面，而整區是 role="button"（點了進入編輯），所以要擋冒泡。
                 */}
-              {stayNights > 0 && (
+              {(stayNights > 0 || mirrored) && (
                 <div className="detail-stay-row">
-                  <span className="detail-stay-summary">
-                    共 {stayNights} 晚 · {stayHead && shortDate(stayHead.date)} 入住
-                    {stayHeadCheckout && ` · ${shortDate(stayHeadCheckout)} 退房`}
-                  </span>
+                  {/*
+                    * 有連住就報整段的晚數（同步過來的入住那筆也看得到自己屬於哪一段）；
+                    * 沒有連住、單純同步內容的，就只講同步自哪裡 —— 不然這一行會沒東西可說。
+                    */}
+                  {stayNights > 0 ? (
+                    <span className="detail-stay-summary">
+                      共 {stayNights} 晚 · {stayHead && shortDate(stayHead.date)} 入住
+                      {stayHeadCheckout && ` · ${shortDate(stayHeadCheckout)} 退房`}
+                    </span>
+                  ) : (
+                    <span className="detail-stay-summary">
+                      同步自 {syncSource ? `${shortDate(syncSource.date)} ${syncSource.title || '未命名行程'}` : '—'}
+                    </span>
+                  )}
                   {mirrored ? (
                     <button
                       className="btn btn-sm"
