@@ -14,6 +14,8 @@ import LinkIcon from './LinkIcon'
 import ExternalLinkIcon from './ExternalLinkIcon'
 import { fetchLinkMetadata } from '../sync/client'
 import SwipePager from './SwipePager'
+import DragHandleIcon from './DragHandleIcon'
+import { moveItem, useDragSort } from '../lib/useDragSort'
 
 const PACKING_TITLE = '打包清單'
 
@@ -227,6 +229,12 @@ function NoteEditorModal({
     setBlocks([...draft.blocks.slice(0, idx + 1), block, ...draft.blocks.slice(idx + 1)])
   }
 
+  /** 打包清單的順序就是收東西的順序，所以每一行左邊多一個握把可以上下拖。 */
+  const blockSort = useDragSort(
+    draft.blocks.map((b) => b.id),
+    (from, to) => setBlocks(moveItem(draft.blocks, from, to)),
+  )
+
   const addLink = async () => {
     if (!linkDraft.trim() || resolvingLink) return
     const parsed = makeLink(linkDraft)
@@ -300,8 +308,15 @@ function NoteEditorModal({
         <div style={{ marginTop: 12 }}>
           <span className="label">內容</span>
           {draft.blocks.map((b) => (
-            <div key={b.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 5 }}>
-              {/* 左邊這格同時是「這行是什麼類型」和切換鈕。編輯時不放 checkbox ——
+            <div
+              key={b.id}
+              className="drag-sort-row"
+              {...blockSort.rowProps(b.id, { display: 'flex', gap: 6, alignItems: 'center', marginBottom: 5 })}
+            >
+              <button {...blockSort.handleProps(b.id)}>
+                <DragHandleIcon />
+              </button>
+              {/* 這格同時是「這行是什麼類型」和切換鈕。編輯時不放 checkbox ——
                   真正要打勾是在閱讀畫面做的，這裡只決定這一行是勾選項還是文字。 */}
               <button
                 className="block-kind"

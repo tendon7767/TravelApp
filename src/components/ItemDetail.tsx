@@ -56,6 +56,8 @@ import { copyItemSnapshot } from '../lib/items'
 import { flightStatusUrl, hasFlightStatus } from '../lib/flight'
 import PlaneIcon from './PlaneIcon'
 import PhotoSection from './PhotoSection'
+import DragHandleIcon from './DragHandleIcon'
+import { moveItem, useDragSort } from '../lib/useDragSort'
 import { tagCharOf } from '../lib/reviewHues'
 import PasteIcon from './PasteIcon'
 import SparkleIcon from './SparkleIcon'
@@ -435,6 +437,31 @@ export default function ItemDetail({
       window.removeEventListener('resize', resize)
     }
   }, [])
+
+  /*
+   * 備註與相關連結都是使用者自己排的清單，順序有意義（先做的寫前面），
+   * 所以編輯時左邊的項目符號換成握把，按住可以上下拖。
+   * 兩個 hook 得排在下面那個提前 return 之前 —— hook 的呼叫順序每次算繪都要一樣，
+   * 所以取值一律 optional chaining；項目不存在時清單是空的，握把本來也不會出現。
+   */
+  const noteSort = useDragSort(item?.notes.map((note) => note.id) ?? [], (from, to) => {
+    if (item) patchItem({ notes: moveItem(item.notes, from, to) })
+  })
+  /*
+   * 相關連結只排 kind === 'web' 這幾筆，地圖連結不在這張清單裡（它住在基本資訊）。
+   * 寫回去時把排好的依序填回原本屬於 web 的那幾個位置，地圖那筆留在原地不動。
+   */
+  const linkSort = useDragSort(
+    item?.links.filter((link) => link.kind === 'web').map((link) => link.id) ?? [],
+    (from, to) => {
+      if (!item) return
+      const sorted = moveItem(item.links.filter((link) => link.kind === 'web'), from, to)
+      let cursor = 0
+      patchItem({
+        links: item.links.map((link) => (link.kind === 'web' ? sorted[cursor++] : link)),
+      })
+    },
+  )
 
   if (!item || !storedItem || item.deleted) return <div className="empty">項目已刪除。</div>
 
@@ -1374,10 +1401,13 @@ export default function ItemDetail({
               {item.notes.map((note, index) => (
                 <div
                   key={note.id}
-                  className="detail-note-edit-row"
+                  className="detail-note-edit-row drag-sort-row"
                   data-keyboard-reveal={index === item.notes.length - 1 ? 'detail-notes-tail' : ''}
+                  {...noteSort.rowProps(note.id)}
                 >
-                  <span className="detail-note-bullet" aria-hidden="true">•</span>
+                  <button {...noteSort.handleProps(note.id)}>
+                    <DragHandleIcon />
+                  </button>
                   <input
                     className="field"
                     type="search"
@@ -1455,9 +1485,13 @@ export default function ItemDetail({
                 link.url ? (
                   <div
                     key={link.id}
-                    className="link-edit-row"
+                    className="link-edit-row drag-sort-row"
                     data-keyboard-reveal={index === webLinks.length - 1 ? 'detail-links-tail' : ''}
+                    {...linkSort.rowProps(link.id)}
                   >
+                    <button {...linkSort.handleProps(link.id)}>
+                      <DragHandleIcon />
+                    </button>
                     <input
                       className="field"
                       type="search"
@@ -1496,9 +1530,13 @@ export default function ItemDetail({
                 ) : (
                   <div
                     key={link.id}
-                    className="link-add-row"
+                    className="link-add-row drag-sort-row"
                     data-keyboard-reveal={index === webLinks.length - 1 ? 'detail-links-tail' : ''}
+                    {...linkSort.rowProps(link.id)}
                   >
+                    <button {...linkSort.handleProps(link.id)}>
+                      <DragHandleIcon />
+                    </button>
                     <input
                       id={`web-link-${link.id}`}
                       className="field"
