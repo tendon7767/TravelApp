@@ -69,6 +69,12 @@ export interface Item extends SyncFields {
   /** 行程本身的類型；沿用既有 category 儲存欄位，避免破壞舊試算表。 */
   category?: ItineraryCategory
   paymentMethodId?: string
+  /**
+   * 這筆的行程名稱、連結、說明、備註同步自哪一筆（連住的第一晚 / 入住那筆）。
+   * 有值＝那四樣唯讀，內容永遠等於主筆；解除同步只是清掉這個欄位，內容原地留下變成自己的。
+   * 刻意只准一層：主筆自己不能有 sourceItemId，否則刪除與傳播都要處理遞迴。
+   */
+  sourceItemId?: string
 }
 
 /**

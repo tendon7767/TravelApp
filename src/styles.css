@@ -2657,3 +2657,86 @@ body.modal-open { overflow: hidden; }
   .backdrop { align-items: center; }
   .sheet { max-width: 560px; border-radius: 14px; }
 }
+
+/* ── 住宿的資料同步 ─────────────────────────────────────────── */
+
+/* 藏在類型選單底下的住宿動作。一趟只按一次，平常不佔版面。 */
+.detail-stay-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/*
+ * 接在日期那一行底下的連住／同步狀態：說明靠左、動作靠右。
+ * 說明可能折成兩行，所以按鈕對齊的是整段的中線而不是第一行。
+ */
+.detail-stay-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.detail-stay-row .btn { margin-left: auto; }
+
+.detail-stay-summary {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+
+.detail-stay-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* 確認刪除時列出的那幾天。縮排靠 padding，項目符號留著才看得出是一份清單。 */
+.detail-stay-cut {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.detail-stay-cut .dim { margin-left: 4px; }
+
+/*
+ * 同步過來、不可編輯的那幾格。編輯狀態下長在輸入框的位置上，
+ * 所以留一樣的高度與內距，切換時整段文字不會重排。
+ */
+.detail-mirrored-value {
+  margin: 0;
+  padding: 7px 10px;
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* 區塊抬頭旁邊的「同步」記號：告訴使用者這一塊點了不會有反應，不是壞掉。 */
+.detail-mirror-chip {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* 鎖住的區塊：內容照常看得見，但整塊不接受點擊。 */
+.detail-section-locked {
+  cursor: default;
+}

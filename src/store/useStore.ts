@@ -42,6 +42,7 @@ import {
 } from '../sync/client'
 import { collectTripRecords } from '../sync/collect'
 import { copyItemSnapshot } from '../lib/items'
+import { followersOf, mirrorPatch, nightsBetween, touchesMirrored } from '../lib/stay'
 import {
   appendCautions,
   buildAnalysisInput,
@@ -119,6 +120,16 @@ interface State {
   duplicateItem: (source: Item, targetPlanId: string, targetDate: string) => Item | undefined
   updateItem: (id: string, patch: Partial<Item>) => void
   removeItem: (id: string) => void
+
+  /**
+   * 指定退房日，補齊／收掉這一筆住宿底下的每一晚。
+   * 縮短會刪掉多出來的那幾天（含它們的心得與照片），所以介面必須先跟使用者確認過才呼叫。
+   */
+  setStayCheckout: (sourceId: string, checkout: string) => void
+  /** 讓這一筆的四樣同步自另一筆住宿。 */
+  linkItemTo: (id: string, sourceId: string) => void
+  /** 解除同步：只清掉記號，內容原地留下變成自己的，所以這個動作沒有風險。 */
+  unlinkItem: (id: string) => void
 
   /** 用 Google Map 連結分析這個地點，結果寫進行程說明與備註。 */
   analyzePlace: (itemId: string) => Promise<void>
@@ -382,18 +393,24 @@ export const useStore = create<State>((setState, getState) => {
       const plan: Plan = { ...stamp(), tripId: source.tripId, name, kind, basedOnPlanId: source.id }
 
       /** 連同備註、連結、費用明細整份複製，複本之後各改各的。 */
-      const copies = data.items
-        .filter((i) => i.planId === planId && !i.deleted)
-        .map<Item>((i) => ({
-          ...i,
-          id: newId(),
-          planId: plan.id,
-          updatedAt: Date.now(),
-          updatedBy: getState().settings.memberName,
-          notes: i.notes.map((n) => ({ ...n, id: newId() })),
-          links: i.links.map((l) => ({ ...l, id: newId() })),
-          costs: i.costs.map((c) => ({ ...c, id: newId() })),
-        }))
+      const sources = data.items.filter((i) => i.planId === planId && !i.deleted)
+      /*
+       * 每個複本都是新 id，所以住宿的索引記號也要跟著改指到「複本裡的那一筆」。
+       * 照抄的話新版本的從筆會指回舊版本的主筆 —— 改舊版會蓋掉新版，改新版卻什麼都不動，
+       * 而且完全不會報錯。對不上的（來源沒被複製過來）就直接放掉索引，內容照樣留著。
+       */
+      const idMap = new Map(sources.map((i) => [i.id, newId()]))
+      const copies = sources.map<Item>((i) => ({
+        ...i,
+        id: idMap.get(i.id)!,
+        planId: plan.id,
+        sourceItemId: i.sourceItemId ? idMap.get(i.sourceItemId) : undefined,
+        updatedAt: Date.now(),
+        updatedBy: getState().settings.memberName,
+        notes: i.notes.map((n) => ({ ...n, id: newId() })),
+        links: i.links.map((l) => ({ ...l, id: newId() })),
+        costs: i.costs.map((c) => ({ ...c, id: newId() })),
+      }))
 
       mutate((d) => ({ ...d, plans: [...d.plans, plan], items: [...d.items, ...copies] }))
       return plan
@@ -455,6 +472,9 @@ export const useStore = create<State>((setState, getState) => {
         planId: targetPlanId,
         date: targetDate,
         deleted: undefined,
+        // 複製出來的是獨立一份。留著記號的話，複製一筆從筆就會憑空多出一晚，
+        // 連住的晚數與退房日都是從從筆的日期推回去的，當場就對不上。
+        sourceItemId: undefined,
         notes: snapshot.notes.map((note) => ({ ...note, id: newId() })),
         links: snapshot.links.map((link) => ({ ...link, id: newId() })),
         costs: snapshot.costs.map((cost) => ({ ...cost, id: newId() })),
@@ -463,7 +483,86 @@ export const useStore = create<State>((setState, getState) => {
       return item
     },
 
-    updateItem: (id, patch) => mutate((d) => ({ ...d, items: patchIn(d.items, id, patch) })),
+    /**
+     * 同步欄位一改就立刻寫進所有從筆。傳播放在這裡而不是各個呼叫端，
+     * 是因為改動來自很多路徑（區塊儲存、貼地圖連結、AI 分析寫回說明），
+     * 漏掉任何一條都會是「畫面上主筆變了、從筆沒變」這種靜默的不一致。
+     * 從筆的那四樣不可編輯，所以傳播永遠是單向的，不會有誰蓋掉誰的問題。
+     */
+    updateItem: (id, patch) =>
+      mutate((d) => {
+        const items = patchIn(d.items, id, patch)
+        if (!touchesMirrored(patch)) return { ...d, items }
+        const source = items.find((item) => item.id === id)
+        // 只准一層：從筆自己底下不會有人，不必再往下傳。
+        if (!source || source.sourceItemId) return { ...d, items }
+        const followers = followersOf(items, id)
+        if (!followers.length) return { ...d, items }
+        const now = Date.now()
+        const by = getState().settings.memberName
+        const mirrored = mirrorPatch(source)
+        return {
+          ...d,
+          items: items.map((item) =>
+            item.sourceItemId === id && !item.deleted
+              ? { ...item, ...mirrored, updatedAt: now, updatedBy: by }
+              : item,
+          ),
+        }
+      }),
+
+    setStayCheckout: (sourceId, checkout) => {
+      const { data } = getState()
+      const source = data.items.find((item) => item.id === sourceId && !item.deleted)
+      // 從筆不能自己再帶一串，只准一層。
+      if (!source || source.sourceItemId) return
+      const plan = data.plans.find((value) => value.id === source.planId && !value.deleted)
+      const trip = plan && data.trips.find((value) => value.id === plan.tripId && !value.deleted)
+      if (!trip) return
+
+      const wanted = nightsBetween(source.date, checkout).filter(
+        (date) => date >= trip.startDate && date <= trip.endDate,
+      )
+      const existing = followersOf(data.items, sourceId)
+
+      // 縮短時多出來的那幾天要下墓碑，連同它們的心得與照片 —— 借 removeItem 走同一條路，
+      // 照片快取的清理才不會漏。介面已經先跟使用者確認過要刪哪幾天了。
+      for (const follower of existing) {
+        if (!wanted.includes(follower.date)) getState().removeItem(follower.id)
+      }
+
+      const have = new Set(existing.map((follower) => follower.date))
+      const created: Item[] = wanted
+        .filter((date) => !have.has(date))
+        .map((date) => ({
+          planId: source.planId,
+          date,
+          // 住宿列不佔時間軸：沒有時間就自動排在當天最後，也不會被算成「現在進行中」。
+          startTime: undefined,
+          category: source.category,
+          costs: [],
+          ...mirrorPatch(source),
+          sourceItemId: sourceId,
+          ...stamp(),
+        }))
+      if (created.length) mutate((d) => ({ ...d, items: [...d.items, ...created] }))
+    },
+
+    linkItemTo: (id, sourceId) => {
+      const { data } = getState()
+      const source = data.items.find((item) => item.id === sourceId && !item.deleted)
+      const target = data.items.find((item) => item.id === id && !item.deleted)
+      if (!source || !target || source.id === target.id) return
+      // 只准一層：來源不能自己也是從筆，自己也不能已經是別人的主筆。
+      if (source.sourceItemId) return
+      if (data.items.some((item) => item.sourceItemId === id && !item.deleted)) return
+      mutate((d) => ({
+        ...d,
+        items: patchIn(d.items, id, { ...mirrorPatch(source), sourceItemId: sourceId }),
+      }))
+    },
+
+    unlinkItem: (id) => mutate((d) => ({ ...d, items: patchIn(d.items, id, { sourceItemId: undefined }) })),
 
     dismissAiError: (itemId) => {
       const { [itemId]: gone, ...errors } = getState().ai.errors
@@ -561,7 +660,13 @@ export const useStore = create<State>((setState, getState) => {
           .forEach((photo) => void removeCachedThumbnail(photoThumbnailUrl(photo.thumbnailFileId)))
         return {
           ...d,
-          items: patchIn(d.items, id, { deleted: true } as Partial<Item>),
+          // 主筆沒了，從筆就地解除同步，內容原地留著 —— 那是使用者自己的資料，
+          // 不能跟著主筆一起消失，也不能留著一個指向墓碑的記號讓那幾格永遠鎖住。
+          items: patchIn(d.items, id, { deleted: true } as Partial<Item>).map((item) =>
+            item.sourceItemId === id && !item.deleted
+              ? { ...item, sourceItemId: undefined, updatedAt: now, updatedBy: by }
+              : item,
+          ),
           reviews: d.reviews.map((r) =>
             r.itemId === id && !r.deleted
               ? { ...r, deleted: true, updatedAt: now, updatedBy: by }

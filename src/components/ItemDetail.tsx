@@ -20,7 +20,7 @@ import {
 import { newId } from '../lib/id'
 import { makeLink, parseLink, placeNameOf } from '../lib/maps'
 import { formatMoney, formatTotals, lineTotal, sumByCurrency, toHome } from '../lib/money'
-import { normalizeTime, shortDate } from '../lib/date'
+import { addDays, normalizeTime, shortDate } from '../lib/date'
 import ConfirmButton from './ConfirmButton'
 import NumberField from './NumberField'
 import { methodLabel, OWNERLESS } from '../lib/owners'
@@ -63,6 +63,7 @@ import { tagCharOf } from '../lib/reviewHues'
 import PasteIcon from './PasteIcon'
 import SparkleIcon from './SparkleIcon'
 import { joinGuide, splitGuide } from '../lib/placeInfo'
+import { checkoutOf, followersOf, mirrorPatch, nightsBetween, staySources } from '../lib/stay'
 
 interface Props {
   trip: Trip
@@ -142,6 +143,10 @@ export default function ItemDetail({
   const allPayments = useStore((state) => state.data.payments)
   const allItems = useStore((state) => state.data.items)
   const allReviews = useStore((state) => state.data.reviews)
+  const allPhotos = useStore((state) => state.data.photos)
+  const setStayCheckout = useStore((state) => state.setStayCheckout)
+  const linkItemTo = useStore((state) => state.linkItemTo)
+  const unlinkItem = useStore((state) => state.unlinkItem)
   const setReview = useStore((state) => state.setReview)
   const me = useStore((state) => state.settings.memberName)
   const gasUrl = useStore((state) => state.settings.gasUrl)
@@ -208,6 +213,11 @@ export default function ItemDetail({
   const [choosingCategory, setChoosingCategory] = useState(false)
   const [pickingPayment, setPickingPayment] = useState(false)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+  /** 退房日的草稿。空字串＝還沒選，儲存鍵就灰著。 */
+  const [checkoutDraft, setCheckoutDraft] = useState<string | null>(null)
+  /** 縮短連住時要刪掉的那幾天。有值就先跳確認，確定了才真的動手。 */
+  const [confirmingStayCut, setConfirmingStayCut] = useState<string[] | null>(null)
+  const [pickingStaySource, setPickingStaySource] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [restored, setRestored] = useState(false)
   const [hydrated, setHydrated] = useState(false)
@@ -501,6 +511,37 @@ export default function ItemDetail({
   const mapLink = item.links.find((link) => link.kind === 'map')
   const webLinks = item.links.filter((link) => link.kind === 'web')
 
+  /*
+   * 住宿的資料同步。
+   * 主筆（syncSource 為空）可以指定退房日，把中間每一晚都建出來；
+   * 從筆（syncSource 有值）的四樣是主筆的鏡像，唯讀，除非按下解除同步。
+   * 日期與時間不在同步範圍裡 —— 每晚幾點回房本來就各自不同，那兩格從筆照樣能改。
+   */
+  const syncSource = storedItem.sourceItemId
+    ? allItems.find((value) => value.id === storedItem.sourceItemId && !value.deleted)
+    : undefined
+  const mirrored = Boolean(syncSource)
+  const stayFollowers = followersOf(allItems, storedItem.id)
+  const stayCheckout = checkoutOf(allItems, storedItem.id)
+  const isStay = item.category === '住宿'
+  const sourceOptions = mirrored || stayFollowers.length ? [] : staySources(allItems, storedItem)
+  /*
+   * 連住的主筆：自己就是主筆，從筆則指向來源那一筆。
+   * 晚數與退房日一律從主筆算，從筆才看得到「這是第幾晚、住到哪天」。
+   */
+  const stayHead = mirrored ? syncSource : storedItem
+  const stayHeadFollowers = stayHead ? followersOf(allItems, stayHead.id) : []
+  const stayNights = stayHeadFollowers.length ? stayHeadFollowers.length + 1 : 0
+  const stayHeadCheckout = stayHead ? checkoutOf(allItems, stayHead.id) : undefined
+  /*
+   * 連住成立之後就不給改類型。改成別的類型，這幾筆之間的連動與那幾格的鎖
+   * 全部失去依據，卻沒有任何地方會報錯 —— 先擋住，要改就先解除同步或收掉連住。
+   */
+  const stayLocked = mirrored || stayFollowers.length > 0
+  /** 從筆的鏡像區塊整塊不給點；剩下的照舊。 */
+  const sectionLocked = (section: ItemDraftSection) =>
+    mirrored && (section === 'guide' || section === 'notes' || section === 'links')
+
   const patchItem = (patch: Partial<Item>) => {
     setTouched(true)
     setDraftItem((current) => (current ? { ...current, ...patch } : current))
@@ -548,14 +589,16 @@ export default function ItemDetail({
     setEditingSections(new Set([section]))
   }
 
-  const editableSections: ItemDraftSection[] = [
-    'basic',
-    'guide',
-    'notes',
-    'costs',
-    'links',
-    ...(isActual ? (['review'] as const) : []),
-  ]
+  const editableSections: ItemDraftSection[] = (
+    [
+      'basic',
+      'guide',
+      'notes',
+      'costs',
+      'links',
+      ...(isActual ? (['review'] as const) : []),
+    ] as ItemDraftSection[]
+  ).filter((section) => !sectionLocked(section))
   const hasEditing = editMode !== 'none'
   // 分析讀的是已儲存的資料，所以看 storedItem 而不是草稿。
   const savedMapLink = storedItem.links.some((link) => link.kind === 'map' && link.url.trim())
@@ -563,9 +606,11 @@ export default function ItemDetail({
     ? '請先完成或取消編輯'
     : aiPending
       ? '分析中'
-      : !savedMapLink
-        ? '需要先在基本資訊加入 Google Map 連結'
-        : ''
+      : mirrored
+        ? '行程說明同步自其他住宿，請到那一筆分析'
+        : !savedMapLink
+          ? '需要先在基本資訊加入 Google Map 連結'
+          : ''
 
   const beginEditAll = () => {
     // 編輯全部就是兩格都開，沒有「只編其中一塊」的問題。
@@ -578,7 +623,7 @@ export default function ItemDetail({
     setMapDraft(storedMapUrl)
     setMapNameDraft('')
     setRestored(false)
-    setChoosingCategory(true)
+    setChoosingCategory(!stayLocked)
     setFocusCostId(null)
     setEditMode('all')
     // 展開全部時焦點固定回標題，它在最上面，畫面不會被拉走。
@@ -587,7 +632,7 @@ export default function ItemDetail({
   }
 
   const sectionActionProps = (section: ItemDraftSection) => {
-    if (editMode !== 'none') return {}
+    if (editMode !== 'none' || sectionLocked(section)) return {}
     return {
       role: 'button' as const,
       'aria-label': `編輯${SECTION_LABELS[section]}`,
@@ -606,7 +651,8 @@ export default function ItemDetail({
    * 所以這裡一定要擋掉冒泡 —— 不擋的話兩層一起觸發，最後開到的是外層那一個。
    */
   const guidePartProps = (part: GuidePart) => {
-    if (editMode !== 'none') return {}
+    // 兩塊各自是獨立的點擊入口，區塊層的鎖蓋不到它們，這裡要自己再擋一次。
+    if (editMode !== 'none' || sectionLocked('guide')) return {}
     const label = part === 'ai' ? '編輯 AI 資訊' : '編輯行程說明'
     const begin = (event: { stopPropagation: () => void }) => {
       event.stopPropagation()
@@ -634,7 +680,7 @@ export default function ItemDetail({
   }
 
   // 行程類型自成一個區塊，點整塊任何位置都是改類型，不會誤觸基本資訊。
-  const categoryActionProps = choosingCategory
+  const categoryActionProps = choosingCategory || stayLocked
     ? {}
     : editMode !== 'none'
       ? {}
@@ -731,14 +777,20 @@ export default function ItemDetail({
     }
     if (itemDirty || mapDirty) {
       updateItem(item.id, {
-        date: nextItem.date,
         startTime: normalizedTime,
-        title: nextItem.title,
-        guide: nextItem.guide,
         category: nextItem.category,
-        notes: nextItem.notes,
-        links: nextItem.links,
         costs: nextItem.costs,
+        // 從筆的那四樣是主筆的鏡像，這裡不寫回去。草稿是進入編輯那一刻的複本，
+        // 期間主筆若被改過，寫回去等於拿舊的鏡像蓋掉新的。日期則是連住排出來的。
+        ...(mirrored
+          ? {}
+          : {
+              date: nextItem.date,
+              title: nextItem.title,
+              guide: nextItem.guide,
+              notes: nextItem.notes,
+              links: nextItem.links,
+            }),
       })
     }
     if (isActual && reviewDraft !== (mine?.text ?? '')) setReview(item.id, reviewDraft)
@@ -786,10 +838,13 @@ export default function ItemDetail({
         // 只寫 links 的話那段標題會靜默消失 —— 草稿留著新標題、store 裡沒有，
         // 畫面看起來存好了，重開才發現變回「午餐」。
         patch = {
-          title: nextItem.title,
-          date: nextItem.date,
           startTime: normalizedTime || undefined,
-          links: filledLinks(nextItem.links),
+          // 從筆的名稱、連結與日期都不是自己的，這一區只剩時間可以寫回去。
+          // 不排除的話，草稿裡那份（等於當下的鏡像）會被當成自己的修改存進去，
+          // 主筆下一次改動再蓋回來 —— 看起來像「改了又自己變回去」。
+          ...(mirrored
+            ? {}
+            : { date: nextItem.date, title: nextItem.title, links: filledLinks(nextItem.links) }),
         }
         nextItem = {
           ...nextItem,
@@ -1067,6 +1122,129 @@ export default function ItemDetail({
     }
   })()
 
+  /*
+   * 退房日。按儲存才動手，而且縮短要先跳確認 —— 刪掉的那幾天會連同它們的心得與照片
+   * 一起下墓碑，同步之後同行者那邊也會消失，不能靜默做。
+   */
+  /*
+   * 退房日預設帶入這筆行程自己的日期。空白的日期欄位在手機上要從頭選年月日，
+   * 帶入當天就只差往後撥一兩天；它比入住日早一天以上，儲存鍵會一直灰著，按不出錯。
+   */
+  const openCheckout = () => setCheckoutDraft(stayCheckout ?? storedItem.date)
+
+  const applyCheckout = (checkout: string) => {
+    setStayCheckout(storedItem.id, checkout)
+    setConfirmingStayCut(null)
+    setCheckoutDraft(null)
+  }
+
+  const submitCheckout = () => {
+    if (!checkoutDraft) return
+    const wanted = new Set(nightsBetween(storedItem.date, checkoutDraft))
+    const cut = stayFollowers.filter((row) => !wanted.has(row.date)).map((row) => row.date)
+    if (cut.length) setConfirmingStayCut(cut)
+    else applyCheckout(checkoutDraft)
+  }
+
+  const checkoutModal = checkoutDraft !== null && !confirmingStayCut && (
+    <Modal
+      title={stayCheckout ? '修改退房日' : '新增連住'}
+      onCancel={() => setCheckoutDraft(null)}
+      onComplete={submitCheckout}
+      completeLabel={stayCheckout ? '儲存' : '新增'}
+      completeDisabled={!checkoutDraft || checkoutDraft <= storedItem.date || checkoutDraft === stayCheckout}
+    >
+      <label className="label" htmlFor="d-checkout">退房日</label>
+      <input
+        id="d-checkout"
+        className="field mono"
+        type="date"
+        min={storedItem.date}
+        max={addDays(trip.endDate, 1)}
+        value={checkoutDraft}
+        onChange={(event) => setCheckoutDraft(event.target.value)}
+      />
+      <p className="dim detail-stay-hint">
+        {checkoutDraft && checkoutDraft > storedItem.date
+          ? `${shortDate(storedItem.date)} 入住、${shortDate(checkoutDraft)} 退房，共 ${
+              nightsBetween(storedItem.date, checkoutDraft).length + 1
+            } 晚。中間每一晚都會自動建立一筆住宿，資料同步自這一筆。`
+          : '退房日要晚於入住日。'}
+      </p>
+    </Modal>
+  )
+
+  const stayCutModal = confirmingStayCut && checkoutDraft && (
+    <Modal
+      title="要刪掉這幾晚嗎？"
+      onCancel={() => setConfirmingStayCut(null)}
+      onComplete={() => applyCheckout(checkoutDraft)}
+      cancelLabel="重新選"
+      completeLabel="刪除"
+      completeDanger
+    >
+      <p style={{ margin: 0 }}>把退房日改成 {shortDate(checkoutDraft)}，這幾天的住宿會被刪掉：</p>
+      <ul className="detail-stay-cut">
+        {confirmingStayCut.map((date) => {
+          const row = stayFollowers.find((value) => value.date === date)
+          const reviews = row
+            ? allReviews.filter((value) => value.itemId === row.id && !value.deleted).length
+            : 0
+          const photos = row
+            ? allPhotos.filter((value) => value.itemId === row.id && !value.deleted).length
+            : 0
+          const extra = [
+            reviews ? `${reviews} 則心得` : '',
+            photos ? `${photos} 張照片` : '',
+          ].filter(Boolean)
+          return (
+            <li key={date}>
+              {shortDate(date)}
+              {extra.length > 0 && <span className="dim">（含 {extra.join('、')}）</span>}
+            </li>
+          )
+        })}
+      </ul>
+      <p className="dim detail-stay-hint">刪掉之後心得與照片救不回來，同步後同行者那邊也會一起消失。</p>
+    </Modal>
+  )
+
+  /*
+   * 選完來源就退回檢視狀態。留在編輯裡的話畫面上什麼都不會變 ——
+   * 那幾格已經變成唯讀，但顯示的是草稿裡的舊值，看起來像沒點到。
+   * 草稿直接丟掉：被同步的那四樣本來就要被主筆覆蓋，留著只會顯示成已儲存的假象。
+   * 新的內容當場算給 finishSectionEditing，不等 effect 補 —— 那要多繪一幀舊畫面。
+   */
+  const chooseStaySource = (source: Item) => {
+    linkItemTo(storedItem.id, source.id)
+    setPickingStaySource(false)
+    finishSectionEditing(
+      { ...storedItem, ...mirrorPatch(source), sourceItemId: source.id },
+      storedItem.startTime ?? '',
+    )
+  }
+
+  const staySourceModal = pickingStaySource && (
+    <Modal title="同步自哪一筆住宿？" onCancel={() => setPickingStaySource(false)} variant="picker">
+      <div className="picker-body">
+        <div className="picker-grid">
+          {sourceOptions.map((option) => (
+            <button
+              key={option.id}
+              className="picker-card"
+              onClick={() => chooseStaySource(option)}
+            >
+              <span className="picker-card-band">{option.title || '未命名行程'}</span>
+              <span className="picker-card-body">
+                <span className="picker-card-label">{shortDate(option.date)}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </Modal>
+  )
+
   const paymentModal = pickingPayment && (
     <Modal title="選擇支付方式" onCancel={() => setPickingPayment(false)} variant="picker">
       <div className="picker-body">
@@ -1144,6 +1322,9 @@ export default function ItemDetail({
       )}
       {renaming && <SettingsModal onClose={() => setRenaming(false)} />}
       {paymentModal}
+      {checkoutModal}
+      {stayCutModal}
+      {staySourceModal}
 
       <div className="topbar detail-head">
         <button
@@ -1240,31 +1421,44 @@ export default function ItemDetail({
           {editingSections.has('basic') ? (
             <div className="detail-form-stack">
               <label className="label" htmlFor="d-title">行程名稱</label>
-              <input
-                id="d-title"
-                className="field"
-                type="search"
-                enterKeyHint="done"
-                autoComplete="off"
-                style={{ fontSize: 16 }}
-                value={item.title}
-                onChange={(event) => patchItem({ title: event.target.value })}
-                autoFocus={focusSection === 'basic'}
-              />
+              {mirrored ? (
+                <p className="detail-mirrored-value">{item.title || '未命名行程'}</p>
+              ) : (
+                <input
+                  id="d-title"
+                  className="field"
+                  type="search"
+                  enterKeyHint="done"
+                  autoComplete="off"
+                  style={{ fontSize: 16 }}
+                  value={item.title}
+                  onChange={(event) => patchItem({ title: event.target.value })}
+                  autoFocus={focusSection === 'basic'}
+                />
+              )}
               <div className="detail-field-row">
                 <div className="detail-field detail-field-date">
                   <label className="label" htmlFor="d-date">日期</label>
-                  <input
-                    id="d-date"
-                    className="field mono"
-                    type="date"
-                    min={trip.startDate}
-                    max={trip.endDate}
-                    value={item.date}
-                    onChange={(event) => {
-                      if (event.target.value) patchItem({ date: event.target.value })
-                    }}
-                  />
+                  {/*
+                    * 同步中的那幾晚是連住排出來的，日期改掉就跟連住的區間對不上 ——
+                    * 晚數與退房日都是從這些日期推回來的。時間留著可以改，
+                    * 每晚幾點回房本來就各自不同，那不影響連住怎麼算。
+                    */}
+                  {mirrored ? (
+                    <p className="detail-mirrored-value mono">{shortDate(item.date)}</p>
+                  ) : (
+                    <input
+                      id="d-date"
+                      className="field mono"
+                      type="date"
+                      min={trip.startDate}
+                      max={trip.endDate}
+                      value={item.date}
+                      onChange={(event) => {
+                        if (event.target.value) patchItem({ date: event.target.value })
+                      }}
+                    />
+                  )}
                 </div>
                 <div className="detail-field detail-field-time">
                   <label className="label" htmlFor="d-start">時間</label>
@@ -1287,6 +1481,11 @@ export default function ItemDetail({
               </div>
               <div className="detail-field detail-field-map">
                 <label className="label" htmlFor="d-map">Google Map</label>
+                {mirrored ? (
+                  <p className="detail-mirrored-value">
+                    {mapLink?.url ? mapLink.label || mapLink.url : '未設定'}
+                  </p>
+                ) : (
                 <div className="link-add-row">
                   <input
                     id="d-map"
@@ -1333,8 +1532,24 @@ export default function ItemDetail({
                     <TrashIcon />
                   </button>
                 </div>
+                )}
                 {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
               </div>
+              {/*
+                * 住宿的兩顆動作藏在編輯狀態的最底下：一趟旅程只按一次，
+                * 一直擺在外面會佔著每一筆住宿的版面。已經連住或已經同步的看不到它們。
+                * 這裡讀的是已儲存的那一筆，草稿裡還沒存的標題會在儲存時才傳播下去。
+                */}
+              {isStay && !mirrored && stayFollowers.length === 0 && (
+                <div className="detail-stay-buttons">
+                  <button className="btn btn-sm" onClick={openCheckout}>新增連住</button>
+                  {sourceOptions.length > 0 && (
+                    <button className="btn btn-sm" onClick={() => setPickingStaySource(true)}>
+                      同步自其他住宿
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -1371,6 +1586,44 @@ export default function ItemDetail({
                   </a>
                 )}
               </div>
+              {/*
+                * 連住與同步的狀態接在日期底下，主筆與從筆看到的是同一句話 ——
+                * 晚數與退房日一律從主筆算，從筆才知道自己屬於哪一段連住。
+                * 按鈕都在這一區裡面，而整區是 role="button"（點了進入編輯），所以要擋冒泡。
+                */}
+              {stayNights > 0 && (
+                <div className="detail-stay-row">
+                  <span className="detail-stay-summary">
+                    共 {stayNights} 晚 · {stayHead && shortDate(stayHead.date)} 入住
+                    {stayHeadCheckout && ` · ${shortDate(stayHeadCheckout)} 退房`}
+                  </span>
+                  {mirrored ? (
+                    <button
+                      className="btn btn-sm"
+                      disabled={hasEditing}
+                      title={hasEditing ? '請先完成或取消編輯' : '解除後內容留在這裡，變成這一筆自己的'}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        unlinkItem(storedItem.id)
+                      }}
+                    >
+                      解除同步
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-sm"
+                      disabled={hasEditing}
+                      title={hasEditing ? '請先完成或取消編輯' : '修改退房日'}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openCheckout()
+                      }}
+                    >
+                      修改退房日
+                    </button>
+                  )}
+                </div>
+              )}
             </>
           )}
 
@@ -1382,7 +1635,17 @@ export default function ItemDetail({
           {...categoryActionProps}
         >
           <div className="detail-section-head">
-            <span className="detail-kicker"><TagIcon />行程類型</span>
+            <span className="detail-kicker">
+              <TagIcon />行程類型
+              {stayLocked && (
+                <span
+                  className="detail-mirror-chip"
+                  title={mirrored ? '同步自其他住宿，不可編輯' : '連住中，不可編輯'}
+                >
+                  同步
+                </span>
+              )}
+            </span>
           </div>
           {choosingCategory ? (
             <div className="category-picker" role="group" aria-label="行程類型">
@@ -1421,12 +1684,19 @@ export default function ItemDetail({
         <section
           data-active={activeSection === 'guide' || undefined}
           className={`detail-section${
-            editingSections.has('guide') || editMode !== 'none' ? '' : ' detail-section-clickable'
-          }`}
+            editingSections.has('guide') || editMode !== 'none' || sectionLocked('guide')
+              ? ''
+              : ' detail-section-clickable'
+          }${sectionLocked('guide') ? ' detail-section-locked' : ''}`}
           {...sectionActionProps('guide')}
         >
           <div className="detail-section-head">
-            <span className="detail-kicker"><BookIcon />行程說明</span>
+            <span className="detail-kicker">
+              <BookIcon />行程說明
+              {sectionLocked('guide') && (
+                <span className="detail-mirror-chip" title="同步自其他住宿，不可編輯">同步</span>
+              )}
+            </span>
           </div>
           {editingSections.has('guide') ? (
             /*
@@ -1496,12 +1766,19 @@ export default function ItemDetail({
         <section
           data-active={activeSection === 'notes' || undefined}
           className={`detail-section${
-            editingSections.has('notes') || editMode !== 'none' ? '' : ' detail-section-clickable'
-          }`}
+            editingSections.has('notes') || editMode !== 'none' || sectionLocked('notes')
+              ? ''
+              : ' detail-section-clickable'
+          }${sectionLocked('notes') ? ' detail-section-locked' : ''}`}
           {...sectionActionProps('notes')}
         >
           <div className="detail-section-head">
-            <span className="detail-kicker"><StickyNoteIcon />備註</span>
+            <span className="detail-kicker">
+              <StickyNoteIcon />備註
+              {sectionLocked('notes') && (
+                <span className="detail-mirror-chip" title="同步自其他住宿，不可編輯">同步</span>
+              )}
+            </span>
           </div>
           {editingSections.has('notes') ? (
             <>
@@ -1579,12 +1856,19 @@ export default function ItemDetail({
         <section
           data-active={activeSection === 'links' || undefined}
           className={`detail-section${
-            editingSections.has('links') || editMode !== 'none' ? '' : ' detail-section-clickable'
-          }`}
+            editingSections.has('links') || editMode !== 'none' || sectionLocked('links')
+              ? ''
+              : ' detail-section-clickable'
+          }${sectionLocked('links') ? ' detail-section-locked' : ''}`}
           {...sectionActionProps('links')}
         >
           <div className="detail-section-head">
-            <span className="detail-kicker"><GlobeIcon />相關連結</span>
+            <span className="detail-kicker">
+              <GlobeIcon />相關連結
+              {sectionLocked('links') && (
+                <span className="detail-mirror-chip" title="同步自其他住宿，不可編輯">同步</span>
+              )}
+            </span>
           </div>
           {editingSections.has('links') ? (
             <>
