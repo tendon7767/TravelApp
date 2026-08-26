@@ -565,6 +565,7 @@ export default function TripPage() {
                           }
                         : noop
                     }
+                    onJump={current ? openDetail : noop}
                     onDirtyChange={current ? setDetailDirty : noop}
                     onEditingChange={current ? setDetailEditing : noop}
                   />

@@ -126,9 +126,11 @@ interface State {
    * 縮短會刪掉多出來的那幾天（含它們的心得與照片），所以介面必須先跟使用者確認過才呼叫。
    */
   setStayCheckout: (sourceId: string, checkout: string) => void
-  /** 讓這一筆的四樣同步自另一筆住宿。 */
-  linkItemTo: (id: string, sourceId: string) => void
-  /** 解除同步：只清掉記號，內容原地留下變成自己的，所以這個動作沒有風險。 */
+  /**
+   * 解除同步：只清掉記號，內容原地留下變成自己的，所以這個動作沒有風險。
+   * 「同步自其他住宿」拿掉之後，這是舊資料裡那些手動從筆唯一的清除路徑 ——
+   * 走 store 才會更新 `updatedAt` 推上雲端，同行者才收得到。
+   */
   unlinkItem: (id: string) => void
 
   /** 用 Google Map 連結分析這個地點，結果寫進行程說明與備註。 */
@@ -550,25 +552,6 @@ export const useStore = create<State>((setState, getState) => {
           ...stamp(),
         }))
       if (created.length) mutate((d) => ({ ...d, items: [...d.items, ...created] }))
-    },
-
-    linkItemTo: (id, sourceId) => {
-      const { data } = getState()
-      const source = data.items.find((item) => item.id === sourceId && !item.deleted)
-      const target = data.items.find((item) => item.id === id && !item.deleted)
-      if (!source || !target || source.id === target.id) return
-      // 只准一層：來源不能自己也是從筆，自己也不能已經是別人的主筆。
-      if (source.sourceItemId) return
-      if (data.items.some((item) => item.sourceItemId === id && !item.deleted)) return
-      mutate((d) => ({
-        ...d,
-        // 手動挑來源＝只想共用內容，不是連住的一晚。
-        items: patchIn(d.items, id, {
-          ...mirrorPatch(source),
-          sourceItemId: sourceId,
-          stayNight: undefined,
-        }),
-      }))
     },
 
     unlinkItem: (id) =>

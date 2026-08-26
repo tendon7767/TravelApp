@@ -1,5 +1,5 @@
 import type { Item } from '../types'
-import { addDays } from './date'
+import { addDays, timeSortKey } from './date'
 
 /**
  * 索引住宿時會一起同步的欄位。
@@ -42,20 +42,35 @@ export const stayNightsOf = (items: Item[], sourceId: string): Item[] =>
   followersOf(items, sourceId).filter((item) => item.stayNight)
 
 /**
- * 可以被這一筆索引的對象：同一個行程版本裡的住宿、還沒索引別人、也不是自己。
- * 從筆不列出來 —— 只准一層，索引一個索引會變成鏈。
+ * 這一筆該不該顯示「前往住宿」，以及要跳去哪一筆。
+ *
+ * 規則**只看當天**，完全不讀 `sourceItemId`：同一天有兩筆以上的住宿時，
+ * 除了最後一筆以外，其餘每一筆都指向最後一筆 —— 那是當天「回房睡覺」那一筆，
+ * 飯店資訊與住宿費都放在它身上。同一天只有一筆就沒有連結可言。
+ *
+ * 不依賴主從關係是刻意的：主筆的日期可以改、同行者的舊版還建得出同天從筆，
+ * 「主從必然跨日」不是保證得了的性質。只看當天就怎麼亂都炸不了，
+ * 最壞情況是指到一份一模一樣的內容，無害。
+ *
+ * 「最後一筆」用 `timeSortKey` 排，沒填時間的排最後。**兩筆都沒填時間時順序不穩定**
+ * （同步合併回來 items 的順序會變，而 sort 是穩定的），那是刻意留著的提醒：
+ * 該給其中一筆填時間了。它純粹是衍生的顯示，不寫進資料，翻面也弄不髒任何東西。
  */
-export const staySources = (items: Item[], me: Item): Item[] =>
-  items
+export const stayJumpTarget = (items: Item[], me: Item): Item | undefined => {
+  if (me.category !== '住宿') return undefined
+  const sameDay = items
     .filter(
       (item) =>
         !item.deleted &&
         item.planId === me.planId &&
-        item.id !== me.id &&
-        item.category === '住宿' &&
-        !item.sourceItemId,
+        item.date === me.date &&
+        item.category === '住宿',
     )
-    .sort((a, b) => (a.date === b.date ? a.title.localeCompare(b.title) : a.date.localeCompare(b.date)))
+    .sort((a, b) => timeSortKey(a.startTime) - timeSortKey(b.startTime))
+  if (sameDay.length < 2) return undefined
+  const last = sameDay[sameDay.length - 1]
+  return last.id === me.id ? undefined : last
+}
 
 /**
  * 入住日與退房日之間需要「還住在這裡」的日子。

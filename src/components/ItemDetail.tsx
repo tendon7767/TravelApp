@@ -43,6 +43,7 @@ import CloseIcon from './CloseIcon'
 import MapPinIcon from './MapPinIcon'
 import PencilIcon from './PencilIcon'
 import LinkIcon from './LinkIcon'
+import BedIcon from './BedIcon'
 import ExternalLinkIcon from './ExternalLinkIcon'
 import MoneyIcon from './MoneyIcon'
 import GlobeIcon from './GlobeIcon'
@@ -63,13 +64,18 @@ import { tagCharOf } from '../lib/reviewHues'
 import PasteIcon from './PasteIcon'
 import SparkleIcon from './SparkleIcon'
 import { joinGuide, splitGuide } from '../lib/placeInfo'
-import { checkoutOf, followersOf, mirrorPatch, nightsBetween, stayNightsOf, staySources } from '../lib/stay'
+import { checkoutOf, followersOf, nightsBetween, stayJumpTarget, stayNightsOf } from '../lib/stay'
 
 interface Props {
   trip: Trip
   itemId: string
   onClose: () => void
   onCopy: (item: Item) => void
+  /**
+   * 換到另一筆行程（「前往住宿」）。走外層的 openDetail —— 已經在詳細頁裡時它是 replace，
+   * 歷史不累積，跳幾次都還是按一次返回就回得到行程列表。未儲存的修改也攔得到。
+   */
+  onJump: (id: string) => void
   onDirtyChange: (dirty: boolean) => void
   /** 編輯中要停掉外層「滑到上下一筆」的手勢，打字時的拖曳不該換頁。 */
   onEditingChange?: (editing: boolean) => void
@@ -134,6 +140,7 @@ export default function ItemDetail({
   itemId,
   onClose,
   onCopy,
+  onJump,
   onDirtyChange,
   onEditingChange,
 }: Props) {
@@ -145,7 +152,6 @@ export default function ItemDetail({
   const allReviews = useStore((state) => state.data.reviews)
   const allPhotos = useStore((state) => state.data.photos)
   const setStayCheckout = useStore((state) => state.setStayCheckout)
-  const linkItemTo = useStore((state) => state.linkItemTo)
   const unlinkItem = useStore((state) => state.unlinkItem)
   const setReview = useStore((state) => state.setReview)
   const me = useStore((state) => state.settings.memberName)
@@ -217,7 +223,6 @@ export default function ItemDetail({
   const [checkoutDraft, setCheckoutDraft] = useState<string | null>(null)
   /** 縮短連住時要刪掉的那幾天。有值就先跳確認，確定了才真的動手。 */
   const [confirmingStayCut, setConfirmingStayCut] = useState<string[] | null>(null)
-  const [pickingStaySource, setPickingStaySource] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [restored, setRestored] = useState(false)
   const [hydrated, setHydrated] = useState(false)
@@ -525,7 +530,11 @@ export default function ItemDetail({
   const stayOwnNights = stayNightsOf(allItems, storedItem.id)
   const stayCheckout = checkoutOf(allItems, storedItem.id)
   const isStay = item.category === '住宿'
-  const sourceOptions = mirrored || stayFollowers.length ? [] : staySources(allItems, storedItem)
+  /*
+   * 「前往住宿」的目標。讀的是已儲存的那一筆 —— 基本資訊編輯中時 `item` 是草稿，
+   * 裡面的日期與類型都還沒定案，拿它去算會讓這一列在打字途中跳來跳去。
+   */
+  const jumpTarget = stayJumpTarget(allItems, storedItem)
   /*
    * 連住的主筆：自己就是主筆，從筆則指向來源那一筆。
    * 晚數與退房日一律從主筆算，從筆才看得到「這是第幾晚、住到哪天」。
@@ -1214,42 +1223,6 @@ export default function ItemDetail({
     </Modal>
   )
 
-  /*
-   * 選完來源就退回檢視狀態。留在編輯裡的話畫面上什麼都不會變 ——
-   * 那幾格已經變成唯讀，但顯示的是草稿裡的舊值，看起來像沒點到。
-   * 草稿直接丟掉：被同步的那四樣本來就要被主筆覆蓋，留著只會顯示成已儲存的假象。
-   * 新的內容當場算給 finishSectionEditing，不等 effect 補 —— 那要多繪一幀舊畫面。
-   */
-  const chooseStaySource = (source: Item) => {
-    linkItemTo(storedItem.id, source.id)
-    setPickingStaySource(false)
-    finishSectionEditing(
-      { ...storedItem, ...mirrorPatch(source), sourceItemId: source.id },
-      storedItem.startTime ?? '',
-    )
-  }
-
-  const staySourceModal = pickingStaySource && (
-    <Modal title="同步自哪一筆住宿？" onCancel={() => setPickingStaySource(false)} variant="picker">
-      <div className="picker-body">
-        <div className="picker-grid">
-          {sourceOptions.map((option) => (
-            <button
-              key={option.id}
-              className="picker-card"
-              onClick={() => chooseStaySource(option)}
-            >
-              <span className="picker-card-band">{option.title || '未命名行程'}</span>
-              <span className="picker-card-body">
-                <span className="picker-card-label">{shortDate(option.date)}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </Modal>
-  )
-
   const paymentModal = pickingPayment && (
     <Modal title="選擇支付方式" onCancel={() => setPickingPayment(false)} variant="picker">
       <div className="picker-body">
@@ -1329,7 +1302,6 @@ export default function ItemDetail({
       {paymentModal}
       {checkoutModal}
       {stayCutModal}
-      {staySourceModal}
 
       <div className="topbar detail-head">
         <button
@@ -1541,18 +1513,13 @@ export default function ItemDetail({
                 {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
               </div>
               {/*
-                * 住宿的兩顆動作藏在編輯狀態的最底下：一趟旅程只按一次，
-                * 一直擺在外面會佔著每一筆住宿的版面。已經連住或已經同步的看不到它們。
+                * 「新增連住」藏在編輯狀態的最底下：一趟旅程只按一次，
+                * 一直擺在外面會佔著每一筆住宿的版面。已經連住或已經同步的看不到它。
                 * 這裡讀的是已儲存的那一筆，草稿裡還沒存的標題會在儲存時才傳播下去。
                 */}
               {isStay && !mirrored && stayOwnNights.length === 0 && (
                 <div className="detail-stay-buttons">
                   <button className="btn btn-sm" onClick={openCheckout}>新增連住</button>
-                  {sourceOptions.length > 0 && (
-                    <button className="btn btn-sm" onClick={() => setPickingStaySource(true)}>
-                      同步自其他住宿
-                    </button>
-                  )}
                 </div>
               )}
             </div>
@@ -1993,8 +1960,33 @@ export default function ItemDetail({
               </button>
               {linkLookupError && <p className="dim link-lookup-error">{linkLookupError}</p>}
             </>
-          ) : webLinks.length > 0 ? (
+          ) : webLinks.length > 0 || jumpTarget ? (
             <div className="detail-link-list">
+              {/*
+                * 「前往住宿」是算出來的，不是 links 裡的一筆 —— 排在最上面（最常按的入口，
+                * 也跟底下真的存下來的連結分開），而且**編輯時整列不出現**：
+                * 它沒有網址可編，混進去還會讓拖曳排序的 index 對照錯位
+                * （linkSort 是「依序填回原本屬於 web 的位置」）。
+                * 圖示刻意不是鎖鏈：一樣的圖示會讓人以為要開瀏覽器，這一顆是 App 內換一筆。
+                */}
+              {jumpTarget && (
+                <div className="detail-link-card">
+                  <div className="detail-link-content">
+                    <span className="detail-link-icon"><BedIcon size={15} /></span>
+                    <span className="detail-link-label">{jumpTarget.title || '未命名行程'}</span>
+                  </div>
+                  <button
+                    className="btn btn-sm detail-link-external"
+                    /* 這一區未編輯時整塊是 role="button"，不擋冒泡會連帶進入編輯。 */
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onJump(jumpTarget.id)
+                    }}
+                  >
+                    前往住宿
+                  </button>
+                </div>
+              )}
               {webLinks.map((link) => (
                 <div key={link.id} className="detail-link-card">
                   <div className="detail-link-content">
