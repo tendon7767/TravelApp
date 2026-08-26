@@ -8,7 +8,7 @@ import { newId } from './id'
  */
 interface PresetBody {
   /** null 代表「這個項目不要帶費用」，沒寫則沿用類型層級的設定。 */
-  預設費用?: { 項目: string; 單位?: string } | null
+  預設費用?: { 項目: string } | null
   /** 只寫字串就是一般備註；要直接出現在行程列上的寫成 { 文字, 總覽 }。 */
   預設備註?: (string | { 文字: string; 總覽?: boolean })[]
   /** 一行一個元素，帶入時接成一段純文字。null 代表這個項目不要帶說明。 */
@@ -82,6 +82,13 @@ export const quickItemsFor = (category: ItineraryCategory): QuickItem[] => {
     preset: readBody(quick, base),
   }))
 }
+
+/**
+ * 依標題挑出某個快選。新增旅程的每日骨架靠它沿用同一份預設值，
+ * 不必為「自動建的」再寫一份會跟快選漂移的骨架。
+ */
+export const quickItemBy = (category: ItineraryCategory, title: string): QuickItem | undefined =>
+  quickItemsFor(category).find((quick) => quick.title === title)
 
 /** 子項少於兩個就不值得多跳一層選單，點類型直接建立。 */
 export const needsSecondLevel = (category: ItineraryCategory): boolean =>

@@ -15,7 +15,8 @@ import {
 } from '../types'
 import { newId } from '../lib/id'
 import { addDays, dayCount, eachDay, todayISO } from '../lib/date'
-import { DAY_TEMPLATE } from '../lib/dayTemplate'
+import { templateRowsFor } from '../lib/dayTemplate'
+import { applyTemplate, quickItemBy } from '../lib/presets'
 import {
   DEFAULT_PACKING,
   defaultSettings,
@@ -305,18 +306,24 @@ export const useStore = create<State>((setState, getState) => {
     createTrip: (input) => {
       const trip: Trip = { ...input, ...stamp() }
       const plan: Plan = { ...stamp(), tripId: trip.id, name: '規劃版', kind: 'planning' }
-      const dailyItems = eachDay(trip.startDate, trip.endDate).flatMap((date) =>
-        DAY_TEMPLATE.map<Item>((row) => ({
-          ...stamp(),
-          planId: plan.id,
-          date,
-          startTime: row.time,
-          title: row.title,
-          category: row.cat,
-          notes: [],
-          links: [],
-          costs: [],
-        })),
+      const days = eachDay(trip.startDate, trip.endDate)
+      const dailyItems = days.flatMap((date, dayIndex) =>
+        templateRowsFor(dayIndex === 0, dayIndex === days.length - 1).map<Item>((row) => {
+          const base: Item = {
+            ...stamp(),
+            planId: plan.id,
+            date,
+            startTime: row.time,
+            title: row.title,
+            category: row.cat,
+            notes: [],
+            links: [],
+            costs: [],
+          }
+          // 標了 quick 的那幾筆沿用同一顆快選的預設值，手動補建與自動建出來的才會長一樣。
+          const preset = row.cat && row.quick ? quickItemBy(row.cat, row.quick)?.preset : undefined
+          return preset ? { ...base, ...applyTemplate(base, preset, trip).patch } : base
+        }),
       )
       // 每趟都要打包，與其讓使用者每次從零開始，不如直接帶上次存的範本。
       const packing: Note = {
