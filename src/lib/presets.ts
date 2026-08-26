@@ -1,5 +1,5 @@
 import presets from '../data/itineraryPresets.json'
-import type { CostLine, ItemNote, ItineraryCategory, Trip } from '../types'
+import type { CostGroup, ItemCostLine, ItemNote, ItineraryCategory, Trip } from '../types'
 import { newId } from './id'
 
 /**
@@ -103,7 +103,7 @@ export type TemplateSection = 'costs' | 'notes' | 'guide'
 
 export interface TemplateResult {
   /** 只包含真的要補的欄位；沒東西可補時是空物件。 */
-  patch: { costs?: CostLine[]; notes?: ItemNote[]; guide?: string }
+  patch: { costs?: ItemCostLine[]; costGroups?: CostGroup[]; notes?: ItemNote[]; guide?: string }
   opened: TemplateSection[]
 }
 
@@ -112,7 +112,7 @@ export interface TemplateResult {
  * 純函式，詳細頁改類型與列表快選共用同一套規則，差別只在傳進來的 preset。
  */
 export const applyTemplate = (
-  item: { costs: CostLine[]; notes: ItemNote[]; guide?: string },
+  item: { costs: ItemCostLine[]; costGroups: CostGroup[]; notes: ItemNote[]; guide?: string },
   preset: Preset,
   trip: Pick<Trip, 'foreignCurrency'>,
 ): TemplateResult => {
@@ -120,9 +120,12 @@ export const applyTemplate = (
   const opened: TemplateSection[] = []
 
   if (preset.cost && item.costs.length === 0) {
+    const groupId = newId()
+    patch.costGroups = [{ id: groupId }]
     patch.costs = [
       {
         id: newId(),
+        groupId,
         label: preset.cost.label,
         unitPrice: 0,
         qty: 1,

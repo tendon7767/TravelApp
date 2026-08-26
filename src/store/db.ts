@@ -2,6 +2,7 @@ import { get, set } from 'idb-keyval'
 import { emptyData, type AppData, type Item, type Review } from '../types'
 import { normalizeStoredDate, normalizeStoredTime } from '../lib/date'
 import { normalizeItemNotes } from '../lib/itemNotes'
+import { normalizeItemCostGroups } from '../lib/costGroups'
 
 const DATA_KEY = 'travelapp:data'
 const SETTINGS_KEY = 'travelapp:settings'
@@ -46,6 +47,10 @@ export interface Settings {
   inviteApiVersion?: number
   /** 後端宣告的地點分析版本；未支援時 AI 按鈕會說要重新部署。 */
   aiApiVersion?: number
+  /** 後端宣告的費用群組版本；舊後端會靜默漏掉群組與支付方式。 */
+  costGroupApiVersion?: number
+  /** 後端宣告的收據影像分析版本；與地點分析分開部署與偵測。 */
+  receiptAiApiVersion?: number
 }
 
 export interface TripLinkState {
@@ -94,13 +99,13 @@ const migrateItem = (value: AppData['items'][number]): AppData['items'][number] 
         return next
       })
     : item.costs
-  return {
+  return normalizeItemCostGroups({
     ...item,
     costs,
     date: normalizeStoredDate(item.date) ?? item.date,
     startTime: normalizeStoredTime(item.startTime) ?? item.startTime,
     notes: normalizeItemNotes(item.notes, String(item.id)),
-  } as AppData['items'][number]
+  } as AppData['items'][number])
 }
 
 /**

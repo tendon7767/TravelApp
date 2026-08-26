@@ -29,6 +29,7 @@ import {
 } from './db'
 import {
   buildInviteLink,
+  analyzeRemoteReceipt,
   createRemoteTrip,
   describePlace,
   fetchFolderInfo,
@@ -43,6 +44,7 @@ import {
 } from '../sync/client'
 import { collectTripRecords } from '../sync/collect'
 import { copyItemSnapshot } from '../lib/items'
+import { duplicateItemCosts } from '../lib/costGroups'
 import { followersOf, mirrorPatch, nightsBetween, stayNightsOf, touchesMirrored } from '../lib/stay'
 import {
   appendCautions,
@@ -54,7 +56,15 @@ import {
   PLACE_TOOLS,
 } from '../lib/placeInfo'
 import placePrompt from '../data/placePrompt.md?raw'
-import type { ProcessedPhoto } from '../photos/process'
+import receiptPrompt from '../data/receiptPrompt.md?raw'
+import { processPhoto, type ProcessedPhoto } from '../photos/process'
+import {
+  buildReceiptAnalysisInput,
+  parseReceiptData,
+  RECEIPT_MODEL,
+  RECEIPT_SCHEMA,
+  type ReceiptClipboardCost,
+} from '../lib/receiptClipboard'
 import {
   cacheThumbnail,
   loadPendingPhotos,
@@ -84,12 +94,21 @@ export interface AiState {
   errors: Record<string, string>
 }
 
+/** 相機收據分析與地點分析生命週期不同，不能共用 pending key 與 flight。 */
+export interface ReceiptState {
+  pending: string[]
+  errors: Record<string, string>
+  /** 分析完成後先留在 store；詳細頁回來時才把它加入現有費用草稿。 */
+  results: Record<string, ReceiptClipboardCost>
+}
+
 interface State {
   data: AppData
   settings: Settings
   ready: boolean
   sync: SyncState
   ai: AiState
+  receipt: ReceiptState
   /**
    * 只在本機編輯時遞增，同步拉回來的資料不算。
    * 介面靠它判斷「有東西該推上去了」，而不會被自己拉回來的更新再觸發一次同步而無限循環。
@@ -138,6 +157,10 @@ interface State {
   analyzePlace: (itemId: string) => Promise<void>
   /** 看過失敗訊息了，從浮標的計數移除。 */
   dismissAiError: (itemId: string) => void
+  /** 拍照後分析收據；圖片只送 Gemini，不加入照片佇列。 */
+  analyzeReceipt: (itemId: string, file: File) => Promise<void>
+  consumeReceiptResult: (itemId: string) => void
+  discardReceiptAnalysis: (itemId: string) => void
 
   queuePhoto: (tripId: string, itemId: string, photo: ProcessedPhoto) => Promise<void>
   retryPhoto: (id: string) => void
@@ -181,6 +204,9 @@ const syncVersions = new Map<string, number>()
 const photoUploadFlights = new Map<string, Promise<void>>()
 /** 同一筆同時只跑一次分析；離開詳細頁不影響它，fetch 本來就跟 React 無關。 */
 const aiFlights = new Map<string, Promise<void>>()
+const receiptFlights = new Map<string, Promise<void>>()
+const receiptVersions = new Map<string, number>()
+const receiptControllers = new Map<string, AbortController>()
 /** 開了搜尋之後一次要跑十幾二十秒，30 秒會把還在查的請求砍掉。 */
 const AI_TIMEOUT_MS = 60_000
 
@@ -220,6 +246,7 @@ export const useStore = create<State>((setState, getState) => {
     ready: false,
     sync: { busy: false, overwritten: [] },
     ai: { pending: [], errors: {} },
+    receipt: { pending: [], errors: {}, results: {} },
     localRev: 0,
     pendingPhotos: [],
 
@@ -238,6 +265,8 @@ export const useStore = create<State>((setState, getState) => {
             photoApiVersion: pong.capabilities?.photos,
             inviteApiVersion: pong.capabilities?.invite,
             aiApiVersion: pong.capabilities?.ai,
+            costGroupApiVersion: pong.capabilities?.costGroups,
+            receiptAiApiVersion: pong.capabilities?.receiptAi,
           }
           await saveSettings(settings)
         } catch {
@@ -319,6 +348,7 @@ export const useStore = create<State>((setState, getState) => {
             notes: [],
             links: [],
             costs: [],
+            costGroups: [],
           }
           // 標了 quick 的那幾筆沿用同一顆快選的預設值，手動補建與自動建出來的才會長一樣。
           const preset = row.cat && row.quick ? quickItemBy(row.cat, row.quick)?.preset : undefined
@@ -418,7 +448,7 @@ export const useStore = create<State>((setState, getState) => {
         updatedBy: getState().settings.memberName,
         notes: i.notes.map((n) => ({ ...n, id: newId() })),
         links: i.links.map((l) => ({ ...l, id: newId() })),
-        costs: i.costs.map((c) => ({ ...c, id: newId() })),
+        ...duplicateItemCosts(i.costs, i.costGroups),
       }))
 
       mutate((d) => ({ ...d, plans: [...d.plans, plan], items: [...d.items, ...copies] }))
@@ -459,7 +489,7 @@ export const useStore = create<State>((setState, getState) => {
       }),
 
     createItem: (input) => {
-      const item: Item = { notes: [], links: [], costs: [], ...input, ...stamp() }
+      const item: Item = { notes: [], links: [], costs: [], costGroups: [], ...input, ...stamp() }
       mutate((d) => ({ ...d, items: [...d.items, item] }))
       return item
     },
@@ -487,7 +517,7 @@ export const useStore = create<State>((setState, getState) => {
         stayNight: undefined,
         notes: snapshot.notes.map((note) => ({ ...note, id: newId() })),
         links: snapshot.links.map((link) => ({ ...link, id: newId() })),
-        costs: snapshot.costs.map((cost) => ({ ...cost, id: newId() })),
+        ...duplicateItemCosts(snapshot.costs, snapshot.costGroups),
       }
       mutate((d) => ({ ...d, items: [...d.items, item] }))
       return item
@@ -553,6 +583,7 @@ export const useStore = create<State>((setState, getState) => {
           startTime: undefined,
           category: source.category,
           costs: [],
+          costGroups: [],
           ...mirrorPatch(source),
           sourceItemId: sourceId,
           stayNight: true,
@@ -648,6 +679,142 @@ export const useStore = create<State>((setState, getState) => {
         if (aiFlights.get(itemId) === flight) aiFlights.delete(itemId)
       })
       return flight
+    },
+
+    analyzeReceipt: (itemId, file) => {
+      const existing = receiptFlights.get(itemId)
+      if (existing) return existing
+
+      const version = (receiptVersions.get(itemId) ?? 0) + 1
+      receiptVersions.set(itemId, version)
+      const current = getState().receipt
+      const errors = { ...current.errors }
+      const results = { ...current.results }
+      delete errors[itemId]
+      delete results[itemId]
+      setState({ receipt: { ...current, errors, results } })
+
+      const currentVersion = () => receiptVersions.get(itemId) === version
+      const setPending = (on: boolean) => {
+        if (!currentVersion()) return
+        const receipt = getState().receipt
+        const pending = on
+          ? [...receipt.pending.filter((id) => id !== itemId), itemId]
+          : receipt.pending.filter((id) => id !== itemId)
+        setState({ receipt: { ...receipt, pending } })
+      }
+      const fail = (message: string) => {
+        if (!currentVersion()) return
+        const receipt = getState().receipt
+        setState({ receipt: { ...receipt, errors: { ...receipt.errors, [itemId]: message } } })
+      }
+
+      const flight = (async () => {
+        const { data, settings } = getState()
+        const item = data.items.find((row) => row.id === itemId && !row.deleted)
+        const plan = data.plans.find((row) => row.id === item?.planId && !row.deleted)
+        const trip = data.trips.find((row) => row.id === plan?.tripId && !row.deleted)
+        const link = trip ? settings.tripLinks?.[trip.id] : undefined
+
+        if (!item || !trip || !link || !settings.gasUrl) {
+          fail('這趟旅程還沒接上同步，沒辦法分析收據。')
+          return
+        }
+        if ((settings.receiptAiApiVersion ?? 0) < 1) {
+          fail('請先重新部署支援收據分析的 Apps Script。')
+          return
+        }
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          fail('目前離線，無法分析收據。')
+          return
+        }
+
+        setPending(true)
+        let abort: AbortController | undefined
+        let timer: ReturnType<typeof setTimeout> | undefined
+        try {
+          const processed = await processPhoto(file, 'receipt')
+          if (!currentVersion()) return
+
+          abort = new AbortController()
+          receiptControllers.set(itemId, abort)
+          timer = setTimeout(() => abort?.abort(), AI_TIMEOUT_MS)
+          const { receipt } = await analyzeRemoteReceipt(
+            settings.gasUrl,
+            link,
+            {
+              prompt: receiptPrompt,
+              input: buildReceiptAnalysisInput(trip.foreignCurrency, trip.homeCurrency),
+              schema: RECEIPT_SCHEMA,
+              model: RECEIPT_MODEL,
+            },
+            processed.fullBlob,
+            abort.signal,
+          )
+          if (!currentVersion()) return
+
+          const parsed = parseReceiptData(receipt)
+          const supported = [trip.foreignCurrency, trip.homeCurrency]
+          if (!supported.some((code) => code.toUpperCase() === parsed.currency)) {
+            throw new Error(
+              `收據辨識出的幣別是 ${parsed.currency}；這趟只能使用 ${[...new Set(supported)].join(' / ')}。`,
+            )
+          }
+          const state = getState().receipt
+          const nextErrors = { ...state.errors }
+          delete nextErrors[itemId]
+          setState({
+            receipt: {
+              ...state,
+              errors: nextErrors,
+              results: { ...state.results, [itemId]: parsed },
+            },
+          })
+        } catch (error) {
+          fail(
+            abort?.signal.aborted
+              ? '收據分析等太久了，再拍一次。'
+              : error instanceof Error ? error.message : '收據分析失敗。',
+          )
+        } finally {
+          if (timer) clearTimeout(timer)
+          if (receiptControllers.get(itemId) === abort) receiptControllers.delete(itemId)
+          setPending(false)
+        }
+      })()
+
+      receiptFlights.set(itemId, flight)
+      void flight.finally(() => {
+        if (receiptFlights.get(itemId) === flight) receiptFlights.delete(itemId)
+      })
+      return flight
+    },
+
+    consumeReceiptResult: (itemId) => {
+      const receipt = getState().receipt
+      if (!receipt.results[itemId]) return
+      const results = { ...receipt.results }
+      delete results[itemId]
+      setState({ receipt: { ...receipt, results } })
+    },
+
+    discardReceiptAnalysis: (itemId) => {
+      receiptVersions.set(itemId, (receiptVersions.get(itemId) ?? 0) + 1)
+      receiptControllers.get(itemId)?.abort()
+      receiptControllers.delete(itemId)
+      receiptFlights.delete(itemId)
+      const receipt = getState().receipt
+      const errors = { ...receipt.errors }
+      const results = { ...receipt.results }
+      delete errors[itemId]
+      delete results[itemId]
+      setState({
+        receipt: {
+          pending: receipt.pending.filter((id) => id !== itemId),
+          errors,
+          results,
+        },
+      })
     },
 
     /** 軟刪除：墓碑是 M4 同步用的，刪除前由介面負責跟使用者確認。 */
@@ -846,6 +1013,8 @@ export const useStore = create<State>((setState, getState) => {
         photoApiVersion: pong?.capabilities?.photos,
         inviteApiVersion: pong?.capabilities?.invite,
         aiApiVersion: pong?.capabilities?.ai,
+        costGroupApiVersion: pong?.capabilities?.costGroups,
+        receiptAiApiVersion: pong?.capabilities?.receiptAi,
       }
       setState({ settings })
       await saveSettings(settings)
@@ -899,6 +1068,8 @@ export const useStore = create<State>((setState, getState) => {
         gasUrl,
         photoApiVersion: pong.capabilities?.photos,
         inviteApiVersion: pong.capabilities?.invite,
+        costGroupApiVersion: pong.capabilities?.costGroups,
+        receiptAiApiVersion: pong.capabilities?.receiptAi,
         tripLinks: { ...getState().settings.tripLinks, [tripId]: link },
       }
       setState({ data: merged.data, settings })
@@ -941,6 +1112,15 @@ export const useStore = create<State>((setState, getState) => {
           const hasUnsupportedPhotoChanges =
             (settings.photoApiVersion ?? 0) < 1 && Boolean(outgoing.photos?.length)
           if (hasUnsupportedPhotoChanges) delete outgoing.photos
+          const hasUnsupportedCostGroupChanges =
+            (settings.costGroupApiVersion ?? 0) < 1 &&
+            Boolean(
+              (outgoing.items as Item[] | undefined)?.some(
+                (outgoingItem) => outgoingItem.costGroups.length > 0,
+              ),
+            )
+          // 舊後端會接受整筆 item 卻漏掉 costGroups；不送比假裝成功安全，部署後再補送。
+          if (hasUnsupportedCostGroupChanges) delete outgoing.items
           const hasOutgoing = Object.values(outgoing).some((rows) => rows && rows.length)
           const pushResult = hasOutgoing
             ? await pushRemote(settings.gasUrl, link, outgoing)
@@ -980,7 +1160,10 @@ export const useStore = create<State>((setState, getState) => {
             inviteBackupUrl,
             lastSyncAt,
             // 舊後端會靜默忽略未知的 photos 集合；保留游標才能在重新部署後補送墓碑。
-            lastPushedAt: hasUnsupportedPhotoChanges ? link.lastPushedAt : pushedAt,
+            lastPushedAt:
+              hasUnsupportedPhotoChanges || hasUnsupportedCostGroupChanges
+                ? link.lastPushedAt
+                : pushedAt,
           }
           const nextSettings = {
             ...getState().settings,
@@ -990,6 +1173,9 @@ export const useStore = create<State>((setState, getState) => {
             settings: nextSettings,
             sync: {
               busy: false,
+              error: hasUnsupportedCostGroupChanges
+                ? '消費資料尚未同步：請重新部署最新版 Apps Script'
+                : undefined,
               lastAt: Date.now(),
               overwritten: overwritten.map((o) => ({ id: o.id, by: o.by })),
             },

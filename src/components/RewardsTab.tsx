@@ -318,9 +318,9 @@ function MethodCard({
             {res.txns.length === 0 && (
               <p className="dim" style={{ fontSize: 12, margin: '10px 0 0' }}>這張卡還沒有紀錄。</p>
             )}
-            {res.txns.map(({ item, amount }) => (
+            {res.txns.map(({ item, groupId, groupLabel, amount }) => (
               <button
-                key={item.id}
+                key={`${item.id}:${groupId}`}
                 className="txn-row"
                 onClick={() => {
                   setDetailOpen(false)
@@ -328,7 +328,9 @@ function MethodCard({
                 }}
               >
                 <span className="dim mono">{shortDate(item.date)}</span>
-                <span className="dim txn-title">{item.title}</span>
+                <span className="dim txn-title">
+                  {item.title}{groupLabel?.trim() ? ` · ${groupLabel.trim()}` : ''}
+                </span>
                 <span className="mono">{formatMoney(amount, cur)}</span>
               </button>
             ))}

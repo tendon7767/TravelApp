@@ -14,7 +14,7 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-26-stay-night'
+var BACKEND_VERSION = '2026-08-27-receipt-ai'
 
 /** 邀請連結備份的分頁名稱。不在 SCHEMA 裡，pull/push 都不會碰到它。 */
 var INVITE_SHEET = '邀請連結'
@@ -37,10 +37,10 @@ var SCHEMA = {
   items: {
     fields: [
       'id', 'planId', 'date', 'startTime', 'title', 'guide',
-      'notes', 'links', 'costs',
+      'notes', 'links', 'costs', 'costGroups',
       'category', 'paymentMethodId', 'sourceItemId', 'stayNight',
     ],
-    json: ['notes', 'links', 'costs'],
+    json: ['notes', 'links', 'costs', 'costGroups'],
     dates: ['date'],
     times: ['startTime'],
   },
@@ -204,11 +204,13 @@ function doPost(e) {
         return json(uploadPhoto(body))
       case 'describePlace':
         return json(describePlace(body))
+      case 'analyzeReceipt':
+        return json(analyzeReceipt(body))
       case 'ping':
         return json({
           ok: true,
           version: BACKEND_VERSION,
-          capabilities: { photos: 1, invite: 1, ai: 1 },
+          capabilities: { photos: 1, invite: 1, ai: 1, costGroups: 1, receiptAi: 1 },
         })
       default:
         return json({ error: 'unknown action' })
@@ -761,6 +763,7 @@ function usablePageTitle(value) {
  * 金鑰放指令碼屬性（專案設定 → 指令碼屬性），不寫進這份檔案：
  *   GEMINI_API_KEY   必填，去 aistudio.google.com 申請，免費層不必綁信用卡
  *   GEMINI_MODEL     選填，緊急時可以在這裡蓋過前端送來的模型，不必 push
+ *   GEMINI_RECEIPT_MODEL 選填，只蓋收據分析模型；留空就用前端指定的 Lite
  *
  * prompt、輸出 schema、模型與工具都由前端隨請求送上來，這裡只負責轉發 ——
  * 那三樣是會反覆調整的東西，留在後端的話每改一次都要走完整的部署流程，
@@ -771,6 +774,7 @@ function usablePageTitle(value) {
  */
 var GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions'
 var GEMINI_DEFAULT_MODEL = 'gemini-3.7-flash'
+var GEMINI_RECEIPT_DEFAULT_MODEL = 'gemini-3.5-flash-lite'
 
 /** 前端沒送 schema 時的備援（例如同行者的瀏覽器還是舊的快取版本）。 */
 var PLACE_SCHEMA = {
@@ -789,6 +793,29 @@ var PLACE_SCHEMA = {
     'summary', 'highlights', 'bestfoods', 'bestgoods',
     'stayMinutes', 'timing', 'nearby', 'cautions',
   ],
+}
+
+/** 收據分析的前端 schema 沒送到時仍要維持相同輸出，不能退回自由文字。 */
+var RECEIPT_SCHEMA = {
+  type: 'object',
+  properties: {
+    label: { type: 'string' },
+    currency: { type: 'string' },
+    receiptTotal: { type: 'number' },
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          label: { type: 'string' },
+          unitPrice: { type: 'number' },
+          qty: { type: 'number' },
+        },
+        required: ['label', 'unitPrice', 'qty'],
+      },
+    },
+  },
+  required: ['label', 'currency', 'receiptTotal', 'items'],
 }
 
 function describePlace(body) {
@@ -836,6 +863,67 @@ function describePlace(body) {
   var place = parsePlaceJson(output)
   if (!place) return { error: '分析結果的格式不對' }
   return { ok: true, place: place }
+}
+
+/**
+ * 收據影像分析。圖片由前端壓成 JPEG 後直接送進這次請求，不寫入 Drive。
+ * GEMINI_RECEIPT_MODEL 與地點分析分開，避免既有的 GEMINI_MODEL 把 OCR 拉去昂貴模型。
+ */
+function analyzeReceipt(body) {
+  openChecked(body)
+  var image = body.image || {}
+  var imageData = String(image.data || '')
+  if (!body.prompt || !body.input || image.mimeType !== 'image/jpeg' || !imageData) {
+    return { error: 'bad request' }
+  }
+  if (imageData.length > 1500000) return { error: '收據圖片太大' }
+
+  var props = PropertiesService.getScriptProperties()
+  var key = props.getProperty('GEMINI_API_KEY')
+  if (!key) return { error: '後端沒有設定 GEMINI_API_KEY' }
+
+  var res = UrlFetchApp.fetch(GEMINI_ENDPOINT, {
+    method: 'post',
+    contentType: 'application/json',
+    muteHttpExceptions: true,
+    headers: { 'x-goog-api-key': key },
+    payload: JSON.stringify({
+      model:
+        props.getProperty('GEMINI_RECEIPT_MODEL') ||
+        body.model ||
+        GEMINI_RECEIPT_DEFAULT_MODEL,
+      system_instruction: String(body.prompt).slice(0, 8000),
+      input: [
+        { type: 'image', mime_type: 'image/jpeg', data: imageData },
+        { type: 'text', text: String(body.input).slice(0, 8000) },
+      ],
+      response_format: {
+        type: 'text',
+        mime_type: 'application/json',
+        schema: body.schema || RECEIPT_SCHEMA,
+      },
+      generation_config: { thinking_level: 'minimal', max_output_tokens: 4096 },
+      // 收據可能含有個人消費資訊；這次不需要延續對話，不留互動記錄。
+      store: false,
+    }),
+  })
+
+  var code = res.getResponseCode()
+  var text = res.getContentText()
+  if (code < 200 || code >= 300) return { error: geminiError(code, text) }
+
+  var payload
+  try {
+    payload = JSON.parse(text)
+  } catch (err) {
+    return { error: 'Gemini 的回應不是 JSON' }
+  }
+
+  var output = interactionText(payload)
+  if (!output) return { error: 'Gemini 沒有回傳內容' }
+  var receipt = parsePlaceJson(output)
+  if (!receipt) return { error: '收據分析結果的格式不對' }
+  return { ok: true, receipt: receipt }
 }
 
 /**

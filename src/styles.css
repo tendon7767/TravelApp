@@ -1466,6 +1466,18 @@ body[data-actual='true'] {
 .detail-note-edit-row { align-items: center; margin-bottom: 6px; }
 .detail-note-edit-row .field { flex: 1; min-width: 0; }
 .detail-add-row { margin-top: 4px; }
+.detail-cost-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cost-paste-error {
+  margin: 7px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
 
 .detail-cost-summary {
   display: flex;
@@ -1480,6 +1492,15 @@ body[data-actual='true'] {
 }
 
 .detail-cost-summary strong { color: var(--text); font-size: 14px; }
+.detail-cost-sync-warning {
+  margin: 0 0 8px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
 
 /*
  * 格線開在清單上、每一列用 display: contents，欄位才會跨列對齊。
@@ -1524,25 +1545,52 @@ body[data-actual='true'] {
   border-top: 0.5px solid var(--border);
 }
 
-.detail-payment-section .detail-section-head { margin-bottom: 0; }
-.detail-payment-value {
-  max-width: 60%;
-  margin-left: auto;
-  overflow: hidden;
-  color: var(--accent);
-  font-size: 14px;
-  font-weight: 600;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.detail-payment-value[data-empty='true'] {
-  font-size: 13px;
-}
-.detail-payment-section { transition: background 100ms ease; }
-.detail-payment-section.detail-section-clickable:active { background: var(--surface-2); }
-
 .detail-total-row { font-size: 13px; }
+
+.detail-cost-groups { display: grid; gap: 10px; }
+.detail-cost-group {
+  padding: 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
+}
+.detail-cost-group-head,
+.detail-cost-group-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.detail-cost-group-head {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.detail-cost-group-head > :first-child { min-width: 0; }
+.detail-cost-group-payment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  height: 30px;
+  max-width: 55%;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.detail-cost-group .detail-cost-list {
+  margin: 6px 0 4px;
+  padding: 0;
+  background: transparent;
+}
+.detail-cost-group-total {
+  padding-top: 7px;
+  border-top: 0.5px solid var(--border);
+  color: var(--text-2);
+  font-size: 12px;
+}
 
 /*
  * picker 彈窗的內容：單頁、依持有者分區。
@@ -2157,17 +2205,65 @@ body[data-actual='true'] {
   .album-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 
-/* 每筆費用是獨立卡片，避免連續的數字輸入欄看起來像同一筆資料。 */
+/* 一張消費卡就是一次交易；支付方式與小計都只屬於這張卡。 */
+.costgroup {
+  margin-bottom: 10px;
+  padding: 8px;
+  border: 1px solid var(--border-2);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
+}
+
+.costgroup-head {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) minmax(80px, 34.5%) 36px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+
+.costgroup-label { min-width: 0; }
+.costgroup-payment {
+  min-width: 0;
+  height: 36px;
+  padding: 0 8px;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.costgroup-add-row { margin-top: 0; }
+.costgroup-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 0.5px solid var(--border);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.cost-import-warning {
+  margin: 7px 0 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* 每個品項仍是獨立內層卡片，避免連續的數字輸入欄看起來像同一筆資料。 */
 .costline {
   display: flex;
   align-items: center;
   gap: 7px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
-  padding: 10px;
+  margin-bottom: 8px;
+  padding: 7px;
   border: 1px solid var(--border-2);
   border-radius: 10px;
-  background: var(--surface-2);
+  background: var(--surface);
 }
 
 .costline-head {
@@ -2178,18 +2274,48 @@ body[data-actual='true'] {
 }
 
 .costline-head .cl-label { flex: 1; min-width: 0; }
-.costline .cl-price { width: 76px; }
-.costline .cl-qty { width: 52px; }
-.costline .cl-sub { flex: 1; text-align: right; font-size: 12px; }
+.costline .cl-price { width: 88px; }
+.costline .cl-qty { width: 36px; }
+.costline .cl-sub { flex: 1; text-align: right; font-size: 13px; }
+
+/* 費用編輯會連續出現很多欄位，只在這一區縮成 36px，不動全站表單尺寸。 */
+.costgroup .field {
+  height: 36px;
+  padding: 5px 8px;
+  font-size: 14px;
+}
+.costgroup .delete-icon-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+}
+.costgroup .delete-icon-btn::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+}
+.costline .seg {
+  flex: none;
+  width: 72px;
+  height: 36px;
+}
+.costline .seg-btn-sm {
+  flex: 1;
+  justify-content: center;
+  width: 36px;
+  padding: 0;
+}
 
 /*
  * 手機上的費用卡採緊湊雙列：第一列只放名稱與刪除，第二列依序放
  * 單價、數量、幣別與小計。桌機仍保留原本較寬鬆、可換行的排列。
  */
 @media (max-width: 619px) {
+  .costgroup { padding: 7px; border-radius: 9px; }
+
   .costline {
     display: grid;
-    grid-template-columns: minmax(54px, 1fr) auto 44px auto minmax(44px, auto);
+    grid-template-columns: 88px auto 36px 72px minmax(56px, 1fr);
     align-items: stretch;
     gap: 6px;
     margin-bottom: 8px;
@@ -2211,13 +2337,13 @@ body[data-actual='true'] {
     align-self: center;
   }
 
-  .costline .cl-qty { width: 44px; }
-  .costline .seg-btn-sm { padding: 0 6px; font-size: 11px; }
+  .costline .cl-qty { width: 36px; }
+  .costline .seg-btn-sm { font-size: 11px; }
   .costline .cl-sub {
     align-self: center;
     min-width: 0;
     white-space: nowrap;
-    font-size: 11px;
+    font-size: 13px;
   }
 }
 
@@ -2318,7 +2444,8 @@ body[data-actual='true'] {
 .link-icon-btn > svg { width: 19px; height: 19px; }
 
 @media (min-width: 620px) {
-  .costline .cl-sub { flex: none; width: 78px; }
+  .costline .cl-sub { flex: 1 1 0; }
+  .costline .cl-sub { min-width: 78px; width: auto; }
 }
 
 /* 手機版詳細頁是蓋在上面的固定層，開著時鎖住底下的頁面捲動，

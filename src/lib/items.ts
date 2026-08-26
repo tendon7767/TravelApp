@@ -1,15 +1,20 @@
 import { timeSortKey } from './date'
 import type { Item } from '../types'
+import { normalizeItemCostGroups } from './costGroups'
 
 /** 建立與 store 脫鉤的行程快照，避免草稿或複製緩衝區共用巢狀物件。 */
 export const copyItemSnapshot = (item?: Item): Item | undefined =>
   item
-    ? {
-        ...item,
-        notes: item.notes.map((note) => ({ ...note })),
-        links: item.links.map((link) => ({ ...link })),
-        costs: item.costs.map((cost) => ({ ...cost })),
-      }
+    ? (() => {
+        const normalized = normalizeItemCostGroups(item)
+        return {
+          ...normalized,
+          notes: normalized.notes.map((note) => ({ ...note })),
+          links: normalized.links.map((link) => ({ ...link })),
+          costs: normalized.costs.map((cost) => ({ ...cost })),
+          costGroups: normalized.costGroups.map((group) => ({ ...group })),
+        }
+      })()
     : undefined
 
 /**

@@ -1,11 +1,15 @@
-import type { Item, PaymentMethod, RewardRule, Trip } from '../types'
-import { itemTotals } from './money'
+import type { CostLine, Item, PaymentMethod, RewardRule, Trip } from '../types'
+import { sumByCurrency } from './money'
 import { timeSortKey } from './date'
 
-/** 把一筆項目的金額換算成這張卡計算上限所用的幣別。 */
-export const amountInMethodCurrency = (item: Item, method: PaymentMethod, trip: Trip): number => {
+/** 把一個費用群組的金額換算成這張卡計算上限所用的幣別。 */
+export const amountInMethodCurrency = (
+  lines: CostLine[],
+  method: PaymentMethod,
+  trip: Trip,
+): number => {
   let sum = 0
-  for (const [cur, amt] of Object.entries(itemTotals(item))) {
+  for (const [cur, amt] of Object.entries(sumByCurrency(lines))) {
     if (cur === method.currency) sum += amt
     else if (cur === trip.homeCurrency) sum += amt / trip.rate
     else sum += amt * trip.rate
@@ -24,7 +28,8 @@ export interface RuleResult {
 
 export interface MethodResult {
   method: PaymentMethod
-  txns: { item: Item; amount: number }[]
+  /** 一個費用群組就是一筆交易；同一行程可在這裡出現多次。 */
+  txns: { item: Item; groupId: string; groupLabel?: string; amount: number }[]
   spend: number
   rules: RuleResult[]
   totalReward: number
@@ -95,13 +100,26 @@ export const computeMethod = (
   trip: Trip,
 ): MethodResult => {
   const txns = items
-    .filter((i) => i.paymentMethodId === method.id && !i.deleted)
+    .filter((i) => !i.deleted)
     .sort((a, b) =>
       a.date === b.date
         ? timeSortKey(a.startTime) - timeSortKey(b.startTime)
         : a.date.localeCompare(b.date),
     )
-    .map((item) => ({ item, amount: amountInMethodCurrency(item, method, trip) }))
+    .flatMap((item) =>
+      item.costGroups
+        .filter((group) => group.paymentMethodId === method.id)
+        .map((group) => ({
+          item,
+          groupId: group.id,
+          groupLabel: group.label,
+          amount: amountInMethodCurrency(
+            item.costs.filter((cost) => cost.groupId === group.id),
+            method,
+            trip,
+          ),
+        })),
+    )
     .filter((t) => t.amount > 0)
 
   const spend = txns.reduce((s, t) => s + t.amount, 0)

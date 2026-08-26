@@ -6,6 +6,12 @@ export type ItemDraftMode = 'section' | 'all'
 /** 行程說明分成手打與 AI 兩塊，點哪一塊就只編哪一塊。 */
 export type GuidePart = 'own' | 'ai'
 
+/** 剪貼簿匯入的收據總額，只跟著未儲存草稿走，不進 Item 與同步資料。 */
+export interface ReceiptDraftCheck {
+  currency: string
+  total: number
+}
+
 /**
  * 未送出的編輯內容存進 IndexedDB。
  * 草稿原本只活在 React 狀態裡，桌機有 beforeunload 攔得住，
@@ -28,6 +34,8 @@ export interface ItemDraft {
   mapDraft?: string
   /** 貼上那一刻拆出來的地名 —— 欄位只留網址，這個沒存下來就得回頭問後端。 */
   mapNameDraft?: string
+  /** 新增消費後持續核對品項加總；重新載入草稿時警告不能憑空消失。 */
+  receiptChecks?: Record<string, ReceiptDraftCheck>
   webDraft?: string
   /** 詳細資訊改成分區編輯後，要知道重新開啟時該還原哪一區。 */
   section?: ItemDraftSection

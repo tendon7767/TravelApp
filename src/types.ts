@@ -39,6 +39,20 @@ export interface CostLine {
   currency: string
 }
 
+/** 行程裡的費用列才需要群組；交通方案的試算 CostLine 不受影響。 */
+export interface ItemCostLine extends CostLine {
+  /** 所屬的費用群組；一個群組代表一次結帳／刷卡交易。 */
+  groupId: string
+}
+
+/** 一次結帳／刷卡交易。支付方式掛在群組上，同一筆行程才能拆成多種付款。 */
+export interface CostGroup {
+  id: string
+  /** 選填；例如「一樓化妝品」或「第一張收據」。 */
+  label?: string
+  paymentMethodId?: string
+}
+
 export interface LinkRef {
   id: string
   label: string
@@ -65,9 +79,11 @@ export interface Item extends SyncFields {
   /** 實務提醒，與遊玩說明分開 */
   notes: ItemNote[]
   links: LinkRef[]
-  costs: CostLine[]
+  costs: ItemCostLine[]
+  costGroups: CostGroup[]
   /** 行程本身的類型；沿用既有 category 儲存欄位，避免破壞舊試算表。 */
   category?: ItineraryCategory
+  /** 舊版整筆行程共用的支付方式；只供載入時搬進第一個費用群組。 */
   paymentMethodId?: string
   /**
    * 這筆的行程名稱、連結、說明、備註同步自哪一筆（連住的第一晚 / 入住那筆）。

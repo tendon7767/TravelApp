@@ -2,6 +2,7 @@ import type { AppData } from '../types'
 import type { PlaceInfo } from '../lib/placeInfo'
 import { normalizeStoredDate, normalizeStoredTime } from '../lib/date'
 import { normalizeItemNotes } from '../lib/itemNotes'
+import { normalizeItemCostGroups } from '../lib/costGroups'
 
 export interface SyncConfig {
   /** Apps Script 網頁應用程式網址，只部署一次，所有旅程共用 */
@@ -54,7 +55,13 @@ export const ping = (gasUrl: string) =>
   call<{
     ok: boolean
     version?: string
-    capabilities?: { photos?: number; invite?: number; ai?: number }
+    capabilities?: {
+      photos?: number
+      invite?: number
+      ai?: number
+      costGroups?: number
+      receiptAi?: number
+    }
   }>(gasUrl, { action: 'ping' })
 
 /**
@@ -193,6 +200,33 @@ export const describePlace = (
     signal,
   )
 
+export interface ReceiptRequest {
+  prompt: string
+  input: string
+  schema: unknown
+  model: string
+}
+
+/** 圖片只放進這次請求，不進照片上傳佇列，也不寫入 Drive。 */
+export const analyzeRemoteReceipt = async (
+  gasUrl: string,
+  link: TripLink,
+  request: ReceiptRequest,
+  image: Blob,
+  signal?: AbortSignal,
+) =>
+  call<{ ok: boolean; receipt: unknown }>(
+    gasUrl,
+    {
+      action: 'analyzeReceipt',
+      sheetId: link.sheetId,
+      secret: link.secret,
+      ...request,
+      image: { mimeType: 'image/jpeg', data: await blobToBase64(image) },
+    },
+    signal,
+  )
+
 export const newSecret = (): string =>
   Array.from(crypto.getRandomValues(new Uint8Array(12)))
     .map((b) => b.toString(16).padStart(2, '0'))
@@ -252,12 +286,12 @@ const normalizeRemoteRow = (
     delete normalized.paymentStatus
     delete normalized.chargeDate
     if (normalized.category === '娛樂') normalized.category = '活動'
-    return {
+    return normalizeItemCostGroups({
       ...normalized,
       date: normalizeStoredDate(row.date) ?? row.date,
       startTime: normalizeStoredTime(row.startTime) ?? row.startTime,
       notes: normalizeItemNotes(row.notes, String(row.id)),
-    }
+    } as unknown as AppData['items'][number]) as unknown as Record<string, unknown>
   }
   return normalized
 }

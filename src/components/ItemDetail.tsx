@@ -11,7 +11,8 @@ import {
 import { useStore } from '../store/useStore'
 import {
   ITINERARY_CATEGORIES,
-  type CostLine,
+  type CostGroup,
+  type ItemCostLine,
   type Item,
   type ItineraryCategory,
   type LinkRef,
@@ -34,6 +35,7 @@ import {
   type GuidePart,
   type ItemDraftMode,
   type ItemDraftSection,
+  type ReceiptDraftCheck,
 } from '../store/drafts'
 import CategoryIcon from './CategoryIcon'
 import TrashIcon from './TrashIcon'
@@ -52,7 +54,6 @@ import FlagIcon from './FlagIcon'
 import TagIcon from './TagIcon'
 import BookIcon from './BookIcon'
 import StickyNoteIcon from './StickyNoteIcon'
-import RewardsIcon from './RewardsIcon'
 import { fetchLinkMetadata } from '../sync/client'
 import { copyItemSnapshot } from '../lib/items'
 import { flightStatusUrl, hasFlightStatus } from '../lib/flight'
@@ -65,6 +66,8 @@ import PasteIcon from './PasteIcon'
 import SparkleIcon from './SparkleIcon'
 import { joinGuide, splitGuide } from '../lib/placeInfo'
 import { checkoutOf, followersOf, nightsBetween, stayJumpTarget, stayNightsOf } from '../lib/stay'
+import { cleanItemCosts } from '../lib/costGroups'
+import { parseReceiptClipboard, type ReceiptClipboardCost } from '../lib/receiptClipboard'
 
 interface Props {
   trip: Trip
@@ -94,7 +97,7 @@ const SECTION_LABELS: Record<ItemDraftSection, string> = {
 // 比對與儲存前一律濾掉。既有備註若被清空，也依同一規則移除。
 /*
  * 現金與其他不是支付方式記錄 —— 沒有回饋規則、不該出現在回饋頁 ——
- * 但仍然要能標在一筆花費上，所以借 paymentMethodId 存保留字。
+ * 但仍然要能標在一筆消費上，所以借 paymentMethodId 存保留字。
  * id 都由 newId() 產生不會撞到這兩個字；而且「找不到對應的支付方式就是沒有回饋」
  * 這個行為本來就成立（computeMethod 是用 id 比對挑出自己的花費），
  * 所以回饋計算與同步層都不必為它們改任何東西。
@@ -104,14 +107,38 @@ const OTHER_PAYMENTS = [
   ['other', '其他'],
 ] as const
 
-const isBlankCost = (cost: CostLine) =>
+const isBlankCost = (cost: ItemCostLine) =>
   !cost.label.trim() && !cost.unitPrice
 
-const filledCosts = (costs: CostLine[]) => costs.filter((cost) => !isBlankCost(cost))
+const cleanedCostState = (value: Pick<Item, 'costs' | 'costGroups'>) =>
+  cleanItemCosts(value.costs, value.costGroups, isBlankCost)
 const filledNotes = (notes: Item['notes']) => notes.filter((note) => note.text.trim())
 /* 地圖連結一律帶著網址（解析完才建立），所以不必再為它留例外。 */
 const filledLinks = (links: LinkRef[]) =>
   links.filter((link) => link.url.trim() || link.label.trim())
+
+/** 剪貼簿與相機只差資料來源；從這裡開始一定建立同樣的一筆新消費。 */
+const prepareReceiptAddition = (receipt: ReceiptClipboardCost, trip: Trip) => {
+  const currency = [trip.foreignCurrency, trip.homeCurrency].find(
+    (code) => code.toUpperCase() === receipt.currency,
+  )
+  if (!currency) {
+    const supported = [...new Set([trip.foreignCurrency, trip.homeCurrency])].join(' / ')
+    throw new Error(`這張收據的幣別是 ${receipt.currency}；這趟只能使用 ${supported}。`)
+  }
+
+  const group: CostGroup = { id: newId(), label: receipt.label }
+  const costs: ItemCostLine[] = receipt.items.map((cost) => ({
+    id: newId(),
+    groupId: group.id,
+    label: cost.label,
+    unitPrice: cost.unitPrice,
+    qty: cost.qty,
+    currency,
+  }))
+  const check: ReceiptDraftCheck = { currency, total: receipt.receiptTotal }
+  return { group, costs, check }
+}
 
 /**
  * 貼上地圖連結時把地名接在既有標題後面，不覆蓋 ——
@@ -157,12 +184,19 @@ export default function ItemDetail({
   const me = useStore((state) => state.settings.memberName)
   const gasUrl = useStore((state) => state.settings.gasUrl)
   const ruleFocus = useStore((state) => state.settings.rewardRuleFocus)
+  const costGroupApiVersion = useStore((state) => state.settings.costGroupApiVersion)
   const reviewHues = useStore((state) => state.settings.reviewHues?.[trip.id])
   const tripLink = useStore((state) => state.settings.tripLinks?.[trip.id])
   const analyzePlace = useStore((state) => state.analyzePlace)
   const dismissAiError = useStore((state) => state.dismissAiError)
   const aiPending = useStore((state) => state.ai.pending.includes(itemId))
   const aiError = useStore((state) => state.ai.errors[itemId])
+  const analyzeReceipt = useStore((state) => state.analyzeReceipt)
+  const consumeReceiptResult = useStore((state) => state.consumeReceiptResult)
+  const discardReceiptAnalysis = useStore((state) => state.discardReceiptAnalysis)
+  const receiptPending = useStore((state) => state.receipt.pending.includes(itemId))
+  const receiptError = useStore((state) => state.receipt.errors[itemId])
+  const receiptResult = useStore((state) => state.receipt.results[itemId])
   const isActual = useStore((state) =>
     state.data.plans.some(
       (plan) => plan.id === storedItem?.planId && plan.kind === 'actual' && !plan.deleted,
@@ -205,6 +239,8 @@ export default function ItemDetail({
   const [resolvingLink, setResolvingLink] = useState<LinkRef['kind'] | null>(null)
   const [linkLookupError, setLinkLookupError] = useState('')
   const mapDraftRef = useRef<HTMLInputElement>(null)
+  const receiptCameraRef = useRef<HTMLInputElement>(null)
+  const consumedReceiptResultRef = useRef<ReceiptClipboardCost | null>(null)
   const guideTextAreaRef = useRef<HTMLTextAreaElement>(null)
   const guideAiTextAreaRef = useRef<HTMLTextAreaElement>(null)
   const reviewTextAreaRef = useRef<HTMLTextAreaElement>(null)
@@ -217,7 +253,13 @@ export default function ItemDetail({
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null)
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null)
   const [choosingCategory, setChoosingCategory] = useState(false)
-  const [pickingPayment, setPickingPayment] = useState(false)
+  /** 正在替哪一筆消費選支付方式；null 代表 picker 關閉。 */
+  const [pickingPayment, setPickingPayment] = useState<string | null>(null)
+  const [pastingCosts, setPastingCosts] = useState(false)
+  const [costPasteError, setCostPasteError] = useState('')
+  const [receiptChecks, setReceiptChecks] = useState<Record<string, ReceiptDraftCheck>>({})
+  /** 使用者可在剪貼簿權限提示還開著時取消編輯；版本號讓晚回來的結果失效。 */
+  const costPasteVersionRef = useRef(0)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   /** 退房日的草稿。空字串＝還沒選，儲存鍵就灰著。 */
   const [checkoutDraft, setCheckoutDraft] = useState<string | null>(null)
@@ -256,16 +298,26 @@ export default function ItemDetail({
         ),
     [allPayments, trip.id],
   )
-  const method = methods.find((payment) => payment.id === item?.paymentMethodId)
-
-  const splitHint = useMemo(() => {
-    if (!item || !method) return null
-    const otherItems = allItems.filter(
-      (candidate) => candidate.id !== item.id && candidate.planId === item.planId,
-    )
-    const spent = computeMethod(method, otherItems, trip).txns.map((transaction) => transaction.amount)
-    return suggestSplit(method, amountInMethodCurrency(item, method, trip), spent)
-  }, [item, method, allItems, trip])
+  const splitHints = useMemo(() => {
+    const hints = new Map<string, ReturnType<typeof suggestSplit>>()
+    if (!item) return hints
+    const projected = allItems
+      .filter((candidate) => candidate.planId === item.planId && !candidate.deleted)
+      .map((candidate) => (candidate.id === item.id ? item : candidate))
+    for (const group of item.costGroups) {
+      const method = methods.find((payment) => payment.id === group.paymentMethodId)
+      if (!method) continue
+      const spent = computeMethod(method, projected, trip).txns
+        .filter((transaction) => transaction.item.id !== item.id || transaction.groupId !== group.id)
+        .map((transaction) => transaction.amount)
+      const lines = item.costs.filter((cost) => cost.groupId === group.id)
+      hints.set(
+        group.id,
+        suggestSplit(method, amountInMethodCurrency(lines, method, trip), spent),
+      )
+    }
+    return hints
+  }, [item, methods, allItems, trip])
 
   /*
    * 每張卡還能刷多少、以及回饋是不是拿滿了。
@@ -276,9 +328,12 @@ export default function ItemDetail({
   const methodStatus = useMemo(() => {
     const map = new Map<string, { remaining?: number; exhausted: boolean }>()
     if (!isActual || !item) return map
-    const others = allItems.filter(
-      (candidate) => candidate.id !== item.id && candidate.planId === item.planId && !candidate.deleted,
-    )
+    const withoutPickedGroup = pickingPayment
+      ? { ...item, costGroups: item.costGroups.filter((group) => group.id !== pickingPayment) }
+      : item
+    const others = allItems
+      .filter((candidate) => candidate.planId === item.planId && !candidate.deleted)
+      .map((candidate) => (candidate.id === item.id ? withoutPickedGroup : candidate))
     for (const payment of methods) {
       const { rules } = computeMethod(payment, others, trip)
       map.set(payment.id, {
@@ -289,7 +344,7 @@ export default function ItemDetail({
       })
     }
     return map
-  }, [methods, allItems, item, trip, isActual, ruleFocus])
+  }, [methods, allItems, item, trip, isActual, ruleFocus, pickingPayment])
 
   // 依持有者分區，同一區裡把拿滿回饋的沉到最後，其餘維持 methods 既有的名稱排序。
   const pickerGroups = useMemo(() => {
@@ -310,6 +365,8 @@ export default function ItemDetail({
 
   const itemDirty = useMemo(() => {
     if (!item || !storedItem) return false
+    const currentCosts = cleanedCostState(item)
+    const storedCosts = cleanedCostState(storedItem)
     return (
       item.title !== storedItem.title ||
       item.date !== storedItem.date ||
@@ -318,7 +375,7 @@ export default function ItemDetail({
       item.category !== storedItem.category ||
       JSON.stringify(filledNotes(item.notes)) !== JSON.stringify(filledNotes(storedItem.notes)) ||
       JSON.stringify(filledLinks(item.links)) !== JSON.stringify(filledLinks(storedItem.links)) ||
-      JSON.stringify(filledCosts(item.costs)) !== JSON.stringify(filledCosts(storedItem.costs))
+      JSON.stringify(currentCosts) !== JSON.stringify(storedCosts)
     )
   }, [item, storedItem, timeDraft])
   const activeSection: ItemDraftSection | 'category' | undefined =
@@ -378,6 +435,7 @@ export default function ItemDetail({
               : (saved.mapDraft ?? ''),
         )
         setMapNameDraft(saved.mapNameDraft ?? '')
+        setReceiptChecks(saved.receiptChecks ?? {})
         const restoredMode = saved.mode ?? (savedSections.size > 1 ? 'all' : 'section')
         const categoryOnly =
           restoredMode === 'section' &&
@@ -412,7 +470,7 @@ export default function ItemDetail({
 
   useEffect(() => {
     if (!hydrated || !item) return
-    if (dirty) {
+    if (dirty || receiptPending) {
       saveItemDraft(itemId, {
         item,
         timeDraft,
@@ -422,6 +480,7 @@ export default function ItemDetail({
         guidePart: guidePart ?? undefined,
         mapDraft,
         mapNameDraft,
+        receiptChecks,
         sections: [...editingSections],
       })
     }
@@ -439,7 +498,45 @@ export default function ItemDetail({
     reviewDraft,
     mapDraft,
     mapNameDraft,
+    receiptChecks,
+    receiptPending,
   ])
+
+  // 相機分析可跨詳細頁生命週期；回來並還原草稿後，才把結果加入同一份費用草稿。
+  useEffect(() => {
+    if (
+      !hydrated ||
+      !storedItem ||
+      !receiptResult ||
+      consumedReceiptResultRef.current === receiptResult
+    ) return
+
+    consumedReceiptResultRef.current = receiptResult
+    try {
+      const addition = prepareReceiptAddition(receiptResult, trip)
+      setTouched(true)
+      setCostPasteError('')
+      setDraftItem((current) => current
+        ? {
+            ...current,
+            costGroups: [...current.costGroups, addition.group],
+            costs: [...current.costs, ...addition.costs],
+          }
+        : current)
+      setReceiptChecks((current) => ({ ...current, [addition.group.id]: addition.check }))
+      setEditingSections((current) => current.has('costs')
+        ? current
+        : new Set([...current, 'costs']))
+      if (editMode === 'none') {
+        setEditMode('section')
+        setFocusSection('costs')
+      }
+    } catch (error) {
+      setCostPasteError(error instanceof Error ? error.message : '無法新增辨識出的消費。')
+    } finally {
+      consumeReceiptResult(itemId)
+    }
+  }, [consumeReceiptResult, editMode, hydrated, itemId, receiptResult, storedItem, trip])
 
   // 失敗訊息搬到本機留一份，並從 store 銷掉 —— 那就是「看過了」，浮標的計數立刻縮。
   useEffect(() => {
@@ -580,10 +677,12 @@ export default function ItemDetail({
     setMapNameDraft('')
     // 空區塊點進去就先建立第一張草稿卡；空卡不算變更，儲存時也會濾掉。
     if (section === 'costs' && item.costs.length === 0) {
+      const groupId = newId()
       const costId = newId()
       patchItem({
+        costGroups: [{ id: groupId }],
         costs: [
-          { id: costId, label: '', unitPrice: 0, qty: 1, currency: trip.foreignCurrency },
+          { id: costId, groupId, label: '', unitPrice: 0, qty: 1, currency: trip.foreignCurrency },
         ],
       })
       setFocusCostId(costId)
@@ -726,6 +825,12 @@ export default function ItemDetail({
     setFocusCostId(null)
     setFocusNoteId(null)
     setFocusLinkId(null)
+    setCostPasteError('')
+    setReceiptChecks({})
+    costPasteVersionRef.current += 1
+    setPastingCosts(false)
+    discardReceiptAnalysis(itemId)
+    consumedReceiptResultRef.current = null
     setEditingSections(new Set())
     setEditMode('none')
     setFocusSection(null)
@@ -783,17 +888,21 @@ export default function ItemDetail({
     const normalizedTime = normalizeTime(timeDraft)
     const withMap = await applyMapDraft(item)
     const normalizedLinks = await resolvePendingWebLinks(withMap.links)
+    const cleanedCosts = cleanedCostState(withMap)
     const nextItem = {
       ...withMap,
       notes: filledNotes(withMap.notes),
       links: normalizedLinks,
-      costs: filledCosts(withMap.costs),
+      ...cleanedCosts,
     }
     if (itemDirty || mapDirty) {
       updateItem(item.id, {
         startTime: normalizedTime,
         category: nextItem.category,
         costs: nextItem.costs,
+        costGroups: nextItem.costGroups,
+        // 新版支付方式在群組上；清掉舊欄位，舊版至少不會把整筆誤算到已過期的卡片。
+        paymentMethodId: undefined,
         // 從筆的那四樣是主筆的鏡像，這裡不寫回去。草稿是進入編輯那一刻的複本，
         // 期間主筆若被改過，寫回去等於拿舊的鏡像蓋掉新的。日期則是連住排出來的。
         ...(mirrored
@@ -814,6 +923,12 @@ export default function ItemDetail({
     setFocusCostId(null)
     setFocusNoteId(null)
     setFocusLinkId(null)
+    setCostPasteError('')
+    setReceiptChecks({})
+    costPasteVersionRef.current += 1
+    setPastingCosts(false)
+    discardReceiptAnalysis(itemId)
+    consumedReceiptResultRef.current = null
     setEditingSections(new Set())
     setEditMode('none')
     setFocusSection(null)
@@ -832,6 +947,12 @@ export default function ItemDetail({
     setFocusCostId(null)
     setFocusNoteId(null)
     setFocusLinkId(null)
+    setCostPasteError('')
+    setReceiptChecks({})
+    costPasteVersionRef.current += 1
+    setPastingCosts(false)
+    discardReceiptAnalysis(itemId)
+    consumedReceiptResultRef.current = null
     setEditingSections(new Set())
     setEditMode('none')
     setFocusSection(null)
@@ -874,8 +995,11 @@ export default function ItemDetail({
         nextItem = { ...nextItem, notes: filledNotes(nextItem.notes) }
         break
       case 'costs':
-        patch = { costs: filledCosts(nextItem.costs) }
-        nextItem = { ...nextItem, costs: filledCosts(nextItem.costs) }
+        {
+          const cleaned = cleanedCostState(nextItem)
+          patch = { ...cleaned, paymentMethodId: undefined }
+          nextItem = { ...nextItem, ...cleaned, paymentMethodId: undefined }
+        }
         break
       case 'links':
         patch = { links: filledLinks(nextItem.links) }
@@ -909,18 +1033,94 @@ export default function ItemDetail({
     else patchItem({ notes })
   }
 
-  const patchCost = (id: string, patch: Partial<CostLine>) =>
+  const patchCost = (id: string, patch: Partial<ItemCostLine>) =>
     patchItem({ costs: item.costs.map((cost) => (cost.id === id ? { ...cost, ...patch } : cost)) })
 
-  const addCost = () => {
+  const addCost = (groupId: string) => {
     const costId = newId()
     patchItem({
       costs: [
         ...item.costs,
-        { id: costId, label: '', unitPrice: 0, qty: 1, currency: trip.foreignCurrency },
+        { id: costId, groupId, label: '', unitPrice: 0, qty: 1, currency: trip.foreignCurrency },
       ],
     })
     setFocusCostId(costId)
+  }
+
+  const patchCostGroup = (id: string, patch: Partial<CostGroup>) =>
+    patchItem({
+      costGroups: item.costGroups.map((group) =>
+        group.id === id ? { ...group, ...patch } : group,
+      ),
+    })
+
+  const addCostGroup = () => {
+    setCostPasteError('')
+    const groupId = newId()
+    const costId = newId()
+    patchItem({
+      costGroups: [...item.costGroups, { id: groupId }],
+      costs: [
+        ...item.costs,
+        { id: costId, groupId, label: '', unitPrice: 0, qty: 1, currency: trip.foreignCurrency },
+      ],
+    })
+    setFocusCostId(costId)
+  }
+
+  const addCostGroupFromClipboard = async () => {
+    if (pastingCosts || receiptPending) return
+    discardReceiptAnalysis(itemId)
+    const version = costPasteVersionRef.current + 1
+    costPasteVersionRef.current = version
+    setPastingCosts(true)
+    setCostPasteError('')
+    try {
+      let clipboardText = ''
+      try {
+        clipboardText = await navigator.clipboard.readText()
+      } catch {
+        throw new Error('無法讀取剪貼簿，請確認瀏覽器權限。')
+      }
+      if (version !== costPasteVersionRef.current) return
+      const parsed = parseReceiptClipboard(clipboardText)
+      const addition = prepareReceiptAddition(parsed, trip)
+      patchItem({
+        costGroups: [...item.costGroups, addition.group],
+        costs: [...item.costs, ...addition.costs],
+      })
+      setReceiptChecks((current) => ({
+        ...current,
+        [addition.group.id]: addition.check,
+      }))
+      setFocusCostId(null)
+    } catch (error) {
+      if (version !== costPasteVersionRef.current) return
+      setCostPasteError(
+        error instanceof Error ? error.message : '無法從剪貼簿新增消費。',
+      )
+    } finally {
+      if (version === costPasteVersionRef.current) setPastingCosts(false)
+    }
+  }
+
+  const takeReceiptPhoto = (files: FileList | null) => {
+    const file = files?.[0]
+    if (!file || receiptPending || pastingCosts) return
+    setCostPasteError('')
+    void analyzeReceipt(itemId, file)
+  }
+
+  const removeCostGroup = (groupId: string) => {
+    patchItem({
+      costGroups: item.costGroups.filter((group) => group.id !== groupId),
+      costs: item.costs.filter((cost) => cost.groupId !== groupId),
+    })
+    setReceiptChecks((current) => {
+      const { [groupId]: removed, ...remaining } = current
+      void removed
+      return remaining
+    })
   }
 
   const addNoteCard = () => {
@@ -1028,35 +1228,27 @@ export default function ItemDetail({
     commitSection('links', { ...item, links })
   }
 
-  const pickedMethod = methods.find((payment) => payment.id === item.paymentMethodId)
-  const pickedOtherPayment = OTHER_PAYMENTS.find(([id]) => id === item.paymentMethodId)
-  const hasPickedMethod = Boolean(pickedMethod || pickedOtherPayment)
-
-  const pickedMethodLabel = pickedMethod
-    ? methodLabel(pickedMethod.name, pickedMethod.owner)
-    : (pickedOtherPayment?.[1] ?? '未設定')
-
-  // 支付方式是獨立且即選即存的設定；其他單區塊正在編輯時則跟著退到背景。
-  const paymentActionProps = editMode === 'section'
-    ? {}
-    : {
-        role: 'button' as const,
-        'aria-label': `設定支付方式，目前為${pickedMethodLabel}`,
-        tabIndex: 0,
-        onClick: () => setPickingPayment(true),
-        onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
-          if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
-          event.preventDefault()
-          setPickingPayment(true)
-        },
-      }
+  const paymentLabelOf = (paymentMethodId?: string) => {
+    const pickedMethod = methods.find((payment) => payment.id === paymentMethodId)
+    if (pickedMethod) return methodLabel(pickedMethod.name, pickedMethod.owner)
+    return OTHER_PAYMENTS.find(([id]) => id === paymentMethodId)?.[1] ?? '支付方式'
+  }
 
   const choosePayment = (id?: string) => {
-    if (id !== item.paymentMethodId) {
-      updateItem(item.id, { paymentMethodId: id })
-      setDraftItem((current) => (current ? { ...current, paymentMethodId: id } : current))
+    if (pickingPayment) {
+      const costGroups = item.costGroups.map((group) =>
+        group.id === pickingPayment ? { ...group, paymentMethodId: id } : group,
+      )
+      if (editMode === 'none') {
+        updateItem(item.id, { costGroups, paymentMethodId: undefined })
+        setDraftItem((current) =>
+          current ? { ...current, costGroups, paymentMethodId: undefined } : current,
+        )
+      } else {
+        patchItem({ costGroups })
+      }
     }
-    setPickingPayment(false)
+    setPickingPayment(null)
   }
 
   /** 貼進來的整段文字（還帶著換行）拆成網址與地名，欄位裡只留乾淨的網址。 */
@@ -1102,7 +1294,7 @@ export default function ItemDetail({
       case 'notes':
         return JSON.stringify(filledNotes(item.notes)) !== JSON.stringify(filledNotes(storedItem.notes))
       case 'costs':
-        return JSON.stringify(filledCosts(item.costs)) !== JSON.stringify(filledCosts(storedItem.costs))
+        return JSON.stringify(cleanedCostState(item)) !== JSON.stringify(cleanedCostState(storedItem))
       case 'links':
         return JSON.stringify(filledLinks(webLinks)) !== JSON.stringify(
           filledLinks(storedItem.links.filter((link) => link.kind === 'web')),
@@ -1131,7 +1323,10 @@ export default function ItemDetail({
       }
     }
     return {
-      disabled: !activeSectionDirty || resolvingLink !== null,
+      disabled:
+        !activeSectionDirty ||
+        resolvingLink !== null ||
+        (activeSection === 'costs' && (pastingCosts || receiptPending)),
       run: () => commitSection(activeSection),
     }
   })()
@@ -1224,7 +1419,7 @@ export default function ItemDetail({
   )
 
   const paymentModal = pickingPayment && (
-    <Modal title="選擇支付方式" onCancel={() => setPickingPayment(false)} variant="picker">
+    <Modal title="選擇支付方式" onCancel={() => setPickingPayment(null)} variant="picker">
       <div className="picker-body">
         {pickerGroups.map(([owner, list]) => (
           <div key={owner} className="picker-group">
@@ -1267,6 +1462,9 @@ export default function ItemDetail({
         <div className="picker-group">
           <div className="picker-group-head">其他</div>
           <div className="picker-grid">
+            <button className="picker-card" onClick={() => choosePayment(undefined)}>
+              <span className="picker-card-band">未設定</span>
+            </button>
             {OTHER_PAYMENTS.map(([id, label]) => (
               <button key={label} className="picker-card" onClick={() => choosePayment(id)}>
                 <span className="picker-card-band">{label}</span>
@@ -2020,72 +2218,193 @@ export default function ItemDetail({
           <div className="detail-section-head">
             <span className="detail-kicker"><MoneyIcon />費用</span>
           </div>
+          {tripLink && (costGroupApiVersion ?? 0) < 1 && (
+            <p className="detail-cost-sync-warning">
+              消費資料會先保存在這台裝置；重新部署最新版 Apps Script 後才會同步。
+            </p>
+          )}
           {editingSections.has('costs') ? (
             <>
-              {item.costs.map((cost, index) => (
-                <div
-                  key={cost.id}
-                  className="costline"
-                  data-keyboard-reveal={index === item.costs.length - 1 ? 'detail-costs-tail' : ''}
-                >
-                  <div className="costline-head">
-                    <input
-                      className="field cl-label"
-                      type="search"
-                      enterKeyHint="done"
-                      autoComplete="off"
-                      placeholder="項目"
-                      value={cost.label}
-                      autoFocus={cost.id === focusCostId}
-                      onChange={(event) => patchCost(cost.id, { label: event.target.value })}
-                    />
-                    <button
-                      className="btn btn-sm delete-icon-btn"
-                      aria-label="刪除這筆費用"
-                      onClick={() =>
-                        patchItem({ costs: item.costs.filter((value) => value.id !== cost.id) })
-                      }
-                    >
-                      <TrashIcon />
-                    </button>
-                  </div>
-                  <NumberField
-                    className="field mono cl-price"
-                    value={cost.unitPrice}
-                    emptyAs={0}
-                    onChange={(value) => patchCost(cost.id, { unitPrice: value ?? 0 })}
-                    aria-label="單價"
-                  />
-                  <span className="dim costline-times">×</span>
-                  <NumberField
-                    className="field mono cl-qty"
-                    value={cost.qty}
-                    emptyAs={0}
-                    onChange={(value) => patchCost(cost.id, { qty: value ?? 0 })}
-                    aria-label="數量"
-                  />
-                  <div className="seg" role="group" aria-label="幣別">
-                    {[trip.foreignCurrency, trip.homeCurrency].map((code) => (
+              {item.costGroups.map((group, groupIndex) => {
+                const lines = item.costs.filter((cost) => cost.groupId === group.id)
+                const groupTotals = sumByCurrency(lines)
+                const splitHint = splitHints.get(group.id)
+                const receiptCheck = receiptChecks[group.id]
+                const receiptMismatch = receiptCheck && (
+                  Math.abs((groupTotals[receiptCheck.currency] ?? 0) - receiptCheck.total) > 0.005 ||
+                  Object.entries(groupTotals).some(
+                    ([currency, amount]) => currency !== receiptCheck.currency && Math.abs(amount) > 0.005,
+                  )
+                )
+                return (
+                  <div key={group.id} className="costgroup">
+                    <div className="costgroup-head">
+                      <input
+                        className="field costgroup-label"
+                        type="search"
+                        enterKeyHint="done"
+                        autoComplete="off"
+                        placeholder="消費名稱（選填）"
+                        value={group.label ?? ''}
+                        onChange={(event) =>
+                          patchCostGroup(group.id, { label: event.target.value || undefined })
+                        }
+                      />
                       <button
-                        key={code}
-                        className="seg-btn seg-btn-sm"
-                        aria-pressed={cost.currency === code}
-                        onClick={() => patchCost(cost.id, { currency: code })}
+                        className="btn btn-sm costgroup-payment"
+                        onClick={() => setPickingPayment(group.id)}
                       >
-                        {code}
+                        {paymentLabelOf(group.paymentMethodId)}
                       </button>
+                      <button
+                        className="btn btn-sm delete-icon-btn"
+                        aria-label="刪除這筆消費"
+                        onClick={() => removeCostGroup(group.id)}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+
+                    {lines.map((cost, index) => (
+                      <div
+                        key={cost.id}
+                        className="costline"
+                        data-keyboard-reveal={
+                          groupIndex === item.costGroups.length - 1 && index === lines.length - 1
+                            ? 'detail-costs-tail'
+                            : ''
+                        }
+                      >
+                        <div className="costline-head">
+                          <input
+                            className="field cl-label"
+                            type="search"
+                            enterKeyHint="done"
+                            autoComplete="off"
+                            placeholder="項目"
+                            value={cost.label}
+                            autoFocus={cost.id === focusCostId}
+                            onChange={(event) => patchCost(cost.id, { label: event.target.value })}
+                          />
+                          <button
+                            className="btn btn-sm delete-icon-btn"
+                            aria-label="刪除這個品項"
+                            onClick={() =>
+                              patchItem({
+                                costs: item.costs.filter((value) => value.id !== cost.id),
+                              })
+                            }
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
+                        <NumberField
+                          className="field mono cl-price"
+                          value={cost.unitPrice}
+                          emptyAs={0}
+                          onChange={(value) => patchCost(cost.id, { unitPrice: value ?? 0 })}
+                          aria-label="單價"
+                        />
+                        <span className="dim costline-times">×</span>
+                        <NumberField
+                          className="field mono cl-qty"
+                          value={cost.qty}
+                          emptyAs={0}
+                          onChange={(value) => patchCost(cost.id, { qty: value ?? 0 })}
+                          aria-label="數量"
+                        />
+                        <div className="seg" role="group" aria-label="幣別">
+                          {[trip.foreignCurrency, trip.homeCurrency].map((code) => (
+                            <button
+                              key={code}
+                              className="seg-btn seg-btn-sm"
+                              aria-pressed={cost.currency === code}
+                              onClick={() => patchCost(cost.id, { currency: code })}
+                            >
+                              {code}
+                            </button>
+                          ))}
+                        </div>
+                        <span className="mono dim cl-sub">
+                          {formatMoney(lineTotal(cost), cost.currency)}
+                        </span>
+                      </div>
                     ))}
+
+                    <button
+                      className="btn btn-sm detail-add-row costgroup-add-row"
+                      onClick={() => addCost(group.id)}
+                    >
+                      ＋ 新增品項
+                    </button>
+
+                    <div className="costgroup-total">
+                      <span>消費小計</span>
+                      <strong className="mono">
+                        {formatTotals(groupTotals) || formatMoney(0, trip.foreignCurrency)}
+                      </strong>
+                    </div>
+
+                    {receiptMismatch && (
+                      <p className="cost-import-warning">
+                        收據總額是 {formatMoney(receiptCheck.total, receiptCheck.currency)}，目前品項合計是{' '}
+                        {formatTotals(groupTotals) || formatMoney(0, receiptCheck.currency)}，請確認品項或金額。
+                      </p>
+                    )}
+
+                    {splitHint && (
+                      <div className="detail-split-hint">
+                        <div>
+                          分成 {splitHint.splits} 筆各 {formatMoney(splitHint.each, splitHint.currency)}
+                          {splitHint.currency === trip.homeCurrency &&
+                            groupTotals[trip.foreignCurrency] !== undefined && (
+                              <span>（約 {formatMoney(splitHint.each / trip.rate, trip.foreignCurrency)}）</span>
+                            )}
+                          ，可多拿 {formatMoney(splitHint.gain, splitHint.currency)} 回饋
+                        </div>
+                        <p>這張卡有單筆回饋上限，一次刷完會有一部分拿不到。</p>
+                      </div>
+                    )}
                   </div>
-                  <span className="mono dim cl-sub">{formatMoney(lineTotal(cost), cost.currency)}</span>
-                </div>
-              ))}
-              <button
-                className="btn btn-sm detail-add-row"
-                data-keyboard-reveal="detail-costs-tail"
-                onClick={addCost}
-              >
-                ＋ 新增費用
-              </button>
+                )
+              })}
+              <div className="detail-cost-actions" data-keyboard-reveal="detail-costs-tail">
+                <button
+                  className="btn btn-sm detail-add-row"
+                  onClick={addCostGroup}
+                >
+                  ＋ 新增消費
+                </button>
+                <button
+                  className="btn btn-sm detail-add-row"
+                  disabled={pastingCosts || receiptPending}
+                  onClick={() => void addCostGroupFromClipboard()}
+                >
+                  {pastingCosts ? '讀取中…' : '＋ 從剪貼簿新增'}
+                </button>
+                <button
+                  className="btn btn-sm detail-add-row"
+                  disabled={pastingCosts || receiptPending}
+                  aria-busy={receiptPending || undefined}
+                  onClick={() => receiptCameraRef.current?.click()}
+                >
+                  {receiptPending ? '分析中…' : '＋ 從相機新增'}
+                </button>
+                <input
+                  ref={receiptCameraRef}
+                  className="photo-file-input"
+                  type="file"
+                  accept="image/*,.heic,.heif"
+                  capture="environment"
+                  onChange={(event) => {
+                    takeReceiptPhoto(event.currentTarget.files)
+                    event.currentTarget.value = ''
+                  }}
+                />
+              </div>
+              {(costPasteError || receiptError) && (
+                <p className="cost-paste-error" role="alert">{costPasteError || receiptError}</p>
+              )}
               {item.costs.length > 0 && (
                 <div className="detail-total-row">
                   <strong>合計</strong>
@@ -2099,54 +2418,61 @@ export default function ItemDetail({
           ) : item.costs.length > 0 ? (
             <>
               <div className="detail-cost-summary">
-                <span>{item.costs.length} 筆費用總價</span>
+                <span>{item.costGroups.length} 筆消費 · {item.costs.length} 個品項</span>
                 <strong className="mono">{formatTotals(totals) || formatMoney(0, trip.foreignCurrency)}</strong>
               </div>
-              <div className="detail-cost-list">
-                {item.costs.map((cost) => (
-                  <div key={cost.id} className="detail-cost-row">
-                    <span>{cost.label || '未命名費用'}</span>
-                    <span className="dim mono">{formatMoney(cost.unitPrice, cost.currency)}</span>
-                    <span className="dim mono">× {cost.qty}</span>
-                    <span className="mono">{formatMoney(lineTotal(cost), cost.currency)}</span>
-                  </div>
-                ))}
+              <div className="detail-cost-groups">
+                {item.costGroups.map((group, groupIndex) => {
+                  const lines = item.costs.filter((cost) => cost.groupId === group.id)
+                  const groupTotals = sumByCurrency(lines)
+                  const splitHint = splitHints.get(group.id)
+                  return (
+                    <div key={group.id} className="detail-cost-group">
+                      <div className="detail-cost-group-head">
+                        <span>{group.label?.trim() || `消費 ${groupIndex + 1}`}</span>
+                        <button
+                          className="btn btn-sm detail-cost-group-payment"
+                          aria-label={`設定${group.label?.trim() || `消費 ${groupIndex + 1}`}的支付方式，目前為${paymentLabelOf(group.paymentMethodId)}`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setPickingPayment(group.id)
+                          }}
+                        >
+                          {paymentLabelOf(group.paymentMethodId)}
+                        </button>
+                      </div>
+                      <div className="detail-cost-list">
+                        {lines.map((cost) => (
+                          <div key={cost.id} className="detail-cost-row">
+                            <span>{cost.label || '未命名費用'}</span>
+                            <span className="dim mono">{formatMoney(cost.unitPrice, cost.currency)}</span>
+                            <span className="dim mono">× {cost.qty}</span>
+                            <span className="mono">{formatMoney(lineTotal(cost), cost.currency)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="detail-cost-group-total">
+                        <span>小計</span>
+                        <strong className="mono">{formatTotals(groupTotals)}</strong>
+                      </div>
+                      {splitHint && (
+                        <div className="detail-split-hint">
+                          <div>
+                            分成 {splitHint.splits} 筆各 {formatMoney(splitHint.each, splitHint.currency)}，
+                            可多拿 {formatMoney(splitHint.gain, splitHint.currency)} 回饋
+                          </div>
+                          <p>這張卡有單筆回饋上限，一次刷完會有一部分拿不到。</p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </>
           ) : (
             <p className="dim detail-empty-copy">-</p>
           )}
 
-          {splitHint && (
-            <div className="detail-split-hint">
-              <div>
-                分成 {splitHint.splits} 筆各 {formatMoney(splitHint.each, splitHint.currency)}
-                {splitHint.currency === trip.homeCurrency && totals[trip.foreignCurrency] !== undefined && (
-                  <span>（約 {formatMoney(splitHint.each / trip.rate, trip.foreignCurrency)}）</span>
-                )}
-                ，可多拿 {formatMoney(splitHint.gain, splitHint.currency)} 回饋
-              </div>
-              <p>這張卡有單筆回饋上限，一次刷完會有一部分拿不到。</p>
-            </div>
-          )}
-        </section>
-
-        <section
-          className={`detail-section detail-payment-section${
-            editMode === 'section' ? '' : ' detail-section-clickable'
-          }`}
-          {...paymentActionProps}
-        >
-          <div className="detail-section-head">
-            <span className="detail-kicker"><RewardsIcon size={14} />支付方式</span>
-            <span
-              className="detail-payment-value"
-              data-empty={!hasPickedMethod || undefined}
-              aria-hidden="true"
-            >
-              {hasPickedMethod ? pickedMethodLabel : '-'}
-            </span>
-          </div>
         </section>
 
         {isActual && <PhotoSection trip={trip} itemId={item.id} kind="receipt" />}
@@ -2217,9 +2543,13 @@ export default function ItemDetail({
           <button
             className="btn btn-primary"
             onClick={() => void completeEditing()}
-            disabled={!dirty || resolvingLink !== null}
+            disabled={!dirty || resolvingLink !== null || pastingCosts || receiptPending}
           >
-            {resolvingLink ? (resolvingLink === 'map' ? '解析中…' : '讀取中…') : '儲存'}
+            {receiptPending
+              ? '分析中…'
+              : resolvingLink || pastingCosts
+                ? (resolvingLink === 'map' ? '解析中…' : '讀取中…')
+                : '儲存'}
           </button>
         </div>
       ) : editMode === 'section' ? (
@@ -2236,7 +2566,11 @@ export default function ItemDetail({
               onClick={sectionAction.run}
               disabled={sectionAction.disabled}
             >
-              {resolvingLink ? (resolvingLink === 'map' ? '解析中…' : '讀取中…') : '儲存'}
+              {receiptPending
+                ? '分析中…'
+                : resolvingLink || pastingCosts
+                  ? (resolvingLink === 'map' ? '解析中…' : '讀取中…')
+                  : '儲存'}
             </button>
           )}
         </div>
