@@ -49,9 +49,8 @@ export const watchKeyboard = () => {
   let focusFallbackTimer: ReturnType<typeof setTimeout> | undefined
   let followFrame: number | undefined
   let resetting = false
-  /* 沒有鍵盤時的版面高度，用來認出「版面自己縮」那種鍵盤。寬度是它的有效期限。 */
-  let layoutBaseline = window.innerHeight
-  let baselineWidth = window.innerWidth
+  /* 進入編輯那一刻的版面高度，用來認出「版面自己縮」那種鍵盤。0 = 沒有進行中的編輯。 */
+  let preKeyboardHeight = 0
 
   /*
    * 鍵盤有兩種模式，`height` 只描述得了第一種：
@@ -70,21 +69,14 @@ export const watchKeyboard = () => {
     const rawHeight = Math.max(0, Math.round(window.innerHeight - vv.height))
     const height = rawHeight >= MIN_KEYBOARD_PX ? rawHeight : 0
     /*
-     * 基準線只在沒有欄位在焦點上時收，而且只往上收 —— focusout 當下鍵盤還在，`focused`
-     * 卻已經是 null，直接指派會把收起途中的中間值當成基準，下一次就認不出鍵盤了。
+     * 基準是「進入編輯當下量的那一次」，不是記住的最大值。
      *
-     * 只往上收的代價是轉向之後降不下來（直向的高度會被當成橫向的基準），所以拿寬度
-     * 當有效期限：鍵盤不會改變寬度，改變了就是換了版面，整條重新收。用寬度而不是
-     * orientationchange，是因為那個事件送達時 innerHeight 往往還是舊值。
+     * 記住最大值的寫法只增不減，被啟動瞬間的高度污染一次（PWA 的啟動畫面、系統列還沒
+     * 定位、安全區還沒套上，都可能高出 80px）就永遠回不來，症狀是鍵盤明明收起來了、
+     * 只要欄位還在焦點上旗標就一直亮著，底部按鈕列因此再也不釘底。
+     * 聚焦一定發生在鍵盤升起之前，所以那一刻量到的必定是沒有鍵盤的版面高度。
      */
-    if (window.innerWidth !== baselineWidth) {
-      baselineWidth = window.innerWidth
-      layoutBaseline = window.innerHeight
-    }
-    const focused = focusedEditable()
-    if (!focused) layoutBaseline = Math.max(layoutBaseline, window.innerHeight)
-    // 沒有欄位在焦點上就不算鍵盤：視窗被縮小、工具列收合都會讓版面變矮，那些不是鍵盤。
-    const shrunk = focused !== null && layoutBaseline - window.innerHeight >= MIN_KEYBOARD_PX
+    const shrunk = preKeyboardHeight > 0 && preKeyboardHeight - window.innerHeight >= MIN_KEYBOARD_PX
     return {
       height,
       open: height > 0 || shrunk,
@@ -200,6 +192,11 @@ export const watchKeyboard = () => {
 
   const onFocusIn = () => {
     if (!focusedEditable()) return
+    /*
+     * 只在「開始編輯」那一次量。欄位之間互跳時版面已經縮過，重新量會量到縮過的高度，
+     * 差值歸零 —— 鍵盤還在螢幕上，旗標卻自己熄掉。
+     */
+    if (preKeyboardHeight === 0) preKeyboardHeight = window.innerHeight
     clearTimeout(focusFallbackTimer)
     if (finePointer.matches) {
       const metrics = apply()
@@ -215,7 +212,10 @@ export const watchKeyboard = () => {
     }, FOCUS_FALLBACK_MS)
   }
 
-  const onFocusOut = () => {
+  const onFocusOut = (event: FocusEvent) => {
+    // relatedTarget 是接手焦點的那一個。還是可編輯就代表編輯還沒結束，量到的高度要留著。
+    const next = event.relatedTarget
+    if (!(next instanceof HTMLElement) || !next.matches(EDITABLE)) preKeyboardHeight = 0
     cancelFollow()
     clearTimeout(focusFallbackTimer)
     clearTimeout(settleTimer)
@@ -240,6 +240,8 @@ export const watchKeyboard = () => {
 
   const onOrientationChange = () => {
     cancelPendingReveal()
+    // 轉向換掉了版面高度，那一份量在舊方向的值失效；下次聚焦會重新量。
+    preKeyboardHeight = 0
     apply()
     if (focusedEditable()) startFollow()
   }

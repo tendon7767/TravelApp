@@ -2733,12 +2733,20 @@ body[data-actual='true'] {
 @media (max-width: 619px) {
   .sheetactions:not(.sheet-close-wide),
   .editor-actions:has(> .btn + .btn) {
-    position: relative;
     justify-content: space-evenly;
     gap: 0;
     padding-left: 0;
     padding-right: 0;
   }
+  /*
+   * 定位容器只給 .editor-actions —— 它基底沒有 position，而兩顆按鈕的點擊層是絕對定位的
+   * ::after，需要有人當容器（見下面那幾條）。
+   *
+   * .sheetactions 千萬不要一起寫進來：它基底是 position: sticky，本身就已經是定位容器，
+   * 在這裡覆寫成 relative 等於把「鍵盤收起時釘底」整條關掉 —— 優先度 (0,2,0) 蓋過基底的
+   * (0,1,0)，而且 CSS 不會有任何錯誤，只有在小螢幕上捲長彈窗才看得出來按鈕列跟著捲走了。
+   */
+  .editor-actions:has(> .btn + .btn) { position: relative; }
   .sheetactions:not(.sheet-close-wide) .btn,
   .editor-actions:has(> .btn + .btn) .btn {
     flex: 0 1 38%;

@@ -359,9 +359,17 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
   Esc 只有**最上層**那個吃（兩層都在 `document` 上聽，按一次會整疊一起關）。卸載時是從堆疊裡
   挑掉自己而不是 `pop()`——內外層的卸載順序沒有保證。
 - **底部按鈕列住在 `.sheetbody` 這個捲動區裡**，靠 `position: sticky; bottom: 0` 假裝釘在底部；
-  鍵盤升起時（`:root[data-kb]`，旗標在 [keyboard.ts](src/lib/keyboard.ts) 跟著 `--kb` 一起寫）改成 `static`，
+  鍵盤升起時（`:root[data-kb]`，旗標在 [keyboard.ts](src/lib/keyboard.ts) 跟著 `--kb` 一起寫）改成 `relative`，
   它就跟著內容捲走，要按到「儲存」得先捲到最底——誤按的那一下不會發生在鍵盤上緣。
   切換只動 `position`，DOM 不搬，鍵盤動畫途中不會閃幀。
+  - **落底那一支是 `relative` 不是 `static`，而且沒得選。** 手機版兩顆按鈕的點擊區是絕對定位的
+    `::after`（各吃左右半邊），靠這一列當定位容器。設成 `static` 的話容器一路逃到 `.backdrop`，
+    兩片透明點擊層當場撐成半個螢幕寬、整個螢幕高——實測 187×812，整個彈窗左半邊變成取消、
+    右半邊變成儲存，而且完全看不出來。`relative` 不帶偏移，排版跟 `static` 一模一樣。
+  - **同理，任何地方都不要用 `position` 去覆寫 `.sheetactions`。** `sticky` 本身就已經是定位容器，
+    為了「找個容器給 `::after`」而寫 `relative`（` (max-width: 619px)` 裡踩過一次）等於
+    把釘底整條關掉——優先度蓋得過基底，CSS 不會報錯，只有在小螢幕捲長彈窗時才看得出來。
+    需要定位容器的是基底沒有 `position` 的 `.editor-actions`，那一條才該寫。
   - **按鈕列與內容之間的留白只能給按鈕列自己的 `margin-top`。** 還給 `.sheetbody` 的 `padding-bottom`
     會把釘住的位置往上推，就不貼底了；而按鈕列的負 `margin-bottom` 也抵消不掉父層的 `padding-bottom`
     ——負外距只縮內容的高度，父層的內距照樣留在下面。兩種寫法都試過，都不對。
@@ -387,7 +395,7 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - **量到的高度寫成 CSS 變數，不要在 CSS 裡硬寫數字。** `--topbar-h` / `--tabbar-h`（`TripPage`）、`--dayhead-h` / `--reviewrow-h`（`ReviewTab`）都是量出來的，因為它們隨字型、縮放與內容換行而變。
 - **量高度要先同步寫一次，再交給 `ResizeObserver` 管後續變化。** 它的回呼掛在瀏覽器的算繪步驟上，**分頁在背景時不會送達** —— 只靠它的話初值永遠停在 fallback，而且是靜默的，畫面只是位置怪怪的不會報錯。
 - **iOS 鍵盤升起時版面視窗不會縮，只有可視視窗縮。** 畫面底部那段被鍵盤蓋住，在流內的底部按鈕列就消失了。`--kb`（[src/lib/keyboard.ts](src/lib/keyboard.ts)）量的就是這段：蓋板用它調 `inset`（`.pane-detail`），流內版面用它加 `padding-bottom`（`.review-view`），彈窗則是整張往上讓、按鈕列改成跟著內容捲（見上面「彈窗的共通規則」）。Android 的版面視窗會跟著縮，`--kb` 算出來是 0，所有讓開的規則自動失效 —— 那是對的，版面已經讓開了，再讓一次會多讓一截。
-  - **`--kb` 是 0 不代表鍵盤不在，所以旗標另外算。** `data-kb`（寫在 `<html>` 上，因為 CSS 沒辦法拿長度當條件）看的是 `metrics.open`：iOS 那條看 `--kb`，Android 那條看 `window.innerHeight` 有沒有比基準線矮一截。只看 `--kb` 的話，Android 的彈窗按鈕列永遠不會落底，會一直釘在鍵盤上緣。基準線只在沒有欄位聚焦時往上收（`focusout` 當下鍵盤還在，直接指派會收到中間值），並拿 `innerWidth` 當有效期限（鍵盤不改變寬度，改變了就是轉向）。
+  - **`--kb` 是 0 不代表鍵盤不在，所以旗標另外算。** `data-kb`（寫在 `<html>` 上，因為 CSS 沒辦法拿長度當條件）看的是 `metrics.open`：iOS 那條看 `--kb`，Android 那條看 `window.innerHeight` 有沒有比基準線矮一截。只看 `--kb` 的話，Android 的彈窗按鈕列永遠不會落底，會一直釘在鍵盤上緣。Android 那條的基準是**進入編輯當下量的那一次**（`focusin` 時記，欄位互跳不重量，焦點真的離開才清掉）——聚焦一定發生在鍵盤升起之前，所以那一刻量到的必定是沒有鍵盤的高度。**不要改成「記住看過的最大高度」**：只增不減，被啟動瞬間的高度污染一次（PWA 啟動畫面、系統列還沒定位）就永遠回不來，症狀是鍵盤明明收起來了、只要欄位還在焦點上旗標就一直亮著，底部按鈕列再也不釘底。
   - **`index.html` 的 `interactive-widget` 千萬不要改回 `resizes-visual`。** 那等於要求 Android 別縮版面、改用 iOS 那套平移，而**平移一發生就收不回來**（文件是 `overflow: hidden`，`scrollTo` 無效，`visualViewport.offsetTop` 沒有可寫的 API）。更糟的是鍵盤升起後在彈窗裡拖曳會被瀏覽器判成「平移整個畫面」，內容反而捲不動，`touch-action` 也擋不掉（蓋板設 `none` 會連 `.sheetbody` 的捲動一起鎖死）。2026-08-22 為了「兩個平台共用一套程式碼」加過一次，實測是整頁跟著手指晃、彈窗捲不動，已經改回 `resizes-content`。iOS Safari 不認得這個屬性，它永遠是平移那套，所以兩條路徑都要留著。
 - **使用者輸入的文字都要 `overflow-wrap: anywhere`。** 沒有空白的長字串（英文店名、訂位代號、貼上來的網址）預設不斷行；`min-width: 0` 只讓它縮不讓它斷，照樣頂破版面。
 - **彈窗不能寫在可點元素的 JSX 裡面。** `Modal` 是 `createPortal` 到 `body` 的，但 **React 的合成事件沿的是 React 樹不是 DOM 樹** —— 掛在可點卡片裡面的話，點背景關掉的那一個點擊會接著冒泡到卡片的 `onClick`，當場又把它打開，看起來就是「點外面沒反應」。把 `<Modal>` 放到那個元素外面（用 Fragment 包），不要靠 `stopPropagation` 治症狀。
