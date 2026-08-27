@@ -61,14 +61,6 @@ export const watchKeyboard = () => {
   const apply = (): KeyboardMetrics => {
     const metrics = readMetrics()
     root.style.setProperty('--kb', `${metrics.height}px`)
-    /*
-     * 瀏覽器為了露出焦點欄位會把整份文件往上平移一段，而這一段沒有任何 API 收得回來
-     * （html / body / #root 都是 overflow: hidden，文件根本不能捲，unpan 的 scrollTo 對它無效）。
-     * 只算鍵盤高度、不算平移量的版面會整個往上偏掉，所以把它量出來，讓需要的人跟著走。
-     * 目前只有彈窗的蓋板在用；詳細頁與心得模式仍是舊基準（只讓開 --kb），
-     * 哪天要一起換，照 .backdrop 那兩行抄過去即可。
-     */
-    root.style.setProperty('--vv-top', `${Math.round(metrics.visibleTop)}px`)
     root.style.setProperty('--detail-textarea-vvh-max', `${Math.round(vv.height * 0.42)}px`)
     // CSS 不能拿長度當條件；彈窗按鈕列會用這個旗標切換 sticky 行為。
     if (metrics.height > 0) root.dataset.kb = 'on'
