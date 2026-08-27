@@ -19,6 +19,13 @@ export const amountInMethodCurrency = (
 }
 
 /**
+ * 卡片幣別的金額換算回旅程本幣。
+ * 跨卡比較一定要先過這裡 —— 有的卡用日圓算回饋、有的用台幣，直接比 ¥100 與 NT$50 會排錯。
+ */
+export const inHomeCurrency = (amount: number, method: PaymentMethod, trip: Trip): number =>
+  method.currency === trip.homeCurrency ? amount : amount * trip.rate
+
+/**
  * 回饋計算只看得到金額與通路 —— item / groupId 那些是給畫面用的。
  * 拆單試算會憑空造出幾筆交易，那裡沒有 item 可填，所以計算層的輸入必須比 MethodTxn 小。
  */
