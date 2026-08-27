@@ -345,9 +345,15 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
   真的需要草稿的東西（旅程的基本資訊）就自己開一個編輯型彈窗，草稿的生死關在那裡面。
   這樣使用者不必猜「按關閉會還原掉什麼」——答案永遠是什麼都不會。
 
-- **高度上限是「上緣切齊頂列的下緣」**：`calc(100% - var(--topbar-h) - var(--kb))`。背後永遠看得到完整一條頂列，
+- **高度上限是「上緣切齊頂列的下緣」**：蓋板 `.backdrop` 只有「螢幕上看得見的那塊」那麼高
+  （`top: var(--vv-top)` 加 `height: calc(100% - var(--kb))`），彈窗再從裡面扣一條頂列
+  （`max-height: calc(100% - var(--topbar-h))`）。背後永遠看得到完整一條頂列，
   那條就是點了會關掉的地方。`--topbar-h` 是量出來的，`TripPage` 與 `TripsPage` **各自都要量**——
   只有一頁量的話，從另一頁開的彈窗會用到上次留下的舊值。picker 例外，維持置中與七成高。
+- **鍵盤那一段只在蓋板上扣一次，彈窗自己不准再扣。** 早期是 `.sheet` 用 `margin-bottom: var(--kb)`
+  往上讓，那等於假設「文件沒有被平移過」——但瀏覽器為了露出焦點欄位一定會平移（見下面雷區那條），
+  而那一段收不回來。症狀是彈窗浮在鍵盤上緣再往上一截、下面露一條灰底，拖它只是在改平移量；
+  長彈窗還會標題列被切到螢幕外、底部的取消／儲存怎麼捲都到不了。
 - **點蓋板等於按取消**，有未儲存的修改就跳確認，不會默默丟掉。關閉的 ✕ 一律留在標題列。
 - **總覽型底部那條「關閉」，整條就是那顆按鈕**（`.sheet-close-wide`，膠囊只是裡面置中的 `span`），
   所以點哪裡都關得掉。不要改成外層 div 加 `onClick` 再包一顆按鈕——那是巢狀點擊區，得靠
@@ -386,7 +392,9 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 - **捲動層一律要擋掉橫向。** `overflow-y: auto` 會讓沒指定的 `overflow-x` 從 `visible` 被算成 `auto`，內容只要寬出去一點點，整個版面就能左右拖動並回彈，看起來像壞掉。新增捲動容器時照抄 `.scroll / .page-scroll / .pane-scroll / .itinerary-scroll` 那組的 `overflow-x: hidden` + `touch-action: pan-y`。唯一該橫捲的 `.daystrip` 是它們的兄弟不是子孫，不受影響。
 - **量到的高度寫成 CSS 變數，不要在 CSS 裡硬寫數字。** `--topbar-h` / `--tabbar-h`（`TripPage`）、`--dayhead-h` / `--reviewrow-h`（`ReviewTab`）都是量出來的，因為它們隨字型、縮放與內容換行而變。
 - **量高度要先同步寫一次，再交給 `ResizeObserver` 管後續變化。** 它的回呼掛在瀏覽器的算繪步驟上，**分頁在背景時不會送達** —— 只靠它的話初值永遠停在 fallback，而且是靜默的，畫面只是位置怪怪的不會報錯。
-- **iOS 鍵盤升起時版面視窗不會縮，只有可視視窗縮。** 畫面底部那段被鍵盤蓋住，在流內的底部按鈕列就消失了。`--kb`（[src/lib/keyboard.ts](src/lib/keyboard.ts)）量的就是這段：蓋板用它調 `inset`（`.pane-detail`），流內版面用它加 `padding-bottom`（`.review-view`），彈窗則是整張往上讓、按鈕列改成跟著內容捲（見上面「彈窗的共通規則」）。同一支檔案還會寫一個 `data-kb` 旗標到 `<html>` 上，因為 CSS 沒辦法拿長度當條件。Android 的版面視窗會跟著縮，`--kb` 算出來是 0，同一條規則自動失效，不用寫兩套。
+- **鍵盤升起時版面視窗不會縮，只有可視視窗縮**（index.html 明確寫了 `interactive-widget=resizes-visual`；iOS 本來就這樣，Android Chrome 也被這行拉成同一套，所以**不存在「Android 的 `--kb` 會是 0」這種自動失效**）。這件事有兩個後果，兩個都要處理：
+  - **畫面底部那段被鍵盤蓋住**，在流內的底部按鈕列就消失了。`--kb`（[src/lib/keyboard.ts](src/lib/keyboard.ts)）量的就是這段：蓋板用它調 `inset`（`.pane-detail`），流內版面用它加 `padding-bottom`（`.review-view`），彈窗則是由 `.backdrop` 的 `height` 扣掉、按鈕列改成跟著內容捲（見上面「彈窗的共通規則」）。同一支檔案還會寫一個 `data-kb` 旗標到 `<html>` 上，因為 CSS 沒辦法拿長度當條件。
+  - **瀏覽器會把整份文件往上平移一段去露出焦點欄位**，`--vv-top` 量的是這段。**它收不回來**：`html / body / #root` 全是 `overflow: hidden`，文件根本不能捲，`unpan()` 那句 `scrollTo(0, 0)` 對它無效，而 `visualViewport.offsetTop` 沒有可寫的 API。**只能跟著走，不能對抗。** 目前只有 `.backdrop` 補了它；`.pane-detail` 與 `.review-view` 仍是舊基準（只讓開 `--kb`），偏掉的症狀是頂列被切掉一截、底下多一條空白，要修就照 `.backdrop` 那兩行抄過去。
 - **使用者輸入的文字都要 `overflow-wrap: anywhere`。** 沒有空白的長字串（英文店名、訂位代號、貼上來的網址）預設不斷行；`min-width: 0` 只讓它縮不讓它斷，照樣頂破版面。
 - **彈窗不能寫在可點元素的 JSX 裡面。** `Modal` 是 `createPortal` 到 `body` 的，但 **React 的合成事件沿的是 React 樹不是 DOM 樹** —— 掛在可點卡片裡面的話，點背景關掉的那一個點擊會接著冒泡到卡片的 `onClick`，當場又把它打開，看起來就是「點外面沒反應」。把 `<Modal>` 放到那個元素外面（用 Fragment 包），不要靠 `stopPropagation` 治症狀。
 - **文字欄位一律 `type="search"`，那不是因為它們是搜尋框。** Android Chrome 會在鍵盤上方掛一條聯絡人／地址的自動填入建議列，而 **Chrome 刻意忽略 `autocomplete="off"`**（太多網站拿它把自動填入整個關掉），改 `id`／`name` 也沒用 —— 實測下來只有「這是搜尋欄」這個訊號擋得住。代價有兩個，都已經處理：桌機的搜尋欄會多一顆清除的 ✕（用 `::-webkit-search-cancel-button` 關掉），Enter 鍵的字樣會變成「搜尋」（每一格補 `enterKeyHint="done"`，真正的搜尋面板除外）。新增文字欄位時照抄，不要「修正」回 `type="text"`。數值欄位（`NumberField`）維持 `text` + `inputMode="decimal"`，那裡本來就不會被認成地址。

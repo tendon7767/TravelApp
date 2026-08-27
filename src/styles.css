@@ -2577,9 +2577,18 @@ body[data-actual='true'] {
 /* 蓋板：手機從底部升起，桌機置中 */
 .backdrop {
   position: fixed;
-  /* 永遠等於版面視窗。想讓開鍵盤是 .sheet 的事，蓋板自己不動，
-     算錯也不會整塊被推出畫面。 */
-  inset: 0;
+  /*
+   * 蓋板量的是「螢幕上真正看得見的那塊」，不是版面視窗。鍵盤升起時版面視窗一格都不縮
+   * （index.html 明確採 interactive-widget=resizes-visual，iOS 本來就是這樣），
+   * 而瀏覽器會把整份文件往上平移一段去露出焦點欄位 —— 那一段收不回來（見 keyboard.ts）。
+   * 只扣鍵盤高度、不補平移量的話，整張彈窗會被畫在鍵盤上緣再往上一段，下面露出一條灰底；
+   * 而手指一拖只是在改平移量，怎麼拖都追不回來，看起來就是「彈窗捲得動但上面什麼都沒有」。
+   * --vv-top 補平移、--kb 扣鍵盤，兩個都是 0 時算出來就是原本的 inset: 0，所以沒鍵盤時零變化。
+   */
+  top: var(--vv-top, 0px);
+  left: 0;
+  right: 0;
+  height: calc(100% - var(--kb, 0px));
   z-index: 50;
   /* touch-action 會與祖先取交集：這裡若是 none，.sheetbody 的 pan-y 也開不回來，
      鍵盤升起後手勢就會變成平移視窗，彈窗裡的內容與按鈕反而捲不到。
@@ -2594,12 +2603,11 @@ body[data-actual='true'] {
 
 .sheet {
   width: 100%;
-  /* 鍵盤升起時整張往上讓，內容才不會有一段被壓在鍵盤底下。
-     底部的按鈕列不再跟著浮在鍵盤上緣，改由 .sheetactions 自己處理。 */
-  margin-bottom: var(--kb, 0px);
   /* 上緣切齊頂列的下緣：背後永遠看得到完整的一條頂列，
-     那條就是「點它可以關掉」的地方。--topbar-h 由頁面自己量（TripPage / TripsPage）。 */
-  max-height: calc(100% - var(--topbar-h) - var(--kb, 0px));
+     那條就是「點它可以關掉」的地方。--topbar-h 由頁面自己量（TripPage / TripsPage）。
+     鍵盤那一段不在這裡扣，也不用 margin-bottom 往上讓 —— 蓋板已經只有看得見的高度，
+     這裡的 100% 就是它，整張自然貼在鍵盤上緣。 */
+  max-height: calc(100% - var(--topbar-h));
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -2623,10 +2631,10 @@ body[data-actual='true'] {
 .backdrop[data-variant='picker'] { align-items: center; padding: 16px; }
 .sheet[data-variant='picker'] {
   max-width: 420px;
-  /* 選一個東西不需要那麼大的動作，維持七成，不吃上面那條切齊頂列的規則。 */
+  /* 選一個東西不需要那麼大的動作，維持七成，不吃上面那條切齊頂列的規則。
+     七成算的是蓋板的高度，鍵盤升起時蓋板本來就只剩看得見的那塊，跟著縮是對的。 */
   max-height: 70%;
   border-radius: 14px;
-  margin-bottom: 0;
 }
 
 .sheetbody {
