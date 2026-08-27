@@ -2581,8 +2581,10 @@ body[data-actual='true'] {
      算錯也不會整塊被推出畫面。 */
   inset: 0;
   z-index: 50;
-  /* 蓋板上的拖曳不該傳給任何人；彈窗內容自己另外開放垂直捲動。 */
-  touch-action: none;
+  /* touch-action 會與祖先取交集：這裡若是 none，.sheetbody 的 pan-y 也開不回來，
+     鍵盤升起後手勢就會變成平移視窗，彈窗裡的內容與按鈕反而捲不到。
+     蓋板本身沒有捲動容器，body 也已經鎖住，所以允許 pan-y 不會拖動背後頁面。 */
+  touch-action: pan-y;
   overscroll-behavior: contain;
   background: rgba(0, 0, 0, 0.45);
   display: flex;
