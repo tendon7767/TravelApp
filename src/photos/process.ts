@@ -139,6 +139,62 @@ const makeThumbnail = async (decoded: DecodedImage): Promise<Blob> => {
   return blob
 }
 
+/**
+ * 收據分析用的圖片：只產一張 JPEG，不做縮圖 —— 它只送去辨識，不會上傳 Drive。
+ *
+ * 目標值刻意跟 processPhoto 的 'receipt' 不同：那組 450KB 是為了「存進 Drive 的收據照片」訂的。
+ * 這條路唯一的天花板是後端的 base64 長度上限（1.5M 字元 ≈ 1.1MB），而 Gemini 按像素計價、
+ * 不看位元組 —— 壓到 450KB 一毛錢都沒省，只是把日文小字壓糊。
+ *
+ * 所以品質固定在高檔，要縮就縮解析度：JPEG 在細小文字上的振鈴假影正是辨識殺手。
+ * 絕大多數照片一次編碼就過關，下面兩個迴圈根本不會跑。
+ */
+const SCAN_TARGET_BYTES = 900 * 1024
+const SCAN_HARD_BYTES = 1_000_000
+const SCAN_MIN_WIDTH = 1000
+
+export interface ReceiptScan {
+  blob: Blob
+  width: number
+  height: number
+}
+
+export const processReceiptScan = async (file: File): Promise<ReceiptScan> => {
+  const decoded = await decodeImage(file)
+  try {
+    if (!decoded.width || !decoded.height) throw new Error('照片尺寸無效')
+
+    // 超長收據若只限制寬度，可能超過 iOS Canvas 的像素上限而完全無法輸出。
+    const capped = fit(decoded.width, decoded.height, 1400, Number.POSITIVE_INFINITY)
+    let { width, height } = fitPixels(capped.width, capped.height, 12_000_000)
+    let quality = 0.85
+    let blob = await jpeg(render(decoded, width, height), quality)
+
+    // 檔案大小約與像素數成正比，直接估出下一個尺寸，不要一階一階試。
+    for (let attempt = 0; blob.size > SCAN_TARGET_BYTES && width > SCAN_MIN_WIDTH && attempt < 2; attempt++) {
+      const nextWidth = Math.max(
+        SCAN_MIN_WIDTH,
+        Math.round(width * Math.sqrt(SCAN_TARGET_BYTES / blob.size) * 0.95),
+      )
+      if (nextWidth >= width) break
+      height = Math.max(1, Math.round(height * (nextWidth / width)))
+      width = nextWidth
+      blob = await jpeg(render(decoded, width, height), quality)
+    }
+
+    // 縮到下限還是太大（極長的收據）才動品質，那是最後手段不是第一手段。
+    while (blob.size > SCAN_HARD_BYTES && quality > 0.65) {
+      quality = Math.max(0.65, quality - 0.1)
+      blob = await jpeg(render(decoded, width, height), quality)
+    }
+
+    if (blob.size > SCAN_HARD_BYTES) throw new Error('收據過長，壓縮後仍超過 1 MB')
+    return { blob, width, height }
+  } finally {
+    decoded.dispose()
+  }
+}
+
 export const processPhoto = async (file: File, kind: Photo['kind']): Promise<ProcessedPhoto> => {
   const decoded = await decodeImage(file)
   try {

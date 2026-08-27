@@ -79,6 +79,8 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 只有 `kind === 'actual'` 的行程版本能加照片。流程：[src/photos/process.ts](src/photos/process.ts) 在瀏覽器用 canvas 壓縮並產縮圖 → 存進 IndexedDB 佇列（[queue.ts](src/photos/queue.ts)）→ base64 上傳到 Apps Script → 檔案落在該趟的 Drive 資料夾，metadata 進試算表的 `photos` 分頁。
 
 - **安全性：後端的一般 `push` 只接受既有照片的刪除墓碑，不接受新增或改寫。** 照片列只能由 `uploadPhoto` 建立。否則拿到旅程密鑰的人可以偽造 `fileId`，讓後端去刪帳號裡其他 Drive 檔案。
+- **收據分析不走 `processPhoto`，走 `processReceiptScan`。** 那張圖只送去辨識、不上傳 Drive，所以不產縮圖（`processPhoto` 是 `Promise.all` 一起等的，縮圖做完才會開始送）。目標值也不同：`processPhoto` 的 450KB 是為了存進 Drive 訂的，而這條路唯一的天花板是後端 base64 的 1.5M 字元上限，**Gemini 按像素計價、不看位元組**，壓小一毛錢都沒省。所以它品質固定 0.85、要縮只縮解析度（下限 1000px）——JPEG 在細小文字上的振鈴假影正是辨識殺手，日文收據首當其衝。不要「順手」把它改回共用 `processPhoto`。
+- **收據分析的進度分三段**（`receipt.pending[itemId]` 是 `{ phase, deadline? }`，不再只是 id 陣列）：壓縮照片、等 Gemini（帶倒數）、檢查結果。**倒數存的是逾時的絕對時刻不是剩餘秒數** —— 分頁切到背景時計時器會被節流甚至凍結，遞減的話回前景會停在離開時的秒數再慢慢追。同理，`setTimeout` 的逾時也不可靠，所以 in-flight 期間另外掛 `visibilitychange`，回前景過期就直接 abort。畫面上那一行每秒更新是 [useCountdown.ts](src/lib/useCountdown.ts)，**不要為了它去改 `useNowClock`** —— 那支是每分鐘一跳而且整份行程列表都吃它，改成每秒等於整張表每秒重繪。
 - 縮圖靠 service worker 的 CacheFirst 規則（見 [vite.config.ts](vite.config.ts)）離線可看，刪除照片時要一併清快取。
 - 後端能力靠 `ping` 回傳的 `capabilities.photos` 判斷。舊後端會靜默忽略 `photos` 集合，所以偵測到不支援時要保留 `lastPushedAt` 不前進，重新部署後才補得回來。
 
@@ -427,7 +429,7 @@ Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版�
 ## 其他值得知道的
 
 - **回饋計算只認 `kind === 'actual'` 的版本**（[src/lib/rewards.ts](src/lib/rewards.ts)）。一張卡可有多組同時累積的規則；消費上限不獨立儲存，它恆等於 `rewardCap / rate`。
-- **「還可刷」看哪一條規則由 `focusedRule()` 決定**（[src/lib/rewards.ts](src/lib/rewards.ts)），回饋頁與選擇支付方式的選單共用它，否則同一張卡在兩個畫面會報出不同的數字。預設擇優挑回饋率最高的那條，使用者點過某條規則就存進 `settings.rewardRuleFocus`。「停用與否」問的是另一件事（這張還有沒有任何回饋可拿），跟看哪條規則無關。
+- **「還可刷」看哪一條規則由 `focusedRule()` 決定**（[src/lib/rewards.ts](src/lib/rewards.ts)），回饋頁與選擇支付方式的選單共用它，否則同一張卡在兩個畫面會報出不同的數字。預設擇優挑回饋率最高的那條，使用者點過某條規則就存進 `settings.rewardRuleFocus`。「拿滿」問的是另一件事（這張還有沒有任何回饋可拿），跟看哪條規則無關；**它只用來標示與排序，不會擋著不讓選** —— 支付方式首先是記錄「實際上刷了哪張」，沒有回饋可拿不代表沒刷過它。
 - **現金與其他借 `paymentMethodId` 存保留字** `'cash'` / `'other'`。它們不是支付方式記錄（沒有規則、不該出現在回饋頁），但仍要能標在花費上。`computeMethod` 是用 id 比對挑出自己的花費，保留字永遠比不中 = 沒有回饋，正好是要的行為，所以資料結構與同步層都不必為它們改。
 - **橫向手勢在旅程頁裡是「換一格」，不是返回。** 判定與門檻集中在 [useHorizontalSwipe.ts](src/lib/useHorizontalSwipe.ts)，上面長出兩個用法：`useSwipeBack`（只有詳細頁還在用，往右滑關閉）與 `useSwipeSteps`（行程換日、回饋換持有人、筆記換筆記）。離開一趟旅程改走導航列的「首頁」那一格；`.tabbar` 由旅程頁與旅程列表共用（[TabBar.tsx](src/components/TabBar.tsx)），在列表頁時另外三格指向 `settings.activeTripId` 那一趟。最左緣 24px 仍讓給 iOS 自己的返回手勢。關閉一律走 `requestNavigation()`，未儲存的修改才攔得到。
   - **打開詳細頁是唯一會往歷史推一筆的地方**（`openDetail`／`closeDetail`，其餘參數一律 `replace`，歷史不累積）。

@@ -14,7 +14,7 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-27-receipt-ai'
+var BACKEND_VERSION = '2026-08-28-receipt-truncated'
 
 /** 邀請連結備份的分頁名稱。不在 SCHEMA 裡，pull/push 都不會碰到它。 */
 var INVITE_SHEET = '邀請連結'
@@ -902,7 +902,8 @@ function analyzeReceipt(body) {
         mime_type: 'application/json',
         schema: body.schema || RECEIPT_SCHEMA,
       },
-      generation_config: { thinking_level: 'minimal', max_output_tokens: 4096 },
+      // 百貨公司那種四五十行的收據，4096 會在 JSON 收尾前就被砍斷。
+      generation_config: { thinking_level: 'minimal', max_output_tokens: 8192 },
       // 收據可能含有個人消費資訊；這次不需要延續對話，不留互動記錄。
       store: false,
     }),
@@ -920,10 +921,40 @@ function analyzeReceipt(body) {
   }
 
   var output = interactionText(payload)
-  if (!output) return { error: 'Gemini 沒有回傳內容' }
+  if (!output) return { error: truncatedOutput(payload, '') ? RECEIPT_TRUNCATED : 'Gemini 沒有回傳內容' }
   var receipt = parsePlaceJson(output)
-  if (!receipt) return { error: '收據分析結果的格式不對' }
+  if (!receipt) {
+    return { error: truncatedOutput(payload, output) ? RECEIPT_TRUNCATED : '收據分析結果的格式不對' }
+  }
   return { ok: true, receipt: receipt }
+}
+
+var RECEIPT_TRUNCATED = '收據太長，這次只讀到一半就斷了。分兩張拍，或裁掉不需要的部分再試一次。'
+
+/**
+ * 輸出被 max_output_tokens 砍斷時，回來的是一段沒有收尾的 JSON，parsePlaceJson 從第一個 {
+ * 撈到最後一個 } 也撈不到東西。這種情況一定要跟「格式不對」分開講：看到「格式不對」的人
+ * 只會再拍一次，但收據多長就是多長，拍幾次都一樣。
+ *
+ * 主要靠結構判斷（開了大括號卻沒收），因為 Interactions API 的結束原因欄位名稱還會變；
+ * 順手看幾個常見的欄位名，有就直接採信。
+ */
+function truncatedOutput(payload, text) {
+  var reasons = []
+  if (payload) {
+    reasons.push(payload.finish_reason, payload.finishReason, payload.stop_reason, payload.stopReason)
+    var steps = payload.steps || []
+    if (steps.length) {
+      var last = steps[steps.length - 1]
+      reasons.push(last.finish_reason, last.finishReason, last.stop_reason, last.stopReason)
+    }
+  }
+  for (var i = 0; i < reasons.length; i++) {
+    if (reasons[i] && String(reasons[i]).toUpperCase().indexOf('MAX') >= 0) return true
+  }
+  var body = String(text)
+  var start = body.indexOf('{')
+  return start >= 0 && body.lastIndexOf('}') <= start
 }
 
 /**

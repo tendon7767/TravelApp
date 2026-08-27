@@ -57,7 +57,7 @@ import {
 } from '../lib/placeInfo'
 import placePrompt from '../data/placePrompt.md?raw'
 import receiptPrompt from '../data/receiptPrompt.md?raw'
-import { processPhoto, type ProcessedPhoto } from '../photos/process'
+import { processReceiptScan, type ProcessedPhoto } from '../photos/process'
 import {
   buildReceiptAnalysisInput,
   parseReceiptData,
@@ -94,9 +94,21 @@ export interface AiState {
   errors: Record<string, string>
 }
 
+/** 一次分析走過的三段。使用者按完就走，回來要看得出停在哪一段。 */
+export type ReceiptPhase = 'compressing' | 'analyzing' | 'applying'
+
+export interface ReceiptProgress {
+  phase: ReceiptPhase
+  /**
+   * 逾時的絕對時刻，只有 analyzing 有 —— 壓縮那段不計入那 60 秒。
+   * 存時間戳而不是剩餘秒數：分頁切到背景時計時器會被節流，回前景要立刻算得出正確的秒數。
+   */
+  deadline?: number
+}
+
 /** 相機收據分析與地點分析生命週期不同，不能共用 pending key 與 flight。 */
 export interface ReceiptState {
-  pending: string[]
+  pending: Record<string, ReceiptProgress>
   errors: Record<string, string>
   /** 分析完成後先留在 store；詳細頁回來時才把它加入現有費用草稿。 */
   results: Record<string, ReceiptClipboardCost>
@@ -209,6 +221,8 @@ const receiptVersions = new Map<string, number>()
 const receiptControllers = new Map<string, AbortController>()
 /** 開了搜尋之後一次要跑十幾二十秒，30 秒會把還在查的請求砍掉。 */
 const AI_TIMEOUT_MS = 60_000
+/** 收據自己一份：它現在有倒數，畫面上看得見，之後要調不該連地點分析一起動。 */
+const RECEIPT_TIMEOUT_MS = 60_000
 
 const invalidateTripSync = (tripId: string) => {
   syncVersions.set(tripId, (syncVersions.get(tripId) ?? 0) + 1)
@@ -246,7 +260,7 @@ export const useStore = create<State>((setState, getState) => {
     ready: false,
     sync: { busy: false, overwritten: [] },
     ai: { pending: [], errors: {} },
-    receipt: { pending: [], errors: {}, results: {} },
+    receipt: { pending: {}, errors: {}, results: {} },
     localRev: 0,
     pendingPhotos: [],
 
@@ -695,12 +709,12 @@ export const useStore = create<State>((setState, getState) => {
       setState({ receipt: { ...current, errors, results } })
 
       const currentVersion = () => receiptVersions.get(itemId) === version
-      const setPending = (on: boolean) => {
+      const setPhase = (phase?: ReceiptPhase, deadline?: number) => {
         if (!currentVersion()) return
         const receipt = getState().receipt
-        const pending = on
-          ? [...receipt.pending.filter((id) => id !== itemId), itemId]
-          : receipt.pending.filter((id) => id !== itemId)
+        const pending = { ...receipt.pending }
+        if (phase) pending[itemId] = deadline === undefined ? { phase } : { phase, deadline }
+        else delete pending[itemId]
         setState({ receipt: { ...receipt, pending } })
       }
       const fail = (message: string) => {
@@ -729,16 +743,25 @@ export const useStore = create<State>((setState, getState) => {
           return
         }
 
-        setPending(true)
+        setPhase('compressing')
         let abort: AbortController | undefined
         let timer: ReturnType<typeof setTimeout> | undefined
+        let onVisible: (() => void) | undefined
         try {
-          const processed = await processPhoto(file, 'receipt')
+          const processed = await processReceiptScan(file)
           if (!currentVersion()) return
 
           abort = new AbortController()
           receiptControllers.set(itemId, abort)
-          timer = setTimeout(() => abort?.abort(), AI_TIMEOUT_MS)
+          const deadline = Date.now() + RECEIPT_TIMEOUT_MS
+          timer = setTimeout(() => abort?.abort(), RECEIPT_TIMEOUT_MS)
+          // 背景分頁的計時器會被節流甚至凍結，回前景時補判一次；
+          // 只靠 setTimeout 的話，逾時可能晚上好幾分鐘才觸發，而畫面上的倒數早就歸零了。
+          onVisible = () => {
+            if (document.visibilityState === 'visible' && Date.now() >= deadline) abort?.abort()
+          }
+          document.addEventListener('visibilitychange', onVisible)
+          setPhase('analyzing', deadline)
           const { receipt } = await analyzeRemoteReceipt(
             settings.gasUrl,
             link,
@@ -748,11 +771,12 @@ export const useStore = create<State>((setState, getState) => {
               schema: RECEIPT_SCHEMA,
               model: RECEIPT_MODEL,
             },
-            processed.fullBlob,
+            processed.blob,
             abort.signal,
           )
           if (!currentVersion()) return
 
+          setPhase('applying')
           const parsed = parseReceiptData(receipt)
           const supported = [trip.foreignCurrency, trip.homeCurrency]
           if (!supported.some((code) => code.toUpperCase() === parsed.currency)) {
@@ -778,8 +802,9 @@ export const useStore = create<State>((setState, getState) => {
           )
         } finally {
           if (timer) clearTimeout(timer)
+          if (onVisible) document.removeEventListener('visibilitychange', onVisible)
           if (receiptControllers.get(itemId) === abort) receiptControllers.delete(itemId)
-          setPending(false)
+          setPhase(undefined)
         }
       })()
 
@@ -806,15 +831,11 @@ export const useStore = create<State>((setState, getState) => {
       const receipt = getState().receipt
       const errors = { ...receipt.errors }
       const results = { ...receipt.results }
+      const pending = { ...receipt.pending }
       delete errors[itemId]
       delete results[itemId]
-      setState({
-        receipt: {
-          pending: receipt.pending.filter((id) => id !== itemId),
-          errors,
-          results,
-        },
-      })
+      delete pending[itemId]
+      setState({ receipt: { pending, errors, results } })
     },
 
     /** 軟刪除：墓碑是 M4 同步用的，刪除前由介面負責跟使用者確認。 */

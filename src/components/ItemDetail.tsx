@@ -63,6 +63,7 @@ import DragHandleIcon from './DragHandleIcon'
 import { moveItem, useDragSort } from '../lib/useDragSort'
 import { tagCharOf } from '../lib/reviewHues'
 import PasteIcon from './PasteIcon'
+import { useCountdown } from '../lib/useCountdown'
 import SparkleIcon from './SparkleIcon'
 import { joinGuide, splitGuide } from '../lib/placeInfo'
 import { checkoutOf, followersOf, nightsBetween, stayJumpTarget, stayNightsOf } from '../lib/stay'
@@ -194,7 +195,10 @@ export default function ItemDetail({
   const analyzeReceipt = useStore((state) => state.analyzeReceipt)
   const consumeReceiptResult = useStore((state) => state.consumeReceiptResult)
   const discardReceiptAnalysis = useStore((state) => state.discardReceiptAnalysis)
-  const receiptPending = useStore((state) => state.receipt.pending.includes(itemId))
+  const receiptProgress = useStore((state) => state.receipt.pending[itemId])
+  const receiptPending = Boolean(receiptProgress)
+  // 倒數只在等 Gemini 那段有 deadline；壓縮與收尾那兩段不會啟動計時器。
+  const receiptSeconds = useCountdown(receiptProgress?.deadline)
   const receiptError = useStore((state) => state.receipt.errors[itemId])
   const receiptResult = useStore((state) => state.receipt.results[itemId])
   const isActual = useStore((state) =>
@@ -339,7 +343,8 @@ export default function ItemDetail({
       map.set(payment.id, {
         // 跟回饋頁看到的是同一條規則，否則同一張卡在兩個畫面會給出不同的數字。
         remaining: focusedRule(rules, ruleFocus?.[payment.id])?.remainingSpend,
-        // 停用與否問的是「這張還有沒有回饋可拿」，跟看哪條規則無關。
+        // 「拿滿」只用來標示與排序，不會擋著不給選 —— 支付方式首先是記錄「實際上刷了哪張」，
+        // 沒有回饋可拿不代表沒刷過它。
         exhausted: rules.length > 0 && rules.every((rule) => rule.remainingSpend === 0),
       })
     }
@@ -1432,7 +1437,6 @@ export default function ItemDetail({
                   <button
                     key={payment.id}
                     className="picker-card"
-                    disabled={status?.exhausted}
                     onClick={() => choosePayment(payment.id)}
                   >
                     <span className="picker-card-band">{payment.name || '未命名'}</span>
@@ -2402,6 +2406,15 @@ export default function ItemDetail({
                   }}
                 />
               </div>
+              {receiptProgress && (
+                <p className="cost-receipt-status" role="status">
+                  {receiptProgress.phase === 'compressing'
+                    ? '正在處理照片…'
+                    : receiptProgress.phase === 'analyzing'
+                      ? `正在分析收據…${receiptSeconds === undefined ? '' : ` 剩餘 ${receiptSeconds} 秒`}`
+                      : '正在檢查結果…'}
+                </p>
+              )}
               {(costPasteError || receiptError) && (
                 <p className="cost-paste-error" role="alert">{costPasteError || receiptError}</p>
               )}

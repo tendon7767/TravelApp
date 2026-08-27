@@ -1472,6 +1472,13 @@ body[data-actual='true'] {
   gap: 8px;
   flex-wrap: wrap;
 }
+.cost-receipt-status {
+  margin: 7px 0 0;
+  color: var(--text-3);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .cost-paste-error {
   margin: 7px 0 0;
   color: var(--danger);
