@@ -4,9 +4,17 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
     <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon.png" />
+    <!--
+      interactive-widget 千萬不要改回 resizes-visual：那等於要求 Android 別縮版面、
+      改用「平移可視視窗」那套，也就是把 iOS 的毛病手動搬過來。平移一發生就收不回來
+      （文件是 overflow: hidden，scrollTo 無效，visualViewport.offsetTop 沒有可寫的 API），
+      而且鍵盤升起後在彈窗裡拖曳會被瀏覽器拿去平移整個畫面，內容反而捲不動。
+      resizes-content 讓版面自己縮，上面這些問題全部不存在。
+      iOS Safari 不認得這個屬性，它永遠是平移那套，所以 keyboard.ts 兩條路徑都要留著。
+    -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-visual"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta name="theme-color" content="#161b22" />
     <title>travelapp</title>

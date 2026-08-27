@@ -2678,8 +2678,14 @@ body[data-actual='true'] {
   margin: 12px -14px 0;
   padding: 14px 18px max(14px, calc(14px + env(safe-area-inset-bottom) - var(--kb, 0px)));
 }
+/*
+ * 落底是 relative 不是 static：手機版那兩顆按鈕的點擊層是 `position: absolute` 的 ::after，
+ * 靠這一列當定位容器才吃得到左右半邊（見 max-width: 619px 那段）。改成 static 的話它會一路
+ * 逃到 .backdrop 身上，兩片透明點擊層當場撐成半個螢幕那麼大 —— 而且完全看不出來。
+ * relative 不帶偏移，排版效果跟 static 一模一樣，但定位容器留著。
+ */
 :root[data-kb] .sheetactions {
-  position: static;
+  position: relative;
   padding-top: 10px;
   padding-bottom: 10px;
 }
