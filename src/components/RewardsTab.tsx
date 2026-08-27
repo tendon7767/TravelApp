@@ -5,6 +5,7 @@ import { computeMethod, focusedRule, type MethodResult } from '../lib/rewards'
 import { formatMoney } from '../lib/money'
 import { dayCount, shortDate } from '../lib/date'
 import { methodLabel, OWNERLESS } from '../lib/owners'
+import { channelsOf, sameChannel } from '../lib/channels'
 import PaymentEditor from './PaymentEditor'
 import SwipePager from './SwipePager'
 import PencilIcon from './PencilIcon'
@@ -46,6 +47,15 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
     () => (isActual && plan ? allItems.filter((i) => i.planId === plan.id && !i.deleted) : []),
     [allItems, isActual, plan],
   )
+  /*
+   * 通路清單是衍生的，所以「這次新增、還沒被任何已存規則引用」的那幾個，取消就真的消失了。
+   * 改名不會 —— 那是真儲存。差別看不出來，所以放棄確認要把會消失的那幾個講出來。
+   */
+  const orphanChannels = useMemo(() => {
+    if (!editingDraft) return []
+    const stored = channelsOf(allPayments)
+    return channelsOf([editingDraft]).filter((name) => !stored.some((s) => sameChannel(s, name)))
+  }, [editingDraft, allPayments])
   /*
    * 規劃版與實際版共用同一套卡片，不再各做一套介面。
    * 差別只在 items：規劃版拿到的是空陣列（回饋只認實際版），
@@ -187,6 +197,11 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
           /* 新增：沒名字的支付方式在選單裡認不出來。編輯：沒改就沒得存。 */
           completeDisabled={editingNew ? !editingDraft.name.trim() : !editorDirty}
           dirty={editorDirty}
+          dirtyHint={
+            orphanChannels.length
+              ? `這次新增的通路「${orphanChannels.join('」「')}」會一起消失；改過的名稱會保留。`
+              : undefined
+          }
         >
           <PaymentEditor
             method={editingDraft}

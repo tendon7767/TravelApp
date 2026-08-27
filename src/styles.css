@@ -1650,6 +1650,8 @@ body[data-actual='true'] {
   text-overflow: ellipsis;
 }
 .picker-list { display: grid; gap: 8px; }
+/* 通路是這一筆的脈絡，不是選項之一，所以放在清單上面自成一列。 */
+.picker-channel { justify-self: start; }
 .picker-row {
   display: grid;
   gap: 4px;
@@ -2942,3 +2944,28 @@ body.modal-open { overflow: hidden; }
 .detail-section-locked {
   cursor: default;
 }
+
+/*
+ * 通路標籤。清單住在彈窗裡：名稱要能就地編輯，chip 裝不下輸入框，
+ * 而規則卡上已經有四個欄位，攤開兩三行 chip 會讓那張卡的主體變成通路。
+ */
+.rule-channels {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.rule-channels-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.channel-list { display: grid; gap: 8px; }
+.channel-row { display: flex; align-items: center; gap: 8px; }
+.channel-pick { padding: 4px 0; }
+.channel-name { flex: 1; min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+.channel-used { flex: none; font-size: 12px; }
+.channel-merge { flex: none; font-size: 12px; color: var(--note-ink); }
+.channel-hint { margin: 2px 0 0; font-size: 12px; }

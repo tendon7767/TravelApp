@@ -27,6 +27,13 @@ interface Props {
    */
   variant?: 'sheet' | 'picker'
   dirty?: boolean
+  /**
+   * 放棄變更確認裡多講一句。用在「取消會連帶丟掉什麼」不是一眼看得出來的時候
+   * （例如通路標籤：這次新增的會跟著消失，但改過的名字已經是真存檔了）。
+   */
+  dirtyHint?: ReactNode
+  /** 標題列右側、關閉 ✕ 左邊的一顆按鈕。 */
+  headAction?: ReactNode
   children: ReactNode
 }
 
@@ -44,6 +51,8 @@ export default function Modal({
   completeDisabled = false,
   variant = 'sheet',
   dirty = false,
+  dirtyHint,
+  headAction,
   children,
 }: Props) {
   const [confirmingCancel, setConfirmingCancel] = useState(false)
@@ -122,6 +131,7 @@ export default function Modal({
         >
           <div className="sheethead">
             <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>{title}</strong>
+            {headAction}
             {/* 關閉一律留在標題列：鍵盤升起時底部的取消會捲進內容裡，這顆離鍵盤最遠。 */}
             <button className="icon-btn" onClick={requestCancel} aria-label="關閉">
               <CloseIcon />
@@ -182,6 +192,7 @@ export default function Modal({
             </div>
             <div className="sheetbody" data-actions="">
               <p style={{ margin: 0 }}>確定要取消並放棄這次的修改嗎？</p>
+              {dirtyHint && <p className="dim" style={{ margin: '8px 0 0', fontSize: 13 }}>{dirtyHint}</p>}
               <div className="sheetactions">
                 <button className="btn" onClick={() => setConfirmingCancel(false)}>繼續編輯</button>
                 <button className="btn btn-danger" onClick={onCancel}>放棄變更</button>

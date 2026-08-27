@@ -16,7 +16,6 @@ import {
   type Item,
   type ItineraryCategory,
   type LinkRef,
-  type PaymentMethod,
   type Trip,
 } from '../types'
 import { newId } from '../lib/id'
@@ -25,18 +24,10 @@ import { formatMoney, formatTotals, lineTotal, sumByCurrency, toHome } from '../
 import { addDays, normalizeTime, shortDate } from '../lib/date'
 import ConfirmButton from './ConfirmButton'
 import NumberField from './NumberField'
-import { methodLabel, OWNERLESS } from '../lib/owners'
+import { methodLabel, OTHER_PAYMENTS } from '../lib/owners'
 import SettingsModal from './SettingsModal'
 import Modal from './Modal'
-import {
-  amountInMethodCurrency,
-  computeMethod,
-  focusedRule,
-  inHomeCurrency,
-  marginalReward,
-  suggestSplit,
-  type MarginalResult,
-} from '../lib/rewards'
+import { amountInMethodCurrency, computeMethod, suggestSplit } from '../lib/rewards'
 import {
   clearItemDraft,
   loadItemDraft,
@@ -72,6 +63,7 @@ import DragHandleIcon from './DragHandleIcon'
 import { moveItem, useDragSort } from '../lib/useDragSort'
 import { tagCharOf } from '../lib/reviewHues'
 import PasteIcon from './PasteIcon'
+import PaymentPicker from './PaymentPicker'
 import { useCountdown } from '../lib/useCountdown'
 import SparkleIcon from './SparkleIcon'
 import { joinGuide, splitGuide } from '../lib/placeInfo'
@@ -112,11 +104,6 @@ const SECTION_LABELS: Record<ItemDraftSection, string> = {
  * 這個行為本來就成立（computeMethod 是用 id 比對挑出自己的花費），
  * 所以回饋計算與同步層都不必為它們改任何東西。
  */
-const OTHER_PAYMENTS = [
-  ['cash', '現金'],
-  ['other', '其他'],
-] as const
-
 const isBlankCost = (cost: ItemCostLine) =>
   !cost.label.trim() && !cost.unitPrice
 
@@ -193,7 +180,6 @@ export default function ItemDetail({
   const setReview = useStore((state) => state.setReview)
   const me = useStore((state) => state.settings.memberName)
   const gasUrl = useStore((state) => state.settings.gasUrl)
-  const ruleFocus = useStore((state) => state.settings.rewardRuleFocus)
   const costGroupApiVersion = useStore((state) => state.settings.costGroupApiVersion)
   const reviewHues = useStore((state) => state.settings.reviewHues?.[trip.id])
   const tripLink = useStore((state) => state.settings.tripLinks?.[trip.id])
@@ -268,8 +254,6 @@ export default function ItemDetail({
   const [choosingCategory, setChoosingCategory] = useState(false)
   /** 正在替哪一筆消費選支付方式；null 代表 picker 關閉。 */
   const [pickingPayment, setPickingPayment] = useState<string | null>(null)
-  const [pickerOwner, setPickerOwner] = useState<string>(OWNERLESS)
-  const pickerBodyRef = useRef<HTMLDivElement>(null)
   const [pastingCosts, setPastingCosts] = useState(false)
   const [costPasteError, setCostPasteError] = useState('')
   const [receiptChecks, setReceiptChecks] = useState<Record<string, ReceiptDraftCheck>>({})
@@ -337,99 +321,6 @@ export default function ItemDetail({
     }
     return hints
   }, [item, methods, allItems, trip])
-
-  /*
-   * 每張卡的三件事：這一筆改用它會多拿多少（逐條規則）、還能刷多少、回饋是不是拿滿了。
-   *
-   * 「多拿多少」一定要用 marginalReward 的差值算，不能拿金額 × 費率 —— 額度只剩 10 元的卡
-   * 乘出來會寫著 96 元，然後被排到第一個，而那正是最需要算準的時刻。
-   *
-   * 算的時候排除這筆自己的花費，因為要問的是「這筆用這張刷還划算嗎」，跟旁邊 splitHint 一致。
-   * 沒有金額（剛建好消費、還沒打單價）就不模擬 —— 全是 0 的排名等於隨機。規劃版不算回饋。
-   */
-  const pickerInfo = useMemo(() => {
-    const map = new Map<
-      string,
-      { remaining?: number; exhausted: boolean; marginal?: MarginalResult; totalHome: number }
-    >()
-    if (!isActual || !item) return map
-    const picked = pickingPayment
-      ? item.costGroups.find((group) => group.id === pickingPayment)
-      : undefined
-    const withoutPickedGroup = pickingPayment
-      ? { ...item, costGroups: item.costGroups.filter((group) => group.id !== pickingPayment) }
-      : item
-    const others = allItems
-      .filter((candidate) => candidate.planId === item.planId && !candidate.deleted)
-      .map((candidate) => (candidate.id === item.id ? withoutPickedGroup : candidate))
-    const lines = picked ? item.costs.filter((cost) => cost.groupId === picked.id) : []
-    for (const payment of methods) {
-      const { rules, txns } = computeMethod(payment, others, trip)
-      const amount = picked ? amountInMethodCurrency(lines, payment, trip) : 0
-      const marginal =
-        amount > 0 ? marginalReward(payment, { amount, channel: picked?.channel }, txns) : undefined
-      map.set(payment.id, {
-        // 跟回饋頁看到的是同一條規則，否則同一張卡在兩個畫面會給出不同的數字。
-        remaining: focusedRule(rules, ruleFocus?.[payment.id])?.remainingSpend,
-        // 「拿滿」只用來標示與排序，不會擋著不給選 —— 支付方式首先是記錄「實際上刷了哪張」，
-        // 沒有回饋可拿不代表沒刷過它。
-        exhausted: rules.length > 0 && rules.every((rule) => rule.remainingSpend === 0),
-        marginal,
-        // 排名與「推薦」的門檻都用本幣比，不然日圓卡與台幣卡放在一起會排錯。
-        totalHome: marginal ? inHomeCurrency(marginal.total, payment, trip) : 0,
-      })
-    }
-    return map
-  }, [methods, allItems, item, trip, isActual, ruleFocus, pickingPayment])
-
-  /*
-   * 依持有者分區。多人同行時常常持有同一張卡，跨持有人排名會推薦到別人的卡，
-   * 所以排名與「推薦」都各區獨立。有金額時照本幣的邊際回饋排（拿滿的自然沉底），
-   * 沒金額時退回名稱排序、只把拿滿的沉到最後。
-   */
-  const pickerGroups = useMemo(() => {
-    const map = new Map<string, typeof methods>()
-    for (const payment of methods) {
-      const owner = payment.owner?.trim() || OWNERLESS
-      map.set(owner, [...(map.get(owner) ?? []), payment])
-    }
-    return [...map.entries()].map(([owner, list]) => {
-      const simulated = list.some((payment) => pickerInfo.get(payment.id)?.marginal)
-      const sorted = [...list].sort((a, b) =>
-        simulated
-          ? (pickerInfo.get(b.id)?.totalHome ?? 0) - (pickerInfo.get(a.id)?.totalHome ?? 0)
-          : Number(pickerInfo.get(a.id)?.exhausted ?? false) -
-            Number(pickerInfo.get(b.id)?.exhausted ?? false),
-      )
-      /*
-       * 「推薦」只給明顯勝出的那張：差距不到 1 元（本幣）就不掛。
-       * 為了三毛錢掛推薦，人會學會忽略那個標籤。全部都沒有回饋時也不掛。
-       */
-      const best = sorted[0]
-      const bestHome = best ? (pickerInfo.get(best.id)?.totalHome ?? 0) : 0
-      const runnerUp = sorted[1] ? (pickerInfo.get(sorted[1].id)?.totalHome ?? 0) : 0
-      const recommended =
-        simulated && best && bestHome > 0 && bestHome - runnerUp >= 1 ? best.id : undefined
-      return [owner, sorted, recommended] as const
-    })
-  }, [methods, pickerInfo])
-
-  /*
-   * 分區藏起來之後，預設要落在「看得到目前那張卡」的那一區，不然重開選單會像沒設定過。
-   * 其次才是自己的卡（payment.owner 與 settings.memberName 都是自由字串，對得上就用），
-   * 都對不上就第一區。
-   *
-   * 在開啟的那一刻決定，不寫成 effect：effect 得把 methods 與金額都列進相依，
-   * 於是使用者切過分區之後，只要有任何一個重算就被拉回預設。
-   */
-  const openPaymentPicker = (groupId: string) => {
-    const group = item?.costGroups.find((row) => row.id === groupId)
-    const ownerOf = (payment?: PaymentMethod) => payment?.owner?.trim() || OWNERLESS
-    const current = methods.find((payment) => payment.id === group?.paymentMethodId)
-    const mine = methods.find((payment) => ownerOf(payment) === (me.trim() || OWNERLESS))
-    setPickerOwner(ownerOf(current ?? mine ?? methods[0]))
-    setPickingPayment(groupId)
-  }
 
   const itemDirty = useMemo(() => {
     if (!item || !storedItem) return false
@@ -1319,6 +1210,21 @@ export default function ItemDetail({
     setPickingPayment(null)
   }
 
+  const chooseChannel = (channel?: string) => {
+    if (!pickingPayment) return
+    const costGroups = item.costGroups.map((group) =>
+      group.id === pickingPayment ? { ...group, channel } : group,
+    )
+    if (editMode === 'none') {
+      updateItem(item.id, { costGroups, paymentMethodId: undefined })
+      setDraftItem((current) =>
+        current ? { ...current, costGroups, paymentMethodId: undefined } : current,
+      )
+    } else {
+      patchItem({ costGroups })
+    }
+  }
+
   /** 貼進來的整段文字（還帶著換行）拆成網址與地名，欄位裡只留乾淨的網址。 */
   const takeMapPaste = (text: string) => {
     setTouched(true)
@@ -1486,137 +1392,6 @@ export default function ItemDetail({
     </Modal>
   )
 
-  /*
-   * 分區只有一個時不分區；`pickerOwner` 對不到任何一區（卡片被刪、持有人改名）就退回第一區，
-   * 不然清單會整個空掉而畫面上沒有任何線索。
-   */
-  const activePickerOwner = pickerGroups.some(([owner]) => owner === pickerOwner)
-    ? pickerOwner
-    : pickerGroups[0]?.[0]
-  const visiblePickerGroups =
-    pickerGroups.length === 1
-      ? pickerGroups
-      : pickerGroups.filter(([owner]) => owner === activePickerOwner)
-
-  /* 切區之後捲動位置留在原地的話會落在半空中，看起來像清單只有下半截。 */
-  const choosePickerOwner = (owner: string) => {
-    setPickerOwner(owner)
-    pickerBodyRef.current?.closest('.sheetbody')?.scrollTo({ top: 0 })
-  }
-
-  const paymentModal = pickingPayment && (
-    <Modal title="選擇支付方式" onCancel={() => setPickingPayment(null)} variant="picker">
-      <div className="picker-body" ref={pickerBodyRef}>
-        {/* 只有一位持有人時整條切換列不出現，那是最常見的情況。 */}
-        {pickerGroups.length > 1 && (
-          <div className="seg picker-owners" role="group" aria-label="持有人">
-            {pickerGroups.map(([owner]) => (
-              <button
-                key={owner}
-                className="seg-btn"
-                aria-pressed={owner === activePickerOwner}
-                onClick={() => choosePickerOwner(owner)}
-              >
-                {owner}
-              </button>
-            ))}
-          </div>
-        )}
-        {visiblePickerGroups.map(([owner, list, recommended]) => (
-            <div key={owner} className="picker-group">
-              <div className="picker-list">
-                {list.map((payment) => {
-                  const status = pickerInfo.get(payment.id)
-                  const marginal = status?.marginal
-                  const uncapped = status?.remaining === undefined
-                  const home =
-                    marginal && payment.currency !== trip.homeCurrency
-                      ? inHomeCurrency(marginal.total, payment, trip)
-                      : undefined
-                  return (
-                    <button
-                      key={payment.id}
-                      className="picker-row"
-                      onClick={() => choosePayment(payment.id)}
-                    >
-                      <span className="picker-row-head">
-                        <span className="picker-row-name">{payment.name || '未命名'}</span>
-                        {recommended === payment.id && (
-                          <span className="picker-row-tag">推薦</span>
-                        )}
-                        {marginal ? (
-                          <span className="picker-row-total">
-                            <span className="mono">{formatMoney(marginal.total, payment.currency)}</span>
-                            {home !== undefined && (
-                              <span className="picker-row-home">
-                                約 {formatMoney(home, trip.homeCurrency)}
-                              </span>
-                            )}
-                          </span>
-                        ) : (
-                          status && (
-                            <span className="picker-row-total">
-                              <span className="picker-row-label">
-                                {status.exhausted ? '回饋' : '還可刷'}
-                              </span>
-                              <span
-                                className={
-                                  status.exhausted || uncapped
-                                    ? 'picker-row-plain'
-                                    : 'picker-row-plain mono'
-                                }
-                                data-bad={status.exhausted}
-                              >
-                                {status.exhausted
-                                  ? '已拿滿'
-                                  : uncapped
-                                    ? '無上限'
-                                    : formatMoney(status.remaining!, payment.currency)}
-                              </span>
-                            </span>
-                          )
-                        )}
-                      </span>
-                      {/*
-                       * 逐條列出來最準：規則本來就各有名字，不必去猜哪條是「基本」哪條是「加碼」。
-                       * covered 是「這條有沒有算進去」（通路對不對得上），跟「算出來是 0」不同。
-                       */}
-                      {marginal?.rules.map(({ rule, reward, covered }) => (
-                        <span key={rule.id} className="picker-rule">
-                          <span className="picker-rule-name">{rule.name}</span>
-                          <span className="picker-rule-rate mono">
-                            {(rule.rate * 100).toFixed(1)}%
-                          </span>
-                          <span className="picker-rule-value mono" data-off={!covered || undefined}>
-                            {covered ? formatMoney(reward, payment.currency) : '未計入'}
-                          </span>
-                        </span>
-                      ))}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-
-        {/* 現金與其他不是支付方式記錄，沒有回饋可算，所以只有名稱一行。 */}
-        <div className="picker-group">
-          <div className="picker-group-head">其他</div>
-          <div className="picker-grid">
-            <button className="picker-card" onClick={() => choosePayment(undefined)}>
-              <span className="picker-card-band">未設定</span>
-            </button>
-            {OTHER_PAYMENTS.map(([id, label]) => (
-              <button key={label} className="picker-card" onClick={() => choosePayment(id)}>
-                <span className="picker-card-band">{label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </Modal>
-  )
-
   return (
     <>
       {confirmingCancel && (
@@ -1638,7 +1413,18 @@ export default function ItemDetail({
         </Modal>
       )}
       {renaming && <SettingsModal onClose={() => setRenaming(false)} />}
-      {paymentModal}
+      {pickingPayment && (
+        <PaymentPicker
+          item={item}
+          trip={trip}
+          methods={methods}
+          groupId={pickingPayment}
+          isActual={isActual}
+          onChoose={choosePayment}
+          onChooseChannel={chooseChannel}
+          onClose={() => setPickingPayment(null)}
+        />
+      )}
       {checkoutModal}
       {stayCutModal}
 
@@ -2393,7 +2179,7 @@ export default function ItemDetail({
                       />
                       <button
                         className="btn btn-sm costgroup-payment"
-                        onClick={() => openPaymentPicker(group.id)}
+                        onClick={() => setPickingPayment(group.id)}
                       >
                         {paymentLabelOf(group.paymentMethodId)}
                       </button>
@@ -2579,13 +2365,18 @@ export default function ItemDetail({
                   return (
                     <div key={group.id} className="detail-cost-group">
                       <div className="detail-cost-group-head">
-                        <span>{group.label?.trim() || `消費 ${groupIndex + 1}`}</span>
+                        <span>
+                          {group.label?.trim() || `消費 ${groupIndex + 1}`}
+                          {group.channel && (
+                            <span className="dim detail-cost-group-channel"> · {group.channel}</span>
+                          )}
+                        </span>
                         <button
                           className="btn btn-sm detail-cost-group-payment"
                           aria-label={`設定${group.label?.trim() || `消費 ${groupIndex + 1}`}的支付方式，目前為${paymentLabelOf(group.paymentMethodId)}`}
                           onClick={(event) => {
                             event.stopPropagation()
-                            openPaymentPicker(group.id)
+                            setPickingPayment(group.id)
                           }}
                         >
                           {paymentLabelOf(group.paymentMethodId)}

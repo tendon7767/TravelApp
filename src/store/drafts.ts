@@ -1,4 +1,4 @@
-import { del, get, set } from 'idb-keyval'
+import { del, get, keys, set } from 'idb-keyval'
 import type { Item } from '../types'
 
 export type ItemDraftSection = 'basic' | 'guide' | 'notes' | 'links' | 'costs' | 'review'
@@ -45,6 +45,29 @@ export interface ItemDraft {
 }
 
 const key = (itemId: string) => `travelapp:draft:item:${itemId}`
+
+/**
+ * 通路改名時連未送出的行程草稿一起換掉。
+ * 漏掉的話：使用者在某筆行程開著費用編輯、跑去回饋頁把通路改名，回來一按儲存，
+ * 草稿裡的舊名字就把剛改好的又寫回去，清單裡同時出現新舊兩個而且完全不報錯。
+ */
+export const renameChannelInItemDrafts = async (
+  rename: (channel?: string) => string | undefined,
+): Promise<void> => {
+  for (const raw of await keys()) {
+    if (typeof raw !== 'string' || !raw.startsWith('travelapp:draft:item:')) continue
+    const draft = await get<ItemDraft>(raw)
+    if (!draft?.item?.costGroups?.length) continue
+    let changed = false
+    const costGroups = draft.item.costGroups.map((group) => {
+      const next = rename(group.channel)
+      if (next === group.channel) return group
+      changed = true
+      return next === undefined ? { ...group, channel: undefined } : { ...group, channel: next }
+    })
+    if (changed) await set(raw, { ...draft, item: { ...draft.item, costGroups } })
+  }
+}
 
 let timer: ReturnType<typeof setTimeout> | undefined
 

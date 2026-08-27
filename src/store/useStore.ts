@@ -58,6 +58,8 @@ import {
 import placePrompt from '../data/placePrompt.md?raw'
 import receiptPrompt from '../data/receiptPrompt.md?raw'
 import { processReceiptScan, type ProcessedPhoto } from '../photos/process'
+import { applyChannelRenames, renameChannel } from '../lib/channels'
+import { renameChannelInItemDrafts } from './drafts'
 import {
   buildReceiptAnalysisInput,
   parseReceiptData,
@@ -204,6 +206,8 @@ interface State {
   removePayment: (id: string) => void
   /** 回傳實際複製的張數；同名同持有人的卡片會被略過。 */
   copyPaymentsFrom: (fromTripId: string, toTripId: string) => number
+  /** 通路改名：掃過所有卡的規則與所有消費。key 是正規化後的舊名。 */
+  renameChannels: (renames: Map<string, string>) => void
 
   createTransport: (tripId: string, name: string) => TransportOption
   updateTransport: (id: string, patch: Partial<TransportOption>) => void
@@ -1257,6 +1261,43 @@ export const useStore = create<State>((setState, getState) => {
 
     updatePayment: (id, patch) =>
       mutate((d) => ({ ...d, payments: patchIn(d.payments, id, patch) })),
+
+    /**
+     * 通路存的是名字不是 id（沒有 channels 集合），所以改名一定是全域的掃描替換：
+     * 只改眼前那條規則的話，同一個通路會靜默分裂成新舊兩個，而那正是這整套設計要避免的事。
+     *
+     * 掃描範圍必須含未送出的行程草稿，否則草稿一存就把舊名字寫回來。
+     * 外層的支付方式草稿由呼叫端自己換 —— 它在 React 狀態裡，store 看不到。
+     */
+    renameChannels: (renames) => {
+      if (!renames.size) return
+      const by = getState().settings.memberName
+      const now = Date.now()
+      mutate((d) => ({
+        ...d,
+        payments: d.payments.map((payment) => {
+          let touched = false
+          const rules = payment.rules.map((rule) => {
+            const channels = applyChannelRenames(rule.channels, renames)
+            if (channels === rule.channels) return rule
+            touched = true
+            return { ...rule, channels }
+          })
+          return touched ? { ...payment, rules, updatedAt: now, updatedBy: by } : payment
+        }),
+        items: d.items.map((item) => {
+          let touched = false
+          const costGroups = item.costGroups.map((group) => {
+            const channel = renameChannel(group.channel, renames)
+            if (channel === group.channel) return group
+            touched = true
+            return { ...group, channel }
+          })
+          return touched ? { ...item, costGroups, updatedAt: now, updatedBy: by } : item
+        }),
+      }))
+      void renameChannelInItemDrafts((channel?: string) => renameChannel(channel, renames))
+    },
 
     removePayment: (id) =>
       mutate((d) => ({
