@@ -1,6 +1,7 @@
 import type { CostLine, Item, PaymentMethod, RewardRule, Trip } from '../types'
 import { sumByCurrency } from './money'
 import { timeSortKey } from './date'
+import { channelKey } from './channels'
 
 /** 把一個費用群組的金額換算成這張卡計算上限所用的幣別。 */
 export const amountInMethodCurrency = (
@@ -17,6 +18,22 @@ export const amountInMethodCurrency = (
   return sum
 }
 
+/**
+ * 回饋計算只看得到金額與通路 —— item / groupId 那些是給畫面用的。
+ * 拆單試算會憑空造出幾筆交易，那裡沒有 item 可填，所以計算層的輸入必須比 MethodTxn 小。
+ */
+export interface RewardTxn {
+  amount: number
+  channel?: string
+}
+
+/** 一個費用群組就是一筆交易；同一行程可在這裡出現多次。 */
+export interface MethodTxn extends RewardTxn {
+  item: Item
+  groupId: string
+  groupLabel?: string
+}
+
 export interface RuleResult {
   rule: RewardRule
   reward: number
@@ -28,12 +45,31 @@ export interface RuleResult {
 
 export interface MethodResult {
   method: PaymentMethod
-  /** 一個費用群組就是一筆交易；同一行程可在這裡出現多次。 */
-  txns: { item: Item; groupId: string; groupLabel?: string; amount: number }[]
+  txns: MethodTxn[]
   spend: number
   rules: RuleResult[]
   totalReward: number
 }
+
+/**
+ * 這條規則吃不吃得到這一筆。
+ * 沒設 `channels`（或空陣列）＝無條件，吃全部；設了就只吃通路相符的那幾筆。
+ * 消費沒指定通路時，限定通路的規則一律吃不到 —— 寧可少算，不要憑空多算。
+ */
+export const ruleCovers = (rule: RewardRule, channel?: string): boolean => {
+  if (!rule.channels?.length) return true
+  if (!channel) return false
+  const key = channelKey(channel)
+  return rule.channels.some((name) => channelKey(name) === key)
+}
+
+/**
+ * 每條規則各自一份交易串，不是所有規則吃同一份。
+ * 混在一起算的話，在 BIC CAMERA 刷的那筆會去啃掉藥妝加碼的 `rewardCap`，總回饋直接算多，
+ * 而且多得很難發現 —— 上限是慢慢被吃掉的，不會有任何一個時刻看起來不對。
+ */
+const amountsFor = (rule: RewardRule, txns: RewardTxn[]): number[] =>
+  txns.filter((txn) => ruleCovers(rule, txn.channel)).map((txn) => txn.amount)
 
 /**
  * 逐筆計算，不是總額乘費率。
@@ -91,8 +127,46 @@ const runRule = (rule: RewardRule, amounts: number[]) => {
   return { reward, capped }
 }
 
-const totalReward = (method: PaymentMethod, amounts: number[]): number =>
-  method.rules.reduce((sum, rule) => sum + runRule(rule, amounts).reward, 0)
+const totalRewardOf = (method: PaymentMethod, txns: RewardTxn[]): number =>
+  method.rules.reduce((sum, rule) => sum + runRule(rule, amountsFor(rule, txns)).reward, 0)
+
+export interface MarginalRule {
+  rule: RewardRule
+  /** 這一筆讓這條規則多算出來的回饋。額度吃緊時會小於 amount × rate。 */
+  reward: number
+  /** 通路對不對得上。畫面靠它區分「算出來是 0」與「這條根本沒算進去」。 */
+  covered: boolean
+}
+
+export interface MarginalResult {
+  /** 順序與 `method.rules` 相同。 */
+  rules: MarginalRule[]
+  total: number
+}
+
+/**
+ * 「這一筆用這張卡刷，會多拿到多少回饋」。
+ *
+ * 一定要用差值算，不能用金額 × 費率：回饋上限會讓最後那一筆只拿到剩下的額度，
+ * 單筆上限會把它砍掉一截。而推薦最需要準的時刻，正好就是額度快滿的時候 ——
+ * 上限只剩 10 元的卡，用費率乘出來會寫著 96 元，然後被排到第一個。
+ *
+ * `spent` 是這張卡在這一筆之前已經刷掉的交易，**必須把要問的那一筆自己排除掉**，
+ * 否則等於問「已經刷過了，再刷一次會怎樣」。
+ */
+export const marginalReward = (
+  method: PaymentMethod,
+  txn: RewardTxn,
+  spent: RewardTxn[] = [],
+): MarginalResult => {
+  const after = [...spent, txn]
+  const rules = method.rules.map<MarginalRule>((rule) => {
+    const before = runRule(rule, amountsFor(rule, spent)).reward
+    const total = runRule(rule, amountsFor(rule, after)).reward
+    return { rule, reward: total - before, covered: ruleCovers(rule, txn.channel) }
+  })
+  return { rules, total: rules.reduce((sum, r) => sum + r.reward, 0) }
+}
 
 export const computeMethod = (
   method: PaymentMethod,
@@ -109,10 +183,11 @@ export const computeMethod = (
     .flatMap((item) =>
       item.costGroups
         .filter((group) => group.paymentMethodId === method.id)
-        .map((group) => ({
+        .map<MethodTxn>((group) => ({
           item,
           groupId: group.id,
           groupLabel: group.label,
+          channel: group.channel,
           amount: amountInMethodCurrency(
             item.costs.filter((cost) => cost.groupId === group.id),
             method,
@@ -124,9 +199,8 @@ export const computeMethod = (
 
   const spend = txns.reduce((s, t) => s + t.amount, 0)
 
-  const amounts = txns.map((t) => t.amount)
   const rules = method.rules.map<RuleResult>((rule) => {
-    const r = runRule(rule, amounts)
+    const r = runRule(rule, amountsFor(rule, txns))
     return {
       rule,
       reward: r.reward,
@@ -150,24 +224,33 @@ export interface SplitHint {
 }
 
 /**
- * `spent` 是這張卡已經刷掉的金額串，一起算進去才不會在額度快滿時給出灌水的建議。
+ * `spent` 是這張卡已經刷掉的交易，一起算進去才不會在額度快滿時給出灌水的建議。
  * 回饋要跨所有規則加總 —— 一般與加碼各有自己的單筆上限，只看其中一條會低估拆單的好處。
+ * 拆出來的每一筆都留在原本的通路上，否則限定通路的加碼會在試算裡憑空消失。
  */
 export const suggestSplit = (
   method: PaymentMethod,
-  amount: number,
-  spent: number[] = [],
+  txn: RewardTxn,
+  spent: RewardTxn[] = [],
 ): SplitHint | null => {
-  if (amount <= 0) return null
+  if (txn.amount <= 0) return null
 
   const rewardWith = (splits: number): number =>
-    totalReward(method, [...spent, ...Array.from({ length: splits }, () => amount / splits)])
+    totalRewardOf(method, [
+      ...spent,
+      ...Array.from({ length: splits }, () => ({
+        amount: txn.amount / splits,
+        channel: txn.channel,
+      })),
+    ])
 
   const candidates = new Set<number>([1])
   for (const rule of method.rules) {
     if (!rule.perTxnRewardCap || rule.rate <= 0) continue
+    // 這條規則吃不到這一筆，它的單筆上限就不構成拆單的理由。
+    if (!ruleCovers(rule, txn.channel)) continue
     const sweetSpot = rule.perTxnRewardCap / rule.rate
-    if (amount > sweetSpot) candidates.add(Math.ceil(amount / sweetSpot))
+    if (txn.amount > sweetSpot) candidates.add(Math.ceil(txn.amount / sweetSpot))
   }
 
   const base = rewardWith(1)
@@ -184,7 +267,7 @@ export const suggestSplit = (
   if (bestSplits <= 1) return null
   return {
     splits: bestSplits,
-    each: Math.ceil(amount / bestSplits),
+    each: Math.ceil(txn.amount / bestSplits),
     gain: bestReward - base,
     currency: method.currency,
   }

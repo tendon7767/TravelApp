@@ -311,13 +311,17 @@ export default function ItemDetail({
     for (const group of item.costGroups) {
       const method = methods.find((payment) => payment.id === group.paymentMethodId)
       if (!method) continue
-      const spent = computeMethod(method, projected, trip).txns
-        .filter((transaction) => transaction.item.id !== item.id || transaction.groupId !== group.id)
-        .map((transaction) => transaction.amount)
+      const spent = computeMethod(method, projected, trip).txns.filter(
+        (transaction) => transaction.item.id !== item.id || transaction.groupId !== group.id,
+      )
       const lines = item.costs.filter((cost) => cost.groupId === group.id)
       hints.set(
         group.id,
-        suggestSplit(method, amountInMethodCurrency(lines, method, trip), spent),
+        suggestSplit(
+          method,
+          { amount: amountInMethodCurrency(lines, method, trip), channel: group.channel },
+          spent,
+        ),
       )
     }
     return hints

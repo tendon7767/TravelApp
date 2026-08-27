@@ -51,6 +51,11 @@ export interface CostGroup {
   /** 選填；例如「一樓化妝品」或「第一張收據」。 */
   label?: string
   paymentMethodId?: string
+  /**
+   * 這次結帳發生在哪個通路（大國藥妝、BIC CAMERA…），選填。
+   * 限定通路的回饋規則只吃得到相符的交易；**沒指定就一律吃不到**，寧可少算不要多算。
+   */
+  channel?: string
 }
 
 export interface LinkRef {
@@ -111,6 +116,12 @@ export interface RewardRule {
   rate: number
   rewardCap?: number
   perTxnRewardCap?: number
+  /**
+   * 限定通路。沒設或空陣列＝無條件適用，絕大多數規則都是這樣。
+   * 存的是通路「名字」不是 id —— 沒有獨立的 channels 集合，名字跟著 rules 這個 JSON 欄位
+   * 一起同步，所以同行者即使沒有那份清單，回饋也永遠算得對。
+   */
+  channels?: string[]
 }
 
 export interface PaymentMethod extends SyncFields {
