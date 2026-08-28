@@ -34,6 +34,13 @@ interface Props {
   dirtyHint?: ReactNode
   /** 標題列右側、關閉 ✕ 左邊的一顆按鈕。 */
   headAction?: ReactNode
+  /**
+   * 內容自己撐滿彈窗的高度（picker 專用）：高度變成固定的七成而不是跟著內容長，
+   * 捲動也交給內容自己處理。給裡面要放左右撥軌道的那種——軌道的每一格是
+   * `height: 100%` 的捲動層，父層沒有確定的高度就整個算成 0。
+   * 只有需要的那一個彈窗掛，不要改 variant 本身，否則全 App 的 picker 都會變七成高。
+   */
+  fill?: boolean
   children: ReactNode
 }
 
@@ -53,6 +60,7 @@ export default function Modal({
   dirty = false,
   dirtyHint,
   headAction,
+  fill = false,
   children,
 }: Props) {
   const [confirmingCancel, setConfirmingCancel] = useState(false)
@@ -124,6 +132,7 @@ export default function Modal({
         <div
           className="sheet"
           data-variant={variant}
+          data-fill={fill || undefined}
           role="dialog"
           aria-modal="true"
           aria-label={title}

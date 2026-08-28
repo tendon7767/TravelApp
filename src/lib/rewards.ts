@@ -143,6 +143,13 @@ export interface MarginalRule {
   reward: number
   /** 通路對不對得上。畫面靠它區分「算出來是 0」與「這條根本沒算進去」。 */
   covered: boolean
+  /** 這筆金額裡真的賺得到回饋的那截（卡片幣別）。 */
+  earning: number
+  /**
+   * 白刷的那截 —— 額度不夠時，這筆消費有一部分是拿不到回饋的。
+   * 沒有它的話畫面只剩一個「比費率乘出來還小」的數字，看不出來為什麼。
+   */
+  wasted: number
 }
 
 export interface MarginalResult {
@@ -170,7 +177,23 @@ export const marginalReward = (
   const rules = method.rules.map<MarginalRule>((rule) => {
     const before = runRule(rule, amountsFor(rule, spent)).reward
     const total = runRule(rule, amountsFor(rule, after)).reward
-    return { rule, reward: total - before, covered: ruleCovers(rule, txn.channel) }
+    const covered = ruleCovers(rule, txn.channel)
+    /*
+     * 賺得到的那截是由三個東西夾出來的：這筆的金額、回饋上限還剩多少（換算回消費金額）、
+     * 以及單筆上限。0% 的規則不算白刷 —— 那不是額度問題，是這條本來就沒有回饋。
+     */
+    const room = [txn.amount]
+    if (rule.rewardCap !== undefined) room.push(Math.max(0, rule.rewardCap - before) / rule.rate)
+    if (rule.perTxnRewardCap !== undefined) room.push(rule.perTxnRewardCap / rule.rate)
+    const earning = !covered ? 0 : rule.rate > 0 ? Math.min(...room) : txn.amount
+    return {
+      rule,
+      reward: total - before,
+      covered,
+      earning,
+      // 通路不符是「這條沒算進去」，不是白刷 —— 那一行顯示的是「未計入」。
+      wasted: covered ? Math.max(0, txn.amount - earning) : 0,
+    }
   })
   return { rules, total: rules.reduce((sum, r) => sum + r.reward, 0) }
 }

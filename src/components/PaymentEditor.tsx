@@ -86,7 +86,7 @@ export default function PaymentEditor({
     const list = rule.channels ?? []
     if (!list.length) return '全部通路'
     const head = list.slice(0, 2).join('、')
-    return list.length > 2 ? `限定：${head} 等 ${list.length} 個` : `限定：${head}`
+    return list.length > 2 ? `${head} 等 ${list.length} 個` : head
   }
 
   return (
@@ -200,17 +200,6 @@ export default function PaymentEditor({
               </button>
             )}
           </div>
-          {/*
-            * 通路攤成 chip 會有兩三行，這張卡上已經有四個欄位，主體會整個變成通路。
-            * 這裡只留一行摘要，清單與改名都住在彈窗裡，那裡才有空間。
-            */}
-          <div className="rule-channels">
-            <span className="label" style={{ margin: 0 }}>適用通路</span>
-            <span className="rule-channels-summary">{channelSummary(r)}</span>
-            <button className="btn btn-sm" onClick={() => setEditingChannels(r.id)}>
-              編輯
-            </button>
-          </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 96 }}>
               <label className="label">回饋上限</label>
@@ -239,6 +228,15 @@ export default function PaymentEditor({
               </div>
             </div>
           </div>
+          {/*
+            * 通路攤成 chip 會有兩三行，這張卡上已經有四個欄位，主體會整個變成通路。
+            * 這裡只留一行摘要，清單與改名都住在彈窗裡，那裡才有空間。
+            * 整條就是按鈕（專案慣例：可按的東西用線框，不用箭頭），不再另外放一顆「編輯」。
+            */}
+          <button className="btn rule-channels" onClick={() => setEditingChannels(r.id)}>
+            <span className="label" style={{ margin: 0 }}>適用通路</span>
+            <span className="rule-channels-summary">{channelSummary(r)}</span>
+          </button>
         </div>
       ))}
 

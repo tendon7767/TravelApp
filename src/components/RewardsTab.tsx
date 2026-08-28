@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
-import type { Plan, Trip } from '../types'
+import type { Plan, RewardRule, Trip } from '../types'
 import { computeMethod, focusedRule, type MethodResult } from '../lib/rewards'
 import { formatMoney } from '../lib/money'
 import { dayCount, shortDate } from '../lib/date'
@@ -296,6 +296,7 @@ function MethodCard({
   onSelect: (id: string) => void
 }) {
   const [detailOpen, setDetailOpen] = useState(false)
+  const [channelsOpen, setChannelsOpen] = useState<RewardRule | null>(null)
   const focusId = useStore((s) => s.settings.rewardRuleFocus?.[res.method.id])
   const setRewardRuleFocus = useStore((s) => s.setRewardRuleFocus)
   const cur = res.method.currency
@@ -412,10 +413,15 @@ function MethodCard({
           ` · 回饋 ${formatMoney(binding!.reward, cur)} / ${formatMoney(rewardCap, cur)}`}
       </div>
 
+      {/*
+        * 盒子本身不是按鈕，裡面放兩顆並排的：切換「還可刷」算哪一條，以及看適用通路。
+        * 不能做成巢狀 —— <button> 裡再放 <button> 是無效的 HTML，瀏覽器會把 DOM 拆掉。
+        * 並排的兩顆彼此不必擋冒泡，但對外層那張可點的卡片仍然要擋。
+        */}
       {res.rules.map((rr) => (
+        <div key={rr.rule.id} className="rulebox">
         <button
-          key={rr.rule.id}
-          className="rulebox"
+          className="rulebox-main"
           aria-pressed={binding?.rule.id === rr.rule.id}
           title={
             binding?.rule.id === rr.rule.id
@@ -454,8 +460,44 @@ function MethodCard({
             )}
           </div>
         </button>
+        {/*
+          * 沒設通路的規則整行不出現：回饋頁上絕大多數規則都是全部通路，
+          * 每條都掛一行「全部通路」等於全是雜訊。
+          */}
+        {(rr.rule.channels?.length ?? 0) > 0 && (
+          <button
+            className="rulebox-channels"
+            onClick={(event) => {
+              event.stopPropagation()
+              setChannelsOpen(rr.rule)
+            }}
+          >
+            <span className="label" style={{ margin: 0 }}>適用通路</span>
+            <span className="rulebox-channels-list">
+              {rr.rule.channels!.slice(0, 2).join('、')}
+              {rr.rule.channels!.length > 2 && ` 等 ${rr.rule.channels!.length} 個`}
+            </span>
+          </button>
+        )}
+        </div>
       ))}
 
+      {/* 純檢視：要改通路的入口在編輯支付方式裡，兩個地方都能改會讓「哪個才是真的」變模糊。 */}
+      {channelsOpen && (
+        <Modal
+          title={`${channelsOpen.name}的適用通路`}
+          onCancel={() => setChannelsOpen(null)}
+          variant="picker"
+        >
+          <div className="channel-list">
+            {channelsOpen.channels?.map((name) => (
+              <div key={name} className="channel-row">
+                <span className="channel-name">{name}</span>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
 
       {planning && (
         <p className="dim" style={{ fontSize: 12, margin: '10px 0 0' }}>規劃版不計算回饋</p>

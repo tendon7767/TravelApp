@@ -1605,53 +1605,22 @@ body[data-actual='true'] {
  */
 .picker-body { display: grid; gap: 16px; padding: 0 0 2px; }
 .picker-group { display: grid; gap: 8px; }
-.picker-group-head { font-size: 14px; font-weight: 600; }
-/* 卡片名稱都不長，一排放得下三四張才看得到全部的選擇。 */
-.picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
-/*
- * 選項比照回饋頁的支付方式卡片：上緣一條實心色帶，名稱放在色帶裡。
- * 卡身帶一層很淡的主題色，在白底的彈窗上就分得出來，不必再加外框。
- * 實際版的 --accent-bg 是藍綠，這層淡色會自己跟著換。
- * overflow: hidden 讓色帶跟著卡片的圓角切，色帶又是第一個子元素且不留外距，
- * 所以左右上三邊都貼齊卡片邊緣。
- */
-.picker-card {
-  display: grid;
-  align-content: start;
-  overflow: hidden;
-  border: none;
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--accent-bg) 45%, var(--surface));
-  color: var(--text);
-  text-align: left;
-  overflow-wrap: anywhere;
+.picker-list { display: grid; gap: 8px; }
+/* 通路住在標題列（省一整行高度）。名字長就省略號，不要把 ✕ 擠出去。 */
+.picker-channel {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 44%;
+  padding: 3px 8px;
 }
-.picker-card:disabled { opacity: 0.45; cursor: default; }
-.picker-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.picker-card-band {
-  padding: 6px 9px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-size: 13px;
-  line-height: 1.3;
-}
-.picker-card-body { display: block; padding: 7px 9px 8px; }
-
-/*
- * 支付方式選單改成單欄排行榜：一張卡要放得下逐條回饋，三四張並排就擠不下了。
- * 持有人切換列讓整條分掉寬度，名字長也不會把彈窗撐破。
- */
-.picker-owners { display: flex; width: 100%; }
-.picker-owners .seg-btn {
-  flex: 1;
+.picker-channel span {
   min-width: 0;
   overflow: hidden;
-  text-align: center;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.picker-list { display: grid; gap: 8px; }
-/* 通路是這一筆的脈絡，不是選項之一，所以放在清單上面自成一列。 */
-.picker-channel { justify-self: start; }
 .picker-row {
   display: grid;
   gap: 4px;
@@ -1689,10 +1658,10 @@ body[data-actual='true'] {
 .picker-rule-name { min-width: 0; overflow-wrap: anywhere; }
 .picker-rule-value { text-align: right; color: var(--text-2); }
 .picker-rule-value[data-off] { color: var(--text-3); }
+.picker-rule-box { display: grid; gap: 1px; }
+/* 額度不夠時的那一行，靠右對齊到跟金額同一側。 */
+.picker-rule-note { font-size: 11px; color: var(--note-ink); text-align: right; }
 
-.picker-card-label { display: block; font-size: 11px; color: var(--text-3); line-height: 1.15; }
-.picker-card-value { font-size: 13px; color: var(--text-2); line-height: 1.3; }
-.picker-card-value[data-bad='true'] { color: var(--danger); }
 
 /*
  * 支付方式卡片：一張卡就是一個完整的東西 —— 圓角、彼此隔開，
@@ -2575,17 +2544,36 @@ body[data-actual='true'] {
 }
 
 /*
- * 規則區塊是可點的：點哪一條，上面的「還可刷」就照那條算。
- * 怎麼算沒有統一標準（有人只看國外消費、有人在意加碼那條），交給使用者指定。
+ * 規則區塊裡面有兩顆並排的按鈕：點上半部切換「還可刷」照哪一條算
+ * （怎麼算沒有統一標準，交給使用者指定），下半部那行是看適用通路。
  */
-.rulebox {
+.rulebox-main {
   display: block;
   width: 100%;
   text-align: left;
   border: none;
 }
 /* 選中的標記只有右上那顆圖示 —— 再加一圈外框跟其他上了色的選項對不起來。 */
-.rulebox:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rulebox-main:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rulebox-channels {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  padding-top: 6px;
+  border: none;
+  border-top: 0.5px solid var(--border);
+  text-align: left;
+}
+.rulebox-channels-list {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-2);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
 
 .rulehead {
   display: flex;
@@ -2688,6 +2676,26 @@ body[data-actual='true'] {
   max-height: 70%;
   border-radius: 14px;
   margin-bottom: 0;
+}
+
+/*
+ * 高度固定的 picker：裡面放左右撥軌道時才用得上（軌道的每一格是 height: 100% 的捲動層，
+ * 父層沒有確定高度就整個算成 0）。捲動交給軌道自己，所以 .sheetbody 這層不再捲。
+ */
+.sheet[data-variant='picker'][data-fill] { height: 70%; }
+.sheet[data-variant='picker'][data-fill] .sheetbody {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+/* 橫條在彈窗裡不需要再畫一條分隔線，四周本來就有彈窗自己的邊。 */
+.sheet[data-variant='picker'][data-fill] .daystrip {
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 0;
+  background: transparent;
+  border-bottom: none;
 }
 
 .sheetbody {
@@ -2953,13 +2961,16 @@ body.modal-open { overflow: hidden; }
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  width: 100%;
+  margin-top: 6px;
+  text-align: left;
 }
 .rule-channels-summary {
   flex: 1;
   min-width: 0;
   font-size: 13px;
   color: var(--text-2);
+  text-align: right;
   overflow-wrap: anywhere;
 }
 .channel-list { display: grid; gap: 8px; }
