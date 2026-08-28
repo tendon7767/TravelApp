@@ -139,8 +139,13 @@ export default function Modal({
           onClick={(e) => e.stopPropagation()}
         >
           <div className="sheethead">
-            <strong style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>{title}</strong>
+            {/*
+              * 標題不吃剩下的寬度，改由後面那塊空白吃 —— headAction 才會緊貼在標題右邊，
+              * 而不是被推到 ✕ 旁邊。沒有 headAction 的彈窗看起來完全一樣。
+              */}
+            <strong style={{ flex: 'none', fontSize: 15, fontWeight: 500 }}>{title}</strong>
             {headAction}
+            <span style={{ flex: 1 }} />
             {/* 關閉一律留在標題列：鍵盤升起時底部的取消會捲進內容裡，這顆離鍵盤最遠。 */}
             <button className="icon-btn" onClick={requestCancel} aria-label="關閉">
               <CloseIcon />

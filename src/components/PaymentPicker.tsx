@@ -14,7 +14,7 @@ import { formatMoney } from '../lib/money'
 import { OTHER_PAYMENTS, OWNERLESS } from '../lib/owners'
 import Modal from './Modal'
 import SwipePager from './SwipePager'
-import TagIcon from './TagIcon'
+import StoreIcon from './StoreIcon'
 
 /*
  * 現金、其他、未設定湊成一個固定的分區，跟持有人並排。
@@ -193,18 +193,24 @@ export default function PaymentPicker({
           const marginal = status?.marginal
           const uncapped = status?.remaining === undefined
           return (
-            <button key={payment.id} className="picker-row" onClick={() => onChoose(payment.id)}>
+            /*
+              * 「推薦」放在名稱後面而不是前面：擺前面的話有標籤跟沒標籤的列，名稱起點會差
+              * 一整個標籤的寬度，整份清單就對不齊了。一眼認出靠的是左緣那條色條（data-recommended），
+              * 文字只負責說明它為什麼被標。
+              */
+            <button
+              key={payment.id}
+              className="picker-row"
+              data-recommended={recommended === payment.id || undefined}
+              onClick={() => onChoose(payment.id)}
+            >
               <span className="picker-row-head">
-                {recommended === payment.id && <span className="picker-row-tag">推薦</span>}
                 <span className="picker-row-name">{payment.name || '未命名'}</span>
+                {recommended === payment.id && <span className="picker-row-tag">推薦</span>}
                 {marginal ? (
                   <span className="picker-row-total">
-                    <span className="picker-row-label">總回饋金額</span>
-                    {/*
-                      * 一律「約」：費用記的是外幣，換算用的是手填的匯率，而發卡行入帳走它
-                      * 自己的結匯匯率、還可能疊手續費 —— 這個數字本來就是試算，不是精確值。
-                      */}
-                    <span className="mono">約 {home(marginal.total, payment)}</span>
+                    <span className="picker-row-label">總回饋</span>
+                    <span className="mono picker-row-reward">{home(marginal.total, payment)}</span>
                   </span>
                 ) : (
                   status && (
@@ -274,7 +280,7 @@ export default function PaymentPicker({
               onClick={() => setPickingChannel(true)}
               aria-label={`這筆消費的通路，目前為${group?.channel || '未指定'}`}
             >
-              <TagIcon size={13} />
+              <StoreIcon size={13} />
               <span>{group?.channel || '未指定'}</span>
             </button>
           ) : undefined

@@ -1605,7 +1605,8 @@ body[data-actual='true'] {
  */
 .picker-body { display: grid; gap: 16px; padding: 0 0 2px; }
 .picker-group { display: grid; gap: 8px; }
-.picker-list { display: grid; gap: 8px; }
+/* 捲到最底時最後一列剛好切齊彈窗下緣，看起來像被裁掉，留一截空白收尾。 */
+.picker-list { display: grid; gap: 8px; padding-bottom: 12px; }
 /* 通路住在標題列（省一整行高度）。名字長就省略號，不要把 ✕ 擠出去。 */
 .picker-channel {
   flex: none;
@@ -1623,7 +1624,7 @@ body[data-actual='true'] {
 }
 .picker-row {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   padding: 9px 11px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1631,9 +1632,26 @@ body[data-actual='true'] {
   color: var(--text);
   text-align: left;
 }
+/*
+ * 推薦那一列的記號：左緣一條色條 + 淡一階的主題底色，不是陰影（比照左緣色條那幾處）。
+ * 一眼認出靠它，「推薦」二字只負責說明 —— 標籤若排在名稱前面，有標籤與沒標籤的列
+ * 名稱起點會差一整個標籤寬，整份清單就對不齊了。
+ */
+.picker-row[data-recommended] {
+  border-color: var(--accent-bg);
+  background: color-mix(in srgb, var(--accent-bg) 45%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
 .picker-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.picker-row-head { display: flex; align-items: baseline; gap: 6px; }
-.picker-row-name { flex: 1; min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+/* 名稱與總回饋是這一列的一對主角，用一條細線跟底下的規則明細分開。 */
+.picker-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding-bottom: 5px;
+  border-bottom: 0.5px solid var(--border);
+}
+.picker-row-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
 .picker-row-tag {
   flex: none;
   padding: 1px 6px;
@@ -1643,6 +1661,7 @@ body[data-actual='true'] {
   font-size: 11px;
 }
 .picker-row-total { flex: none; display: flex; align-items: baseline; gap: 5px; font-size: 14px; }
+.picker-row-reward { font-size: 15px; color: var(--accent); }
 .picker-row-label { font-size: 11px; color: var(--text-3); }
 .picker-row-home { font-size: 11px; color: var(--text-3); }
 .picker-row-plain { font-size: 13px; color: var(--text-2); }
