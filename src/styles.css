@@ -1632,15 +1632,10 @@ body[data-actual='true'] {
   color: var(--text);
   text-align: left;
 }
-/*
- * 推薦那一列的記號：左緣一條色條 + 淡一階的主題底色，不是陰影（比照左緣色條那幾處）。
- * 一眼認出靠它，「推薦」二字只負責說明 —— 標籤若排在名稱前面，有標籤與沒標籤的列
- * 名稱起點會差一整個標籤寬，整份清單就對不齊了。
- */
-.picker-row[data-recommended] {
+/* 底色＝目前選的那一張。加了底色本來就會被讀成「選中」，順著那個直覺走。 */
+.picker-row[data-current] {
   border-color: var(--accent-bg);
   background: color-mix(in srgb, var(--accent-bg) 45%, var(--surface));
-  box-shadow: inset 3px 0 0 var(--accent);
 }
 .picker-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* 名稱與總回饋是這一列的一對主角，用一條細線跟底下的規則明細分開。 */
@@ -1659,6 +1654,12 @@ body[data-actual='true'] {
   background: var(--accent-bg);
   color: var(--accent);
   font-size: 11px;
+}
+/* 「目前選擇」那一列本來就整片上了底色，標籤再上一次色會糊在一起，改成只留框線。 */
+.picker-row-tag[data-current] {
+  background: transparent;
+  border: 0.5px solid var(--border-2);
+  color: var(--text-3);
 }
 .picker-row-total { flex: none; display: flex; align-items: baseline; gap: 5px; font-size: 14px; }
 .picker-row-reward { font-size: 15px; color: var(--accent); }

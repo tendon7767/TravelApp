@@ -173,9 +173,17 @@ export default function PaymentPicker({
       return (
         <div className="picker-list">
           {OTHER_ROWS.map(([id, label]) => (
-            <button key={label} className="picker-row" onClick={() => onChoose(id)}>
+            <button
+              key={label}
+              className="picker-row"
+              data-current={id === group?.paymentMethodId || undefined}
+              onClick={() => onChoose(id)}
+            >
               <span className="picker-row-head">
                 <span className="picker-row-name">{label}</span>
+                {id === group?.paymentMethodId && (
+                  <span className="picker-row-tag" data-current="">目前選擇</span>
+                )}
               </span>
             </button>
           ))}
@@ -192,21 +200,28 @@ export default function PaymentPicker({
           const status = info.get(payment.id)
           const marginal = status?.marginal
           const uncapped = status?.remaining === undefined
+          const current = payment.id === group?.paymentMethodId
           return (
             /*
-              * 「推薦」放在名稱後面而不是前面：擺前面的話有標籤跟沒標籤的列，名稱起點會差
-              * 一整個標籤的寬度，整份清單就對不齊了。一眼認出靠的是左緣那條色條（data-recommended），
-              * 文字只負責說明它為什麼被標。
+              * 標籤放在名稱後面而不是前面：擺前面的話有標籤跟沒標籤的列，名稱起點會差
+              * 一整個標籤的寬度，整份清單就對不齊了。
+              * 底色只給「目前選的那一張」—— 加了底色本來就會被讀成「選中」，順著那個直覺走。
+              * 目前選的剛好也是推薦的那張時只標「目前選擇」：兩個標籤講的是同一列，
+              * 而「你已經選了」比「建議你選」有用。
               */
             <button
               key={payment.id}
               className="picker-row"
-              data-recommended={recommended === payment.id || undefined}
+              data-current={current || undefined}
               onClick={() => onChoose(payment.id)}
             >
               <span className="picker-row-head">
                 <span className="picker-row-name">{payment.name || '未命名'}</span>
-                {recommended === payment.id && <span className="picker-row-tag">推薦</span>}
+                {current ? (
+                  <span className="picker-row-tag" data-current="">目前選擇</span>
+                ) : (
+                  recommended === payment.id && <span className="picker-row-tag">推薦</span>
+                )}
                 {marginal ? (
                   <span className="picker-row-total">
                     <span className="picker-row-label">總回饋</span>
