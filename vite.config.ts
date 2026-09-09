@@ -65,7 +65,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
         // Apps Script 是資料同步用的，永遠走網路，不進快取。
         // 批次匯入頁是自己的一頁，不能被 navigateFallback 換成 App 的 index.html。
-        navigateFallbackDenylist: [/^\/macros\//, /import\.html$/],
+        navigateFallbackDenylist: [/^\/macros\//, /import\.html$/, /diag\.html$/],
         runtimeCaching: [
           {
             urlPattern: ({ url }) =>
