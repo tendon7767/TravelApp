@@ -1911,6 +1911,9 @@ body[data-actual='true'] {
   position: fixed;
   inset: 0;
   z-index: 100;
+  /* 整頁就是一張照片，沒有要捲的東西。不關掉的話瀏覽器會先接管垂直方向，
+     左右換照片的手勢在斜一點的時候就送不完整。 */
+  touch-action: none;
   display: flex;
   flex-direction: column;
   color: #fff;
