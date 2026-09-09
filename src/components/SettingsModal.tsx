@@ -246,13 +246,28 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
       {section(
         <>
           <span className="label">批次匯入</span>
+          {/*
+            * PWA（standalone）裡的 window.open 不一定另開視窗，常常是把當前這頁換掉，
+            * 而那兩頁沒有導航列，看起來就像 App 卡死在那裡。用 <a target="_blank">
+            * 交給瀏覽器決定，並且兩頁自己都有「回到 App」可以退回來。
+            */}
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
-            <button
+            <a
               className="btn btn-sm"
-              onClick={() => window.open(`${import.meta.env.BASE_URL}import.html`, '_blank')}
+              href={`${import.meta.env.BASE_URL}import.html`}
+              target="_blank"
+              rel="noopener"
             >
               開啟匯入頁
-            </button>
+            </a>
+            <a
+              className="btn btn-sm"
+              href={`${import.meta.env.BASE_URL}diag.html`}
+              target="_blank"
+              rel="noopener"
+            >
+              狀態列診斷
+            </a>
           </div>
           <p className="settings-hint">
             把整理好的一批行程（JSON）一次寫進某一趟的試算表，在那一頁貼上該趟的邀請連結。
