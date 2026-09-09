@@ -1,3 +1,4 @@
+import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -13,6 +14,16 @@ const buildSha = (process.env.GITHUB_SHA ?? 'dev').slice(0, 7)
 
 export default defineConfig({
   base,
+  build: {
+    rollupOptions: {
+      // 第二個入口是一次性的批次匯入頁（import.html）。它不被 App 匯入，
+      // 只有直接開那個網址才會載到，對 App 本體的產物沒有影響。
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        import: fileURLToPath(new URL('./import.html', import.meta.url)),
+      },
+    },
+  },
   define: {
     __BUILD_TIME__: JSON.stringify(buildTime),
     __BUILD_SHA__: JSON.stringify(buildSha),
@@ -53,7 +64,8 @@ export default defineConfig({
         // 全部靜態資源預先快取：飛機上、沒訊號的山區也要打得開。
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
         // Apps Script 是資料同步用的，永遠走網路，不進快取。
-        navigateFallbackDenylist: [/^\/macros\//],
+        // 批次匯入頁是自己的一頁，不能被 navigateFallback 換成 App 的 index.html。
+        navigateFallbackDenylist: [/^\/macros\//, /import\.html$/],
         runtimeCaching: [
           {
             urlPattern: ({ url }) =>
