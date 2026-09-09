@@ -270,9 +270,6 @@ a { color: var(--accent); }
   flex: none;
 }
 .btn:active { transform: scale(0.98); }
-/* 有些「按鈕」其實是連結（要開新分頁的那幾個）。<a> 預設帶連結色與底線，
-   套上 .btn 之後得把這兩樣收掉，才跟旁邊真正的 <button> 長得一樣。 */
-a.btn { display: inline-block; color: var(--text); text-decoration: none; }
 /* 沒有陰影也沒有光暈：填色與框線已經夠把它跟旁邊的次要按鈕分開，
    多一層光暈只是讓它看起來浮在紙上。全站的按鈕都不帶陰影。 */
 .btn-primary {
