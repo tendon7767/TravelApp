@@ -1,21 +1,20 @@
 /**
- * 一次性的批次匯入頁（import.html）。
+ * 批次匯入頁（import.html）。
  *
- * 為什麼存在：把一整批查好的店家寫進某一趟的試算表時，手邊只有手機、
- * 跑不了 scripts/places.ts。這一頁做的事跟那支腳本一樣 —— pull、組記錄、push ——
- * 差別只在它跑在瀏覽器裡，一顆按鈕就完成。
+ * 為什麼存在：把一批整理好的行程寫進某一趟的試算表時，手邊只有手機、跑不了
+ * scripts/places.ts。這一頁做的事跟那支腳本一樣 —— pull、組記錄、push ——
+ * 差別只在它跑在瀏覽器裡：貼上邀請連結、貼上 JSON、按一顆按鈕。
+ *
+ * 這裡刻意不內建任何旅程資料：要寫什麼每次都不一樣，寫死的話每次都要改程式、
+ * 重新部署一次才用得到，那就失去意義了。格式與驗證在 seed.ts。
  *
  * 密鑰不寫在這裡：由使用者當場貼上邀請連結，只留在這個分頁的記憶體裡。
  *
  * 排版一律走 formatPlaceInfo / mergeGuide / appendCautions，跟 App 的 ✨ 同一套，
  * 所以之後在 App 裡重新分析同一筆，AI 區塊還是會被乾淨地整塊換掉。
  */
-import {
-  appendCautions,
-  formatPlaceInfo,
-  mergeGuide,
-} from '../lib/placeInfo'
-import { YUFUIN_SHOPS, type ShopSeed } from './yufuinShops'
+import { appendCautions, formatPlaceInfo, mergeGuide } from '../lib/placeInfo'
+import { fillPlace, parseSeeds, SAMPLE, type Seed } from './seed'
 import type { Item, Plan } from '../types'
 
 interface Conn {
@@ -70,26 +69,21 @@ const newId = (): string =>
     ? crypto.randomUUID()
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 
-/** 這一批要寫的東西：既有那筆就地更新，其餘新增。 */
 interface Planned {
-  seed: ShopSeed
   existing?: Item
   record: Item
 }
 
-const planWrites = (seeds: ShopSeed[], items: Item[], planId: string, author: string): Planned[] => {
+/** 這一批要寫的東西：對得上的既有那筆就地更新，其餘新增。 */
+const planWrites = (seeds: Seed[], items: Item[], planId: string, author: string): Planned[] => {
   const now = Date.now()
   return seeds.map((seed) => {
-    const wanted = seed.matchTitle ?? seed.title
+    const wanted = (seed.matchTitle ?? seed.title).trim()
     // 同一版、同一天、標題一字不差＝就是這一筆。重跑不會建出第二筆。
     const existing = items.find(
       (item) =>
-        !item.deleted &&
-        item.planId === planId &&
-        item.date === seed.date &&
-        item.title.trim() === wanted.trim(),
+        !item.deleted && item.planId === planId && item.date === seed.date && item.title.trim() === wanted,
     )
-    const block = formatPlaceInfo(seed.place)
     const base: Item = existing ?? {
       id: newId(),
       planId,
@@ -104,19 +98,24 @@ const planWrites = (seeds: ShopSeed[], items: Item[], planId: string, author: st
       updatedAt: now,
       updatedBy: author,
     }
+    // 既有那筆的連結不動：那是使用者自己貼的，包含地圖連結。
     const links = existing
       ? base.links
       : seed.webUrl
         ? [{ id: newId(), kind: 'web' as const, label: seed.webLabel ?? '官方網站', url: seed.webUrl }]
         : []
+    // 既有那筆的手寫說明不動，seed.guide 只用在新增：兩者相加的話，
+    // 同一份 JSON 重跑一次就會把那段再疊一遍，這一頁就不再是重跑安全的。
+    const own = existing ? base.guide : seed.guide
+    const guide = seed.place ? mergeGuide(own, formatPlaceInfo(fillPlace(seed.place))) : own
+    const cautions = [...(seed.place?.cautions ?? []), ...(seed.notes ?? [])]
     return {
-      seed,
       existing,
       record: {
         ...base,
         links,
-        guide: mergeGuide(base.guide, block),
-        notes: appendCautions(base.notes ?? [], seed.place.cautions ?? []),
+        guide,
+        notes: appendCautions(base.notes ?? [], cautions),
         updatedAt: now,
         updatedBy: author,
       },
@@ -125,28 +124,42 @@ const planWrites = (seeds: ShopSeed[], items: Item[], planId: string, author: st
 }
 
 let conn: Conn | null = null
-let plans: Plan[] = []
 let items: Item[] = []
 let planned: Planned[] = []
 
 const renderPreview = () => {
+  if (!conn) return
   const planId = ($('plan') as HTMLSelectElement).value
-  const author = ($('author') as HTMLInputElement).value.trim() || 'AI 查詢'
-  planned = planWrites(YUFUIN_SHOPS, items, planId, author)
+  if (!planId) return
+  const author = ($('author') as HTMLInputElement).value.trim() || '批次匯入'
+  try {
+    planned = planWrites(parseSeeds(($('payload') as HTMLTextAreaElement).value), items, planId, author)
+  } catch (err) {
+    planned = []
+    $('preview').innerHTML = ''
+    $('summary').textContent = ''
+    ;($('write') as HTMLButtonElement).disabled = true
+    say(String(err instanceof Error ? err.message : err), 'err')
+    return
+  }
+
   const list = $('preview')
   list.innerHTML = ''
   for (const entry of planned) {
     const row = document.createElement('div')
     row.className = 'row'
+    const tag = document.createElement('span')
+    tag.className = `tag ${entry.existing ? 'upd' : 'new'}`
+    tag.textContent = entry.existing ? '更新' : '新增'
+    const text = document.createElement('span')
     const when = entry.record.startTime ? `${entry.record.startTime} ` : ''
-    row.innerHTML = `<span class="tag ${entry.existing ? 'upd' : 'new'}">${
-      entry.existing ? '更新' : '新增'
-    }</span><span>${when}${entry.record.title}</span>`
+    text.textContent = `${entry.record.date} ${when}${entry.record.title}`
+    row.append(tag, text)
     list.appendChild(row)
   }
   const news = planned.filter((entry) => !entry.existing).length
   $('summary').textContent = `共 ${planned.length} 筆：新增 ${news}、更新 ${planned.length - news}`
-  $('step2').hidden = false
+  ;($('write') as HTMLButtonElement).disabled = !planned.length
 }
 
 $('load').addEventListener('click', async () => {
@@ -161,7 +174,7 @@ $('load').addEventListener('click', async () => {
       action: 'pull',
       since: 0,
     })
-    plans = (pulled.records.plans ?? []).filter((plan) => !plan.deleted)
+    const plans = (pulled.records.plans ?? []).filter((plan) => !plan.deleted)
     items = (pulled.records.items ?? []).filter((item) => !item.deleted)
     say(`拉到 ${plans.length} 個版本、${items.length} 筆行程`, 'ok')
 
@@ -174,6 +187,8 @@ $('load').addEventListener('click', async () => {
       if (plan.kind === 'actual') option.selected = true
       select.appendChild(option)
     }
+    $('step2').hidden = false
+    $('step3').hidden = false
     renderPreview()
   } catch (err) {
     say(String(err instanceof Error ? err.message : err), 'err')
@@ -182,8 +197,14 @@ $('load').addEventListener('click', async () => {
   }
 })
 
+$('sample').addEventListener('click', () => {
+  ;($('payload') as HTMLTextAreaElement).value = SAMPLE
+  renderPreview()
+})
+
 $('plan').addEventListener('change', renderPreview)
 $('author').addEventListener('input', renderPreview)
+$('payload').addEventListener('input', renderPreview)
 
 $('write').addEventListener('click', async () => {
   if (!conn || !planned.length) return
@@ -196,7 +217,7 @@ $('write').addEventListener('click', async () => {
       records: { items: planned.map((entry) => entry.record) },
     })
     say(`完成：寫入 ${result.applied} 筆，被拒 ${result.rejected} 筆`, 'ok')
-    if (result.rejected) say('被拒表示雲端那筆比較新，回 App 同步一次後再跑一次即可', '')
+    if (result.rejected) say('被拒表示雲端那筆比較新，回 App 同步一次後再跑一次即可')
     say('回 App 拉一次同步就看得到了', 'ok')
   } catch (err) {
     say(String(err instanceof Error ? err.message : err), 'err')

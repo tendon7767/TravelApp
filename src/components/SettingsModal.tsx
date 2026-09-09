@@ -243,6 +243,24 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         </>,
       )}
 
+      {section(
+        <>
+          <span className="label">批次匯入</span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+            <button
+              className="btn btn-sm"
+              onClick={() => window.open(`${import.meta.env.BASE_URL}import.html`, '_blank')}
+            >
+              開啟匯入頁
+            </button>
+          </div>
+          <p className="settings-hint">
+            把整理好的一批行程（JSON）一次寫進某一趟的試算表，在那一頁貼上該趟的邀請連結。
+            平常用不到，是給「一次要建十幾筆」那種場合的。
+          </p>
+        </>,
+      )}
+
       {section(<AppVersion />)}
     </Modal>
   )
