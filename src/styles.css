@@ -1912,12 +1912,19 @@ body[data-actual='true'] {
   inset: 0;
   z-index: 100;
   /* 整頁就是一張照片，沒有要捲的東西。不關掉的話瀏覽器會先接管垂直方向，
-     左右換照片的手勢在斜一點的時候就送不完整。 */
+     左右換照片與雙指縮放在斜一點的時候就送不完整。 */
   touch-action: none;
   display: flex;
   flex-direction: column;
   color: #fff;
   background: rgba(0, 0, 0, 0.96);
+  /* 往上（或往下）拖關閉時整層跟著手指走，愈遠愈淡。 */
+  transform: translateY(var(--photo-dy, 0px));
+  opacity: var(--photo-fade, 1);
+}
+/* 放開之後補完那一段。只有這時候才有 transition —— 拖曳中要貼著手指，不能有延遲。 */
+.photo-lightbox[data-settling='close'] {
+  transition: transform 0.22s ease-out, opacity 0.22s ease-out;
 }
 .photo-lightbox-head {
   display: flex;
@@ -1946,7 +1953,37 @@ body[data-actual='true'] {
   min-height: 0;
   overflow: hidden;
 }
-.photo-lightbox-stage img { max-width: 100%; max-height: 100%; object-fit: contain; }
+/*
+ * 三格軌道：上一張／這一張／下一張，預設停在中間那格。
+ * 左右那兩格**只鋪縮圖**（本機的，零延遲），所以滑動永遠跟得上手指；
+ * 落定之後才由中間那格去載大圖。動畫負責位置、縮圖負責立刻有畫面、
+ * 大圖是最後補上的那一層 —— 三件事各自獨立，不會互相等。
+ */
+.photo-track {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  transform: translateX(calc(-100% + var(--photo-dx, 0px)));
+}
+.photo-lightbox[data-settling='swipe'] .photo-track { transition: transform 0.22s ease-out; }
+.photo-slide {
+  position: relative;
+  flex: 0 0 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.photo-slide img { max-width: 100%; max-height: 100%; object-fit: contain; }
+/* 縮放與平移都畫在這一層，換張時歸零。 */
+.photo-frame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
 /*
  * 大圖還沒到的時候鋪在底下的縮圖。縮圖是 service worker 的 CacheFirst 存的，
  * 幾乎都是本機讀取，所以換張的當下立刻就有畫面，不是一片黑。
@@ -1962,9 +1999,10 @@ body[data-actual='true'] {
   /* 放大一點，模糊之後邊緣才不會露出底色。 */
   transform: scale(1.05);
 }
-/* 大圖載好之前不要露臉：半成品的解碼過程比空白更像壞掉。 */
-.photo-lightbox-stage img:not(.photo-lightbox-blur) { opacity: 0; }
-.photo-lightbox-stage img[data-ready] { opacity: 1; transition: opacity 0.15s ease-out; }
+/* 大圖載好之前不要露臉：半成品的解碼過程比空白更像壞掉。
+   限定在 .photo-frame 底下 —— 左右兩格的縮圖不能跟著被藏起來。 */
+.photo-frame img:not(.photo-lightbox-blur) { opacity: 0; }
+.photo-frame img[data-ready] { opacity: 1; transition: opacity 0.15s ease-out; }
 .photo-loading {
   position: absolute;
   padding: 6px 14px;
