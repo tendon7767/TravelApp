@@ -1995,9 +1995,13 @@ body[data-actual='true'] {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  filter: blur(14px);
+  /*
+   * 只糊一點點。480 寬的縮圖在手機上本來就夠看，糊過頭會讓人以為照片壞了 ——
+   * 這一層的任務是「立刻有東西可看」，不是「假裝自己是大圖」。
+   */
+  filter: blur(6px);
   /* 放大一點，模糊之後邊緣才不會露出底色。 */
-  transform: scale(1.05);
+  transform: scale(1.03);
 }
 /* 大圖載好之前不要露臉：半成品的解碼過程比空白更像壞掉。
    限定在 .photo-frame 底下 —— 左右兩格的縮圖不能跟著被藏起來。 */
@@ -2010,6 +2014,14 @@ body[data-actual='true'] {
   color: #f0f6fc;
   background: rgba(0, 0, 0, 0.55);
   font-size: 13px;
+  /* 慢半拍才出現：快取命中的那些零點幾秒就好了，閃一下「載入中」比不顯示更吵。 */
+  animation: photo-loading-in 0.15s ease-out 0.3s both;
+}
+/* 載入失敗是結論不是過程，不要延遲。 */
+.photo-loading-now { animation: none; }
+@keyframes photo-loading-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .photo-offline { padding: 20px; color: #bbb; text-align: center; font-size: 13px; }
 /* 上傳失敗的重試、刪除確認：浮在照片上，不佔底部那排。 */

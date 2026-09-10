@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import CloseIcon from './CloseIcon'
 import TrashIcon from './TrashIcon'
@@ -91,14 +91,21 @@ export default function PhotoLightbox({
   const [currentId, setCurrentId] = useState(initialId)
   const [confirming, setConfirming] = useState(false)
   const [online, setOnline] = useState(() => navigator.onLine)
-  /** 大圖的載入狀態。換一張就回到 loading，成功或失敗才離開。 */
-  const [phase, setPhase] = useState<'loading' | 'shown' | 'failed'>('loading')
+  /**
+   * 大圖的載入結果，**連同它是哪一張**。
+   *
+   * 只存 'shown' 的話，換張的那一次算繪會先拿舊的狀態去畫新照片 ——
+   * 畫面上是「已載好」的空白，等 effect 把它設回 loading 才退回載入中，
+   * 看起來就是「切過去之後又跳回載入中」。綁上 id，換張的當下就自動失效。
+   */
+  const [phase, setPhase] = useState<{ id: string; state: 'shown' | 'failed' }>()
   /** 放大中：箭頭與說明讓開，手勢也改走平移那條。只當旗標用，實際倍率在 zoom.current。 */
   const [zoomed, setZoomed] = useState(false)
 
   const rootRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
+  const bigRef = useRef<HTMLImageElement>(null)
 
   const index = Math.max(0, photos.findIndex((photo) => photo.id === currentId))
   const current = photos[index]
@@ -160,14 +167,35 @@ export default function PhotoLightbox({
     [index, photos, resetZoom],
   )
 
+  /*
+   * 已經在快取裡的大圖，`load` 可能在我們掛上監聽之前就發過了，那樣會一直卡在
+   * 「載入中」。掛上之後問它一次 complete，順便讓預載命中的那些跳過載入中那一幀。
+   *
+   * 這件事**不能寫在 ref callback 裡**：每次算繪都是新的函式，React 會 null 一次
+   * 再掛一次，裡面若 setState 就是無窮迴圈（React #185，我踩過了）。
+   */
+  useLayoutEffect(() => {
+    const el = bigRef.current
+    if (el?.complete && el.naturalWidth > 0) setPhase({ id: currentId, state: 'shown' })
+  }, [currentId])
+
+  /*
+   * 換張之後把軌道收回中間 —— 在瀏覽器繪之前做完，所以新內容與新位置是同一幀出現。
+   * 這時候要拿掉 transition，不然會看到它從隔壁格「滑回來」。
+   */
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    root.dataset.settling = ''
+    root.style.setProperty('--photo-dx', '0px')
+    root.style.setProperty('--photo-dy', '0px')
+    root.style.setProperty('--photo-fade', '1')
+  }, [currentId])
+
   useEffect(() => {
     if (!photos.length) onClose()
     else if (!photos.some((photo) => photo.id === currentId)) setCurrentId(photos[Math.min(index, photos.length - 1)].id)
   }, [photos, currentId, index, onClose])
-
-  // 換一張就回到「載入中」。<img> 那邊另外用 key 換掉整個元素，
-  // 否則瀏覽器會**留著上一張**直到新圖解碼完成 —— 那正是「按了沒反應」的來源。
-  useEffect(() => setPhase('loading'), [currentId])
 
   /*
    * 先抓好下一張。第一次切過去要等幾秒的大圖，多半在你還在看這一張的時候就下載完了。
@@ -368,15 +396,15 @@ export default function PhotoLightbox({
         const speed = dx / elapsed
         const enough = Math.abs(dx) > root.clientWidth * SWIPE_RATIO || (Math.abs(dx) > FLING_MIN && Math.abs(speed) > FLING)
         if (enough) {
-          // 先讓那一格滑到定位，再換內容 —— 位移歸零與換 id 在同一次更新裡做完，
-          // 中間不會繪出「位置回到原地、內容還是舊的」那一幀。
+          /*
+           * 先讓那一格滑到定位，時間到了**只換內容**，位移與旗標留在原地 ——
+           * 在同一個計時器裡「一邊清位移、一邊換內容」的話，DOM 的寫入立刻生效、
+           * React 的重繪卻不保證在同一幀，中間會繪出「軌道已歸位、內容還是舊的」
+           * 那一格，那就是切換時閃一下的來源。收尾交給下面那個 layout effect。
+           */
           root.dataset.settling = 'swipe'
           root.style.setProperty('--photo-dx', `${dx > 0 ? root.clientWidth : -root.clientWidth}px`)
-          window.setTimeout(() => {
-            root.dataset.settling = ''
-            root.style.setProperty('--photo-dx', '0px')
-            move(dx > 0 ? -1 : 1)
-          }, SETTLE_MS)
+          window.setTimeout(() => move(dx > 0 ? -1 : 1), SETTLE_MS)
           return
         }
         root.dataset.settling = 'swipe'
@@ -415,9 +443,11 @@ export default function PhotoLightbox({
   if (!current) return null
   const src = localUrl ?? (online ? current.fullUrl : undefined)
   // 縮圖是 service worker 用 CacheFirst 存下來的，所以幾乎都是本機讀取、零延遲。
-  // 大圖還沒到的時候先鋪它（模糊放大），畫面就不會是一片黑；滑動時左右兩張也是它撐著。
+  // 大圖還沒到的時候先鋪它，畫面就不會是一片黑；滑動時左右兩張也是它撐著。
   const thumb = localThumb ?? current.thumbnailUrl
-  const waiting = Boolean(src) && phase === 'loading'
+  const shown = phase?.id === current.id && phase.state === 'shown'
+  const failed = phase?.id === current.id && phase.state === 'failed'
+  const waiting = Boolean(src) && !shown && !failed
 
   /*
    * 掛到 body，不留在詳細頁那棵樹裡。
@@ -458,17 +488,18 @@ export default function PhotoLightbox({
           <Slide photo={prevPhoto} side="prev" />
           <div className="photo-slide" data-side="current">
             <div className="photo-frame" ref={frameRef}>
-              {thumb && phase !== 'shown' && (
+              {thumb && !shown && (
                 <img className="photo-lightbox-blur" src={thumb} alt="" aria-hidden="true" />
               )}
               {src ? (
                 <img
                   key={current.id}
+                  ref={bigRef}
                   src={src}
                   alt="行程照片"
-                  data-ready={phase === 'shown' || undefined}
-                  onLoad={() => setPhase('shown')}
-                  onError={() => setPhase('failed')}
+                  data-ready={shown || undefined}
+                  onLoad={() => setPhase({ id: current.id, state: 'shown' })}
+                  onError={() => setPhase({ id: current.id, state: 'failed' })}
                 />
               ) : (
                 <div className="photo-offline">需要網路才能檢視完整照片</div>
@@ -479,7 +510,7 @@ export default function PhotoLightbox({
         </div>
 
         {waiting && <div className="photo-loading">載入中…</div>}
-        {phase === 'failed' && <div className="photo-loading">這張載入失敗</div>}
+        {failed && <div className="photo-loading photo-loading-now">這張載入失敗</div>}
 
         {current.status === 'failed' && onRetry && (
           <div className="photo-lightbox-float">
