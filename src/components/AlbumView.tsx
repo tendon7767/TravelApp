@@ -30,8 +30,16 @@ export default function AlbumView({ trip, plan }: { trip: Trip; plan: Plan }) {
         } satisfies PhotoView,
         order: photo.updatedAt,
       }))
+    // 同一個 id 同時在雲端與佇列裡（送到了但回應掉了）時，雲端那筆才是真的。
+    const uploadedIds = new Set(uploaded.map((photo) => photo.view.id))
     const queued = pending
-      .filter((photo) => photo.tripId === trip.id && photo.kind === 'trip' && itemById.has(photo.itemId))
+      .filter(
+        (photo) =>
+          photo.tripId === trip.id &&
+          photo.kind === 'trip' &&
+          itemById.has(photo.itemId) &&
+          !uploadedIds.has(photo.id),
+      )
       .map((photo) => ({
         itemId: photo.itemId,
         view: {

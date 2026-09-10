@@ -40,8 +40,14 @@ export default function PhotoSection({
         fullUrl: photoFullUrl(photo.fileId),
         order: photo.updatedAt,
       }))
+    /*
+     * 同一個 id 同時出現在雲端與佇列裡是真的會發生的：上傳送到了、回應卻在半路掉了，
+     * 那張照片下次同步會從雲端回來，而佇列裡那筆還在。不擋的話畫面就是同一張照片
+     * 出現兩次，一張好的、一張紅色的「失敗」。雲端那筆才是真的，佇列這筆讓位。
+     */
+    const uploadedIds = new Set(uploaded.map((photo) => photo.id))
     const queued = pending
-      .filter((photo) => photo.itemId === itemId && photo.kind === kind)
+      .filter((photo) => photo.itemId === itemId && photo.kind === kind && !uploadedIds.has(photo.id))
       .map((photo) => ({
         id: photo.id,
         thumbnailBlob: photo.thumbnailBlob,

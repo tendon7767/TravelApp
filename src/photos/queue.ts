@@ -19,6 +19,8 @@ export interface PendingPhotoUpload {
   updatedBy: string
   status: 'queued' | 'uploading' | 'failed'
   error?: string
+  /** 試過幾次。到上限才真的停下來等人按重試，舊資料沒有這個欄位就當成 0。 */
+  attempts?: number
 }
 
 export const loadPendingPhotos = async (): Promise<PendingPhotoUpload[]> =>

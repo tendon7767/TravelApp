@@ -102,6 +102,7 @@ export const uploadRemotePhoto = async (
   gasUrl: string,
   link: TripLink,
   upload: RemotePhotoUpload,
+  signal?: AbortSignal,
 ) =>
   call<import('../types').Photo>(gasUrl, {
     action: 'uploadPhoto',
@@ -120,7 +121,7 @@ export const uploadRemotePhoto = async (
       fullBase64: await blobToBase64(upload.fullBlob),
       thumbnailBase64: await blobToBase64(upload.thumbnailBlob),
     },
-  })
+  }, signal)
 
 export const createRemoteTrip = (
   gasUrl: string,

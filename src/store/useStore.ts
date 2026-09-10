@@ -41,6 +41,7 @@ import {
   pushRemote,
   saveRemoteInvite,
   uploadRemotePhoto,
+  type TripLink,
 } from '../sync/client'
 import { collectTripRecords } from '../sync/collect'
 import { copyItemSnapshot } from '../lib/items'
@@ -227,6 +228,37 @@ const aiFlights = new Map<string, Promise<void>>()
 let capabilityFlight: Promise<void> | undefined
 /** ping 慢到這個地步就別再等了，用上次確認過的值先跑。實測過 11 秒的冷啟動。 */
 const CAPABILITY_WAIT_MS = 8000
+/**
+ * 一張照片自動試幾次才真的停下來等人。
+ *
+ * 手機上最常見的「上傳失敗」不是後端拒絕，而是**送到了、回應在半路掉了**
+ * （網路切換、分頁被凍結、Apps Script 的轉址拖太久）。那時雲端其實已經有那張照片，
+ * 佇列裡卻留著一筆標著失敗的同 id 記錄 —— 畫面上就是同一張照片出現兩次，
+ * 一張好的、一張紅色的「失敗」。
+ */
+const MAX_UPLOAD_ATTEMPTS = 3
+/** 單張上傳的逾時。base64 過去、Drive 建兩個檔、設兩次共用權限，慢的時候是真的慢。 */
+const UPLOAD_TIMEOUT_MS = 90000
+
+/**
+ * 送一次上傳，帶逾時。
+ *
+ * 後端對同一個 id 是冪等的（那一列已存在就直接回傳，不會重複建檔），
+ * 所以「重試」實際上是在問「我剛才那張到底成功了沒」，安全而且通常立刻拿到答案。
+ */
+const attemptUpload = async (
+  gasUrl: string,
+  link: TripLink,
+  upload: PendingPhotoUpload,
+): Promise<Photo> => {
+  const abort = new AbortController()
+  const timer = setTimeout(() => abort.abort(), UPLOAD_TIMEOUT_MS)
+  try {
+    return await uploadRemotePhoto(gasUrl, link, upload, abort.signal)
+  } finally {
+    clearTimeout(timer)
+  }
+}
 const receiptFlights = new Map<string, Promise<void>>()
 const receiptVersions = new Map<string, number>()
 const receiptControllers = new Map<string, AbortController>()
@@ -944,7 +976,7 @@ export const useStore = create<State>((setState, getState) => {
 
     retryPhoto: (id) => {
       const pendingPhotos = getState().pendingPhotos.map((photo) =>
-        photo.id === id ? { ...photo, status: 'queued' as const, error: undefined } : photo,
+        photo.id === id ? { ...photo, status: 'queued' as const, error: undefined, attempts: 0 } : photo,
       )
       setState({ pendingPhotos })
       void savePendingPhotos(pendingPhotos)
@@ -978,6 +1010,22 @@ export const useStore = create<State>((setState, getState) => {
         const link = settings.tripLinks?.[tripId]
         if (!settings.gasUrl || !link || (settings.photoApiVersion ?? 0) < 1) return
 
+        /*
+         * 上一輪標成 failed 但還沒用完次數的，這一輪放回佇列再試。
+         * 多數「失敗」其實是送到了、回應在半路掉了 —— 後端對同一個 id 是冪等的
+         * （已存在就直接回傳那一列），所以再問一次就會拿回那張照片，
+         * 而不是重複建檔。
+         */
+        const revived = getState().pendingPhotos.map((photo) =>
+          photo.tripId === tripId && photo.status === 'failed' && (photo.attempts ?? 0) < MAX_UPLOAD_ATTEMPTS
+            ? { ...photo, status: 'queued' as const, error: undefined }
+            : photo,
+        )
+        if (revived.some((photo, at) => photo !== getState().pendingPhotos[at])) {
+          setState({ pendingPhotos: revived })
+          await savePendingPhotos(revived)
+        }
+
         const ids = getState().pendingPhotos
           .filter((photo) => photo.tripId === tripId && photo.status === 'queued')
           .map((photo) => photo.id)
@@ -990,7 +1038,7 @@ export const useStore = create<State>((setState, getState) => {
           setState({ pendingPhotos })
           await savePendingPhotos(pendingPhotos)
           try {
-            const photo = await uploadRemotePhoto(settings.gasUrl, link, upload)
+            const photo = await attemptUpload(settings.gasUrl, link, upload)
             // 使用者可能在請求途中刪除照片、Item 或整個實際版。請求無法可靠取消，
             // 所以回應後若佇列已不在，就立刻建立墓碑，不能讓剛完成的檔案死灰復燃。
             if (!getState().pendingPhotos.some((value) => value.id === id)) {
@@ -1023,11 +1071,15 @@ export const useStore = create<State>((setState, getState) => {
             void cacheThumbnail(photoThumbnailUrl(photo.thumbnailFileId))
           } catch (error) {
             const retryWhenOnline = typeof navigator !== 'undefined' && !navigator.onLine
+            const attempts = (upload.attempts ?? 0) + 1
             pendingPhotos = getState().pendingPhotos.map((photo) =>
               photo.id === id
                 ? {
                     ...photo,
-                    status: retryWhenOnline ? 'queued' as const : 'failed' as const,
+                    attempts,
+                    // 還沒到上限就放回佇列，下一次同步會自動再試 ——
+                    // 標成 failed 的那些會躺在原地等人按重試，而多數失敗只是回應掉了。
+                    status: retryWhenOnline || attempts < MAX_UPLOAD_ATTEMPTS ? 'queued' as const : 'failed' as const,
                     error: error instanceof Error ? error.message : String(error),
                   }
                 : photo,
