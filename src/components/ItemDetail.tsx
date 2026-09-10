@@ -2416,8 +2416,14 @@ export default function ItemDetail({
 
         </section>
 
-        {isActual && <PhotoSection trip={trip} itemId={item.id} kind="receipt" />}
-
+        {/*
+          * 收據照片（把收據存進 Drive 當存證）用不到了，前端不再顯示。
+          * 只是不畫出來而已 —— 資料、同步、後端的 uploadPhoto 都原封不動，
+          * 已經傳上去的那些還在雲端，把這一行放回來就看得到。
+          *
+          * **這跟收據辨識沒有關係。** 辨識的入口在費用區塊裡的「＋ 從相機新增」，
+          * 那條走 processReceiptScan，只送去辨識、不上傳也不留檔。
+          */}
         {isActual && <PhotoSection trip={trip} itemId={item.id} kind="trip" />}
 
         {isActual && (

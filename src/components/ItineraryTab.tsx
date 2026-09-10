@@ -14,7 +14,6 @@ import DayStrip from './DayStrip'
 import MapPinIcon from './MapPinIcon'
 import LinkIcon from './LinkIcon'
 import PhotoIcon from './PhotoIcon'
-import ReceiptIcon from './ReceiptIcon'
 import CloseIcon from './CloseIcon'
 
 interface Props {
@@ -50,20 +49,20 @@ export default function ItineraryTab({
   const createItem = useStore((s) => s.createItem)
   const hideItemMoney = useStore((s) => Boolean(s.settings.hideItemMoney))
   const toggleItemMoney = useStore((s) => s.toggleItemMoney)
-  // 收據與行程照片在列表上是兩個不同的標記，所以分開統計。
+  /*
+   * 哪幾筆有行程照片。收據照片那個標記跟著詳細頁的區塊一起收起來了 ——
+   * 標記指著一個點進去看不到的東西，比沒有標記更讓人困惑。
+   */
   const photoMarks = useMemo(() => {
-    const receipt = new Set<string>()
-    const trip_ = new Set<string>()
-    if (plan.kind !== 'actual') return { receipt, trip: trip_ }
-    const mark = (kind: 'receipt' | 'trip', itemId: string) =>
-      (kind === 'receipt' ? receipt : trip_).add(itemId)
+    const marked = new Set<string>()
+    if (plan.kind !== 'actual') return marked
     allPhotos
-      .filter((photo) => !photo.deleted && photo.tripId === trip.id)
-      .forEach((photo) => mark(photo.kind, photo.itemId))
+      .filter((photo) => !photo.deleted && photo.tripId === trip.id && photo.kind === 'trip')
+      .forEach((photo) => marked.add(photo.itemId))
     pendingPhotos
-      .filter((photo) => photo.tripId === trip.id)
-      .forEach((photo) => mark(photo.kind, photo.itemId))
-    return { receipt, trip: trip_ }
+      .filter((photo) => photo.tripId === trip.id && photo.kind === 'trip')
+      .forEach((photo) => marked.add(photo.itemId))
+    return marked
   }, [allPhotos, pendingPhotos, plan.kind, trip.id])
   const { today, minutes: nowMin } = useNowClock()
 
@@ -220,12 +219,7 @@ export default function ItineraryTab({
                       <LinkIcon size={13} className="row-link-icon" />
                     </span>
                   )}
-                  {photoMarks.receipt.has(item.id) && (
-                    <span title="有收據照片" aria-label="有收據照片">
-                      <ReceiptIcon size={13} className="row-photo-icon" />
-                    </span>
-                  )}
-                  {photoMarks.trip.has(item.id) && (
+                  {photoMarks.has(item.id) && (
                     <span title="有行程照片" aria-label="有行程照片">
                       <PhotoIcon size={13} className="row-photo-icon" />
                     </span>
