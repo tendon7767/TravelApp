@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import CloseIcon from './CloseIcon'
+import TrashIcon from './TrashIcon'
 
 export interface PhotoView {
   id: string
@@ -55,10 +57,13 @@ export default function PhotoLightbox({
   const [currentId, setCurrentId] = useState(initialId)
   const [confirming, setConfirming] = useState(false)
   const [online, setOnline] = useState(() => navigator.onLine)
+  /** 大圖的載入狀態。換一張就回到 loading，成功或失敗才離開。 */
+  const [phase, setPhase] = useState<'loading' | 'shown' | 'failed'>('loading')
   const touchStart = useRef<number | undefined>(undefined)
   const index = Math.max(0, photos.findIndex((photo) => photo.id === currentId))
   const current = photos[index]
   const localUrl = useBlobUrl(current?.fullBlob)
+  const localThumb = useBlobUrl(current?.thumbnailBlob)
 
   const move = (delta: number) => {
     if (!photos.length) return
@@ -71,6 +76,22 @@ export default function PhotoLightbox({
     if (!photos.length) onClose()
     else if (!photos.some((photo) => photo.id === currentId)) setCurrentId(photos[Math.min(index, photos.length - 1)].id)
   }, [photos, currentId, index, onClose])
+
+  // 換一張就回到「載入中」。<img> 那邊另外用 key 換掉整個元素，
+  // 否則瀏覽器會**留著上一張**直到新圖解碼完成 —— 那正是「按了沒反應」的來源。
+  useEffect(() => setPhase('loading'), [currentId])
+
+  /*
+   * 先抓好下一張。第一次切過去要等幾秒的大圖，多半在你還在看這一張的時候就下載完了。
+   * 只抓單向一張：雙向等於每開一次燈箱就多兩張的流量，而人幾乎都是往同一個方向翻。
+   */
+  useEffect(() => {
+    if (!online || photos.length < 2) return
+    const next = photos[(index + 1) % photos.length]
+    if (!next?.fullUrl || next.fullBlob) return
+    const img = new Image()
+    img.src = next.fullUrl
+  }, [index, photos, online])
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -92,6 +113,10 @@ export default function PhotoLightbox({
 
   if (!current) return null
   const src = localUrl ?? (online ? current.fullUrl : undefined)
+  // 縮圖是 service worker 用 CacheFirst 存下來的，所以幾乎都是本機讀取、零延遲。
+  // 大圖還沒到的時候先鋪它（模糊放大），畫面就不會是一片黑。
+  const thumb = localThumb ?? current.thumbnailUrl
+  const waiting = Boolean(src) && phase === 'loading'
 
   /*
    * 掛到 body，不留在詳細頁那棵樹裡。
@@ -122,29 +147,63 @@ export default function PhotoLightbox({
       }}
     >
       <div className="photo-lightbox-head">
-        <span>{index + 1} / {photos.length}</span>
-        <button className="btn btn-sm" onClick={onClose}>關閉</button>
-      </div>
-      <div className="photo-lightbox-stage">
-        {photos.length > 1 && <button className="photo-nav photo-nav-prev" onClick={() => move(-1)} aria-label="上一張">‹</button>}
-        {src ? <img src={src} alt="行程照片" /> : <div className="photo-offline">需要網路才能檢視完整照片</div>}
-        {photos.length > 1 && <button className="photo-nav photo-nav-next" onClick={() => move(1)} aria-label="下一張">›</button>}
-      </div>
-      <div className="photo-lightbox-actions">
-        {current.status === 'failed' && onRetry && (
-          <button className="btn" onClick={() => onRetry(current.id)}>重試上傳</button>
-        )}
+        <button className="btn btn-sm btn-glyph btn-plain" onClick={onClose} aria-label="關閉" title="關閉">
+          <CloseIcon />
+        </button>
+        <span className="photo-count">{index + 1} / {photos.length}</span>
         {current.status === 'uploading' ? (
-          <button className="btn" disabled>上傳中</button>
-        ) : confirming ? (
-          <>
-            <button className="btn" onClick={() => setConfirming(false)}>取消</button>
-            <button className="btn btn-danger" onClick={() => onDelete(current.id)}>確定刪除</button>
-          </>
+          <span className="photo-count photo-count-note">上傳中</span>
         ) : (
-          <button className="btn" onClick={() => setConfirming(true)}>刪除照片</button>
+          <button
+            className="btn btn-sm btn-glyph btn-plain photo-trash"
+            onClick={() => setConfirming(true)}
+            aria-label="刪除照片"
+            title="刪除照片"
+          >
+            <TrashIcon size={18} />
+          </button>
         )}
       </div>
+
+      <div className="photo-lightbox-stage">
+        {thumb && phase !== 'shown' && (
+          <img className="photo-lightbox-blur" src={thumb} alt="" aria-hidden="true" />
+        )}
+        {src ? (
+          <img
+            key={current.id}
+            src={src}
+            alt="行程照片"
+            data-ready={phase === 'shown' || undefined}
+            onLoad={() => setPhase('shown')}
+            onError={() => setPhase('failed')}
+          />
+        ) : (
+          <div className="photo-offline">需要網路才能檢視完整照片</div>
+        )}
+        {waiting && <div className="photo-loading">載入中…</div>}
+        {phase === 'failed' && <div className="photo-loading">這張載入失敗</div>}
+
+        {current.status === 'failed' && onRetry && (
+          <div className="photo-lightbox-float">
+            <button className="btn btn-sm" onClick={() => onRetry(current.id)}>重試上傳</button>
+          </div>
+        )}
+        {confirming && (
+          <div className="photo-lightbox-float photo-confirm">
+            <span>刪除這張照片？</span>
+            <button className="btn btn-sm" onClick={() => setConfirming(false)}>取消</button>
+            <button className="btn btn-sm btn-danger" onClick={() => onDelete(current.id)}>刪除</button>
+          </div>
+        )}
+      </div>
+
+      {photos.length > 1 && (
+        <div className="photo-lightbox-nav">
+          <button className="photo-nav" onClick={() => move(-1)} aria-label="上一張">‹</button>
+          <button className="photo-nav" onClick={() => move(1)} aria-label="下一張">›</button>
+        </div>
+      )}
       {current.error && <div className="photo-lightbox-error">{current.error}</div>}
     </div>,
     document.body,

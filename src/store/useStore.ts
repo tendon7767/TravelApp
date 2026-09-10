@@ -220,6 +220,13 @@ const syncVersions = new Map<string, number>()
 const photoUploadFlights = new Map<string, Promise<void>>()
 /** 同一筆同時只跑一次分析；離開詳細頁不影響它，fetch 本來就跟 React 無關。 */
 const aiFlights = new Map<string, Promise<void>>()
+/**
+ * 啟動時那一次 capability 查詢。**畫面不等它**（見 `init`），但同步等 ——
+ * 「後端不支援照片就別讓 lastPushedAt 前進」那個保護，用還沒確認的值會誤判。
+ */
+let capabilityFlight: Promise<void> | undefined
+/** ping 慢到這個地步就別再等了，用上次確認過的值先跑。實測過 11 秒的冷啟動。 */
+const CAPABILITY_WAIT_MS = 8000
 const receiptFlights = new Map<string, Promise<void>>()
 const receiptVersions = new Map<string, number>()
 const receiptControllers = new Map<string, AbortController>()
@@ -253,6 +260,40 @@ export const useStore = create<State>((setState, getState) => {
     persist(next)
   }
 
+  /**
+   * 問一次後端支援哪些能力，寫回 settings。啟動時在背景跑。
+   *
+   * **一定要用當下的 settings 去 patch，不能用呼叫當時那一份。** 這支在背景可能跑
+   * 好幾秒，期間使用者已經可以操作了 —— 拿舊的整份寫回去，就會把這中間改的暱稱、
+   * 配色、匯率那些一起蓋回舊值。這是「啟動不等 ping」唯一真的會弄髒東西的地方。
+   *
+   * 失敗就整個不動：保留上次確認過的值，跟以前 ping 失敗時的行為一樣。
+   */
+  const refreshCapabilities = async () => {
+    const { gasUrl } = getState().settings
+    if (!gasUrl) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(), CAPABILITY_WAIT_MS)
+    try {
+      const pong = await ping(gasUrl, abort.signal)
+      const settings: Settings = {
+        ...getState().settings,
+        photoApiVersion: pong.capabilities?.photos,
+        inviteApiVersion: pong.capabilities?.invite,
+        aiApiVersion: pong.capabilities?.ai,
+        costGroupApiVersion: pong.capabilities?.costGroups,
+        receiptAiApiVersion: pong.capabilities?.receiptAi,
+      }
+      setState({ settings })
+      await saveSettings(settings)
+    } catch {
+      // 連不上或逾時：保留上次確認過的 capability。
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
   const patchIn = <T extends SyncFields>(list: T[], id: string, patch: Partial<T>): T[] =>
     list.map((r) =>
       r.id === id ? { ...r, ...patch, updatedAt: Date.now(), updatedBy: getState().settings.memberName } : r,
@@ -268,30 +309,25 @@ export const useStore = create<State>((setState, getState) => {
     localRev: 0,
     pendingPhotos: [],
 
+    /**
+     * 本機資料一讀完就把畫面開出來，**不等後端**。
+     *
+     * ping 問的只是「這個後端支不支援照片／AI／收據辨識」，它不讀也不寫任何資料，
+     * 但 Apps Script 的冷啟動實測要 1.4～11.7 秒 —— 以前 ready 等它，那段時間
+     * 整個 App 就是一句「載入中…」，而該有的資料其實早就在 IndexedDB 裡了。
+     *
+     * 期間用的是上次確認過的 capability（存在 settings 裡），跟「ping 失敗」時
+     * 的行為一模一樣。全新裝置那零點幾秒是 undefined，會被當成「不支援」，
+     * 結果是照片那一輪不推、lastPushedAt 不前進 —— 慢一輪，不會弄丟東西。
+     */
     init: async () => {
-      const [data, storedSettings, pendingPhotos] = await Promise.all([
+      const [data, settings, pendingPhotos] = await Promise.all([
         loadData(),
         loadSettings(),
         loadPendingPhotos(),
       ])
-      let settings = storedSettings
-      if (settings.gasUrl && (typeof navigator === 'undefined' || navigator.onLine)) {
-        try {
-          const pong = await ping(settings.gasUrl)
-          settings = {
-            ...settings,
-            photoApiVersion: pong.capabilities?.photos,
-            inviteApiVersion: pong.capabilities?.invite,
-            aiApiVersion: pong.capabilities?.ai,
-            costGroupApiVersion: pong.capabilities?.costGroups,
-            receiptAiApiVersion: pong.capabilities?.receiptAi,
-          }
-          await saveSettings(settings)
-        } catch {
-          // 啟動不應被後端暫時無法連線卡住；保留上次確認過的 capability。
-        }
-      }
       setState({ data, settings, pendingPhotos, ready: true })
+      capabilityFlight = refreshCapabilities()
     },
 
     setMemberName: (memberName) => {
@@ -1113,6 +1149,12 @@ export const useStore = create<State>((setState, getState) => {
       const invalidated = () => (syncVersions.get(tripId) ?? 0) !== syncVersion
 
       const flight = (async () => {
+        /*
+         * 啟動時那次 capability 查詢還在跑的話先等它。畫面不等 ping，但同步等 ——
+         * 「後端不支援照片就別讓 lastPushedAt 前進」那個保護，用還沒確認的值會誤判，
+         * 症狀是照片那一輪被跳過。它自己帶逾時，所以最多就是等那幾秒。
+         */
+        if (capabilityFlight) await capabilityFlight
         const { settings } = getState()
         const link = settings.tripLinks?.[tripId]
         if (!settings.gasUrl || !link) return

@@ -51,7 +51,7 @@ const call = async <T>(
   return data
 }
 
-export const ping = (gasUrl: string) =>
+export const ping = (gasUrl: string, signal?: AbortSignal) =>
   call<{
     ok: boolean
     version?: string
@@ -62,7 +62,7 @@ export const ping = (gasUrl: string) =>
       costGroups?: number
       receiptAi?: number
     }
-  }>(gasUrl, { action: 'ping' })
+  }>(gasUrl, { action: 'ping' }, signal)
 
 /**
  * 在試算表裡留一份邀請連結。本機資料被瀏覽器清掉時，試算表 ID 與密鑰會一起消失，
