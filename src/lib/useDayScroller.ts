@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { recallViewDay, rememberViewDay } from './viewDay'
 
 /**
  * .itinerary-scroll 與它的祖先都是 position:static，section.offsetTop 是相對 body 量的，
@@ -20,8 +21,16 @@ export const scrollToElement = (scroller: HTMLElement, el: HTMLElement, offset =
 /** 平滑捲動大致要跑這麼久；這段時間內不把捲動事件當成使用者手動捲。 */
 const PROGRAMMATIC_MS = 450
 
-export const useDayScroller = (days: string[], today: string) => {
-  const [activeDay, setActiveDay] = useState(() => (days.includes(today) ? today : (days[0] ?? '')))
+/**
+ * @param tripId 給了就會記住「這一趟這次看到第幾天」，行程列表與心得模式共用。
+ *   進頁面時的落點依序是：這次看過的那一天 → 今天 → 第一天。
+ */
+export const useDayScroller = (days: string[], today: string, tripId?: string) => {
+  const fallbackDay = days.includes(today) ? today : (days[0] ?? '')
+  const [activeDay, setActiveDay] = useState(() => {
+    const remembered = tripId ? recallViewDay(tripId) : undefined
+    return remembered && days.includes(remembered) ? remembered : fallbackDay
+  })
   const scrollRef = useRef<HTMLDivElement>(null)
   const daystripRef = useRef<HTMLDivElement>(null)
   const scrollFrame = useRef<number | undefined>(undefined)
@@ -32,9 +41,26 @@ export const useDayScroller = (days: string[], today: string) => {
     setActiveDay((current) => (days.includes(current) ? current : (days.includes(today) ? today : (days[0] ?? ''))))
   }, [days, today])
 
+  /**
+   * 開頁面時捲到該停的那一天。**只做一次。**
+   *
+   * 以前初始值就已經是「今天」了，但掛載後那個依捲動位置回推的 effect 會立刻
+   * 把它改回第一天（列表剛出現時 scrollTop 是 0），等於沒人真的捲過去 ——
+   * 所以每次都得自己按一下「回到現在」。
+   *
+   * 停在第一天時不必捲（本來就在那裡），也避免無謂的動畫。
+   */
+  const landed = useRef(false)
+
   const updateActiveDay = useCallback(() => {
     const scroller = scrollRef.current
     if (!scroller || !days.length) return
+    /*
+     * 程式發動的捲動還在跑的時候不要回推。平滑捲動要好幾幀才到位，這中間
+     * scrollTop 還停在原地 —— 開頁面時定位到今天，會被這裡立刻算回第一天。
+     * （trackScroll 本來就先擋一次，這條是給「直接呼叫」的那幾個路徑補上的。）
+     */
+    if (programmatic.current) return
 
     let next = days[0]
     if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2) {
@@ -65,6 +91,10 @@ export const useDayScroller = (days: string[], today: string) => {
       if (scrollFrame.current !== undefined) window.cancelAnimationFrame(scrollFrame.current)
     }
   }, [updateActiveDay])
+
+  useEffect(() => {
+    if (tripId && activeDay) rememberViewDay(tripId, activeDay)
+  }, [tripId, activeDay])
 
   useEffect(() => {
     const strip = daystripRef.current
@@ -110,6 +140,16 @@ export const useDayScroller = (days: string[], today: string) => {
     },
     [focusDay],
   )
+
+  useLayoutEffect(() => {
+    if (landed.current || !days.length) return
+    const scroller = scrollRef.current
+    if (!scroller) return
+    // 內容還沒算繪出來就不算數，下一次算繪會再進來一次。
+    if (!scroller.querySelector('[data-day-section]')) return
+    landed.current = true
+    if (activeDay && activeDay !== days[0]) jumpTo(activeDay)
+  }, [activeDay, days, jumpTo])
 
   /**
    * 捲到「現在」。今天沒有正在進行的那一筆時（沒行程，或行程全都沒填時間）

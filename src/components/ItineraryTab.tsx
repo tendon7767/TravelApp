@@ -71,7 +71,7 @@ export default function ItineraryTab({
   const [addingOn, setAddingOn] = useState<string | null>(null)
   const [pickedCategory, setPickedCategory] = useState<ItineraryCategory | null>(null)
   const { activeDay, scrollRef, daystripRef, scrollProps, jumpTo, holdDay, scrollToNow } =
-    useDayScroller(days, today)
+    useDayScroller(days, today, trip.id)
   const stepDays = useDaySwipe<HTMLDivElement>({
     days,
     activeDay,

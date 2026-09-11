@@ -103,7 +103,7 @@ export default function ReviewTab({ trip, plan, onDirtyChange }: Props) {
     Boolean(mineText(itemId).trim()) || othersOf(itemId).length > 0
 
   const { activeDay, scrollRef, daystripRef, scrollProps, jumpTo, holdDay, scrollToNow } =
-    useDayScroller(days, today)
+    useDayScroller(days, today, trip.id)
   const currentItemId = useMemo(
     () => (days.includes(today) ? pickCurrentItemId(byDay.get(today) ?? [], nowMin) : undefined),
     [byDay, days, today, nowMin],
