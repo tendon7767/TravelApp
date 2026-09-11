@@ -727,6 +727,17 @@ body[data-actual='true'] {
 }
 
 /* 選取中已經用底色表示，所以「現在正在進行」改用左緣色條，兩者可以同時成立。 */
+/*
+ * 剛建好的那一筆。收起快選之後畫面會往回跳，這一下淡出就是「它在這裡」——
+ * 幾秒後自己退場，不需要任何人去關掉它。用底色不用邊框：邊框會把那一列的
+ * 高度或內縮撐開一點點，整張表跟著位移。
+ */
+.row[data-fresh] { animation: row-fresh 2.6s ease-out both; }
+@keyframes row-fresh {
+  0% { background: var(--accent-bg); }
+  70% { background: var(--accent-bg); }
+  100% { background: transparent; }
+}
 .row[data-now="true"] { box-shadow: inset 3px 0 0 var(--accent); }
 .row[data-now="true"] .rowtime { color: var(--accent); font-weight: 600; }
 

@@ -125,6 +125,17 @@ export default function ItineraryTab({
     setPickedCategory(null)
   }
 
+  const [freshId, setFreshId] = useState<string>()
+  useEffect(() => {
+    if (!freshId) return
+    const timer = setTimeout(() => setFreshId(undefined), 2600)
+    return () => clearTimeout(timer)
+  }, [freshId])
+
+  /**
+   * 剛建好的那一筆。收起選單之後畫面會往回跳，總得讓人看得出來東西加到哪去了；
+   * 幾秒後自己消失，不需要使用者去關掉它。
+   */
   const addQuick = (day: string, category: ItineraryCategory, quick: QuickItem) => {
     // 時間照模板給的，不管當天有沒有別的項目佔用 —— 同一時段本來就可能有兩筆。
     // 費用與備註取自該子項自己的預設值，飛機和地鐵本來就不該長一樣。
@@ -133,7 +144,7 @@ export default function ItineraryTab({
       quick.preset,
       trip,
     )
-    createItem({
+    const created = createItem({
       planId: plan.id,
       date: day,
       title: quick.title,
@@ -141,7 +152,10 @@ export default function ItineraryTab({
       category,
       ...patch,
     })
-    setPickedCategory(null)
+    // 建好就收起來。以前是留著讓人連續點，但實際上多數時候是加一筆就要去改它，
+    // 開著的選單反而擋住剛建好的那一列。要再加一筆按一次「＋」就好，位置不會跑。
+    closeAdd()
+    setFreshId(created.id)
   }
 
   const pickCategory = (day: string, category: ItineraryCategory) => {
@@ -197,6 +211,7 @@ export default function ItineraryTab({
                 data-sel={item.id === selectedId}
                 data-item-id={item.id}
                 data-now={item.id === currentItemId}
+                data-fresh={item.id === freshId || undefined}
                 aria-current={item.id === currentItemId ? 'time' : undefined}
                 onClick={() => onSelect(item.id)}
                 onKeyDown={(e) => {
@@ -304,7 +319,7 @@ export default function ItineraryTab({
                 )}
 
                 <p className="dim" style={{ fontSize: 11, margin: '2px 0 0' }}>
-                  建好後點進去改名稱與時間。可以連續點，不會自動關閉。
+                  建好後點進去改名稱與時間。
                 </p>
               </div>
             ) : (
