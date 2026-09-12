@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { draftTrip, useStore } from '../store/useStore'
-import { dayCount, shortDate } from '../lib/date'
+import type { Trip } from '../types'
+import { dayCount, shortDate, todayISO } from '../lib/date'
 import SettingsModal from '../components/SettingsModal'
 import AppVersion from '../components/AppVersion'
 import Modal from '../components/Modal'
@@ -17,7 +18,32 @@ export default function TripsPage() {
   // 標題掛使用者自己的名字：本機資料被瀏覽器清掉後名字會退回預設值，
   // 標題變回「我的旅程」就是最早看得到的徵兆。
   const memberName = useStore((s) => s.settings.memberName)
-  const trips = useMemo(() => allTrips.filter((t) => !t.deleted), [allTrips])
+  /*
+   * 排序是「算出來的」，不存任何東西：不進資料、不進同步、不必遷移。
+   * 進行中排最前（正在跑的那趟一定是要找的那趟），其次是未來（近的在前），
+   * 最後是過去（新的在前）。日期是 YYYY-MM-DD，字串比大小就等於比日期。
+   */
+  const trips = useMemo(() => {
+    const today = todayISO()
+    const rank = (t: Trip): number => {
+      if (!t.startDate || !t.endDate) return 3 // 日期不全的沉到最後，至少不會插到進行中前面
+      if (t.endDate < today) return 2
+      if (t.startDate > today) return 1
+      return 0
+    }
+    return allTrips
+      .filter((t) => !t.deleted)
+      .map((trip, index) => ({ trip, index }))
+      .sort((a, b) => {
+        const ra = rank(a.trip)
+        const rb = rank(b.trip)
+        if (ra !== rb) return ra - rb
+        if (ra === 2) return b.trip.endDate.localeCompare(a.trip.endDate)
+        if (ra === 3) return a.index - b.index
+        return a.trip.startDate.localeCompare(b.trip.startDate)
+      })
+      .map(({ trip }) => trip)
+  }, [allTrips])
   const createTrip = useStore((s) => s.createTrip)
   const allPlans = useStore((s) => s.data.plans)
   const allPhotos = useStore((s) => s.data.photos)
