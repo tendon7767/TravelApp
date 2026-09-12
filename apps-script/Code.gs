@@ -14,7 +14,7 @@
 var FOLDER_NAME = '旅遊資料'
 
 /** 部署後在 App 的「測試並儲存」會顯示這個字串，用來確認新版本真的上線了。 */
-var BACKEND_VERSION = '2026-08-28-receipt-truncated'
+var BACKEND_VERSION = '2026-09-12-upload-narrow-lock'
 
 /** 邀請連結備份的分頁名稱。不在 SCHEMA 裡，pull/push 都不會碰到它。 */
 var INVITE_SHEET = '邀請連結'
@@ -581,87 +581,131 @@ function cascadeDeletedPhotos(ss, now) {
   }
 }
 
+/**
+ * 冪等的核心：同一個 photo.id 再送一次就回傳既有那一列。
+ * 前端的自動重試整個建立在這件事上——重試等於在問「我剛才那張到底成功了沒」。
+ */
+function existingPhotoRecord(ss, id) {
+  var existing = findRecord(ss, 'photos', id)
+  if (!existing) return null
+  if (existing.deleted) throw new Error('這張照片已刪除')
+  delete existing._row
+  delete existing.syncedAt
+  return existing
+}
+
+/**
+ * 只清掉「這一次真的建出來的」檔案。既有的同名檔案不能碰：
+ * 同一個 id 並行送達時，那幾個檔案可能是另一個請求建的、而且已經寫進試算表了。
+ */
+function trashCreatedFiles(files) {
+  files.forEach(function (file) { trashFile(file.getId()) })
+}
+
+/**
+ * 鎖只罩「寫試算表」那一段。Drive 建檔與設定分享很慢，而 pull／push 用的是同一把腳本鎖，
+ * 整支函式握著鎖的話，只要有一次同步在跑，上傳就會卡在 waitLock 直接逾時。
+ *
+ * 需要序列化的只有「查一次沒有才寫一列」這組動作，所以冪等靠兩道檢查：
+ * 鎖外先查（多數重試在這裡就回頭，完全不必等鎖），鎖內再查一次（double check），
+ * 才不會讓同一個 id 並行寫出兩列。ensureSchema 會增量補欄位，並行跑可能重複加，
+ * 所以它也留在鎖內——它只讀寫表頭，不碰 Drive，不是慢的那一段。
+ */
 function uploadPhoto(body) {
+  var ss = openChecked(body)
+  var input = body.photo || {}
+  if (!input.id || !input.itemId) throw new Error('照片資料不完整')
+  if (input.kind !== 'receipt' && input.kind !== 'trip') throw new Error('照片類型不正確')
+  if (input.mimeType !== 'image/jpeg') throw new Error('只接受 JPEG 顯示版本')
+
+  var existing = existingPhotoRecord(ss, input.id)
+  if (existing) return existing
+
+  var item = findRecord(ss, 'items', input.itemId)
+  var plan = item && findRecord(ss, 'plans', item.planId)
+  var trip = plan && findRecord(ss, 'trips', plan.tripId)
+  if (!item || item.deleted || !plan || plan.deleted || plan.kind !== 'actual' || !trip || trip.deleted) {
+    throw new Error('照片只能上傳到仍存在的實際版行程')
+  }
+
+  var fullBytes = Utilities.base64Decode(String(input.fullBase64 || ''))
+  var thumbBytes = Utilities.base64Decode(String(input.thumbnailBase64 || ''))
+  var fullLimit = input.kind === 'receipt' ? 750 * 1024 : 2 * 1024 * 1024
+  if (!fullBytes.length || fullBytes.length > fullLimit) throw new Error('照片檔案超過大小限制')
+  if (!thumbBytes.length || thumbBytes.length > 120 * 1024) throw new Error('照片縮圖超過大小限制')
+  if (Number(input.byteSize) !== fullBytes.length) throw new Error('照片大小驗證失敗')
+  if (!(Number(input.width) > 0) || !(Number(input.height) > 0)) throw new Error('照片尺寸無效')
+
+  var folder = photoFolder(ss, input.kind)
+  var fullName = String(input.id) + '.jpg'
+  var thumbName = String(input.id) + '-thumb.jpg'
+  var fullFile = existingFile(folder, fullName)
+  var thumbFile = existingFile(folder, thumbName)
+  var created = []
+  try {
+    if (!fullFile) {
+      fullFile = folder.createFile(Utilities.newBlob(fullBytes, 'image/jpeg', fullName))
+      created.push(fullFile)
+    }
+    if (!thumbFile) {
+      thumbFile = folder.createFile(Utilities.newBlob(thumbBytes, 'image/jpeg', thumbName))
+      created.push(thumbFile)
+    }
+    fullFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW)
+    thumbFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW)
+  } catch (err) {
+    trashCreatedFiles(created)
+    throw new Error('無法建立可分享的照片：' + String(err))
+  }
+
+  var now = Date.now()
+  var photo = {
+    id: String(input.id),
+    tripId: String(trip.id),
+    itemId: String(item.id),
+    kind: input.kind,
+    fileId: fullFile.getId(),
+    fileUrl: publicDownloadUrl(fullFile, false),
+    thumbnailFileId: thumbFile.getId(),
+    thumbnailUrl: publicDownloadUrl(thumbFile, true),
+    mimeType: 'image/jpeg',
+    width: Number(input.width),
+    height: Number(input.height),
+    byteSize: fullBytes.length,
+    updatedAt: Number(input.updatedAt) || now,
+    updatedBy: String(input.updatedBy || '同行者'),
+    deleted: false,
+    syncedAt: now,
+  }
+
   var lock = LockService.getScriptLock()
   lock.waitLock(30000)
   try {
-    var ss = openChecked(body)
     ensureSchema(ss)
-    var input = body.photo || {}
-    if (!input.id || !input.itemId) throw new Error('照片資料不完整')
-    if (input.kind !== 'receipt' && input.kind !== 'trip') throw new Error('照片類型不正確')
-    if (input.mimeType !== 'image/jpeg') throw new Error('只接受 JPEG 顯示版本')
-
-    var existing = findRecord(ss, 'photos', input.id)
-    if (existing) {
-      if (existing.deleted) throw new Error('這張照片已刪除')
-      delete existing._row
-      delete existing.syncedAt
-      return existing
+    var raced = existingPhotoRecord(ss, input.id)
+    if (raced) {
+      // 另一個並行請求（多半是前端逾時後重送的同一張）先寫進去了。
+      // 清掉這次多建的檔案，回傳既有那一列，維持「一個 id 一列、一組檔案」。
+      trashCreatedFiles(created)
+      return raced
     }
-
-    var item = findRecord(ss, 'items', input.itemId)
-    var plan = item && findRecord(ss, 'plans', item.planId)
-    var trip = plan && findRecord(ss, 'trips', plan.tripId)
-    if (!item || item.deleted || !plan || plan.deleted || plan.kind !== 'actual' || !trip || trip.deleted) {
-      throw new Error('照片只能上傳到仍存在的實際版行程')
-    }
-
-    var fullBytes = Utilities.base64Decode(String(input.fullBase64 || ''))
-    var thumbBytes = Utilities.base64Decode(String(input.thumbnailBase64 || ''))
-    var fullLimit = input.kind === 'receipt' ? 750 * 1024 : 2 * 1024 * 1024
-    if (!fullBytes.length || fullBytes.length > fullLimit) throw new Error('照片檔案超過大小限制')
-    if (!thumbBytes.length || thumbBytes.length > 120 * 1024) throw new Error('照片縮圖超過大小限制')
-    if (Number(input.byteSize) !== fullBytes.length) throw new Error('照片大小驗證失敗')
-    if (!(Number(input.width) > 0) || !(Number(input.height) > 0)) throw new Error('照片尺寸無效')
-
-    var folder = photoFolder(ss, input.kind)
-    var fullName = String(input.id) + '.jpg'
-    var thumbName = String(input.id) + '-thumb.jpg'
-    var fullFile = existingFile(folder, fullName)
-    var thumbFile = existingFile(folder, thumbName)
-    try {
-      if (!fullFile) fullFile = folder.createFile(Utilities.newBlob(fullBytes, 'image/jpeg', fullName))
-      if (!thumbFile) thumbFile = folder.createFile(Utilities.newBlob(thumbBytes, 'image/jpeg', thumbName))
-      fullFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW)
-      thumbFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW)
-
-      var now = Date.now()
-      var photo = {
-        id: String(input.id),
-        tripId: String(trip.id),
-        itemId: String(item.id),
-        kind: input.kind,
-        fileId: fullFile.getId(),
-        fileUrl: publicDownloadUrl(fullFile, false),
-        thumbnailFileId: thumbFile.getId(),
-        thumbnailUrl: publicDownloadUrl(thumbFile, true),
-        mimeType: 'image/jpeg',
-        width: Number(input.width),
-        height: Number(input.height),
-        byteSize: fullBytes.length,
-        updatedAt: Number(input.updatedAt) || now,
-        updatedBy: String(input.updatedBy || '同行者'),
-        deleted: false,
-        syncedAt: now,
-      }
-      var sheet = ss.getSheetByName('photos')
-      var header = sheet.getDataRange().getValues()[0]
-      var line = header.map(function (key) {
-        var value = photo[key]
-        return value === undefined || value === null ? '' : value
-      })
-      writeRecordRow(sheet, header, SCHEMA.photos, sheet.getLastRow() + 1, line)
-      delete photo.syncedAt
-      return photo
-    } catch (err) {
-      if (fullFile) trashFile(fullFile.getId())
-      if (thumbFile) trashFile(thumbFile.getId())
-      throw new Error('無法建立可分享的照片：' + String(err))
-    }
+    var sheet = ss.getSheetByName('photos')
+    var header = sheet.getDataRange().getValues()[0]
+    var line = header.map(function (key) {
+      var value = photo[key]
+      return value === undefined || value === null ? '' : value
+    })
+    writeRecordRow(sheet, header, SCHEMA.photos, sheet.getLastRow() + 1, line)
+  } catch (err) {
+    // 建了檔卻寫不進列，檔案不能留在 Drive 裡變孤兒。
+    trashCreatedFiles(created)
+    throw err
   } finally {
     lock.releaseLock()
   }
+
+  delete photo.syncedAt
+  return photo
 }
 
 /** 網頁應用程式公開在網路上，解析網址前要先驗證旅程密鑰，也不能存取本機或私有網段。 */
