@@ -5,10 +5,10 @@ import { recallViewDay, rememberViewDay } from './viewDay'
  * .itinerary-scroll 與它的祖先都是 position:static，section.offsetTop 是相對 body 量的，
  * 會多算導航列與日期橫條的高度。改用兩個 rect 相減，排版怎麼變都成立。
  */
-export const scrollToElement = (scroller: HTMLElement, el: HTMLElement, offset = 0) => {
+export const scrollToElement = (scroller: HTMLElement, el: HTMLElement, offset = 0, smooth = true) => {
   const top =
     scroller.scrollTop + el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - offset
-  scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+  scroller.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' })
 }
 
 /**
@@ -96,14 +96,18 @@ export const useDayScroller = (days: string[], today: string, tripId?: string) =
     if (tripId && activeDay) rememberViewDay(tripId, activeDay)
   }, [tripId, activeDay])
 
+  /** 橫條也一樣：第一次置中是「初始位置」不是「移動」，滑過去只是讓人等。 */
+  const stripLanded = useRef(false)
   useEffect(() => {
     const strip = daystripRef.current
     // 用屬性找而不是 children[index]：前面多一顆 now 鈕時位置就全錯了。
     const pill = strip?.querySelector<HTMLElement>(`[data-day-pill="${activeDay}"]`)
     if (!strip || !pill) return
+    const first = !stripLanded.current
+    stripLanded.current = true
     strip.scrollTo({
       left: pill.offsetLeft - (strip.clientWidth - pill.offsetWidth) / 2,
-      behavior: 'smooth',
+      behavior: first ? 'auto' : 'smooth',
     })
   }, [activeDay, days])
 
@@ -132,11 +136,11 @@ export const useDayScroller = (days: string[], today: string, tripId?: string) =
   }, [])
 
   const jumpTo = useCallback(
-    (day: string) => {
+    (day: string, smooth = true) => {
       const scroller = scrollRef.current
       const section = scroller?.querySelector<HTMLElement>(`[data-day-section="${day}"]`)
       focusDay(day)
-      if (scroller && section) scrollToElement(scroller, section)
+      if (scroller && section) scrollToElement(scroller, section, 0, smooth)
     },
     [focusDay],
   )
@@ -148,7 +152,9 @@ export const useDayScroller = (days: string[], today: string, tripId?: string) =
     // 內容還沒算繪出來就不算數，下一次算繪會再進來一次。
     if (!scroller.querySelector('[data-day-section]')) return
     landed.current = true
-    if (activeDay && activeDay !== days[0]) jumpTo(activeDay)
+    // 開頁面那一次直接落定：那段動畫每進一次就得看一次，天數越多滑越久，
+    // 而且它沒有在傳達任何東西 —— 使用者沒有「從第一天移動過來」，他本來就要看那一天。
+    if (activeDay && activeDay !== days[0]) jumpTo(activeDay, false)
   }, [activeDay, days, jumpTo])
 
   /**
