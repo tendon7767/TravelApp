@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { draftTrip, useStore } from '../store/useStore'
-import type { Trip } from '../types'
-import { dayCount, shortDate, todayISO } from '../lib/date'
+import { dayCount, shortDate } from '../lib/date'
+import { DEFAULT_TRIP_SORT, TRIP_SORTS, sortTrips, tripSortLabel } from '../lib/tripSort'
+import SortIcon from '../components/SortIcon'
 import SettingsModal from '../components/SettingsModal'
 import AppVersion from '../components/AppVersion'
 import Modal from '../components/Modal'
@@ -18,32 +19,13 @@ export default function TripsPage() {
   // 標題掛使用者自己的名字：本機資料被瀏覽器清掉後名字會退回預設值，
   // 標題變回「我的旅程」就是最早看得到的徵兆。
   const memberName = useStore((s) => s.settings.memberName)
-  /*
-   * 排序是「算出來的」，不存任何東西：不進資料、不進同步、不必遷移。
-   * 進行中排最前（正在跑的那趟一定是要找的那趟），其次是未來（近的在前），
-   * 最後是過去（新的在前）。日期是 YYYY-MM-DD，字串比大小就等於比日期。
-   */
-  const trips = useMemo(() => {
-    const today = todayISO()
-    const rank = (t: Trip): number => {
-      if (!t.startDate || !t.endDate) return 3 // 日期不全的沉到最後，至少不會插到進行中前面
-      if (t.endDate < today) return 2
-      if (t.startDate > today) return 1
-      return 0
-    }
-    return allTrips
-      .filter((t) => !t.deleted)
-      .map((trip, index) => ({ trip, index }))
-      .sort((a, b) => {
-        const ra = rank(a.trip)
-        const rb = rank(b.trip)
-        if (ra !== rb) return ra - rb
-        if (ra === 2) return b.trip.endDate.localeCompare(a.trip.endDate)
-        if (ra === 3) return a.index - b.index
-        return a.trip.startDate.localeCompare(b.trip.startDate)
-      })
-      .map(({ trip }) => trip)
-  }, [allTrips])
+  // 排序方式是本機偏好，不上傳；比較邏輯全在 lib/tripSort。
+  const tripSort = useStore((s) => s.settings.tripSort) ?? DEFAULT_TRIP_SORT
+  const setTripSort = useStore((s) => s.setTripSort)
+  const trips = useMemo(
+    () => sortTrips(allTrips.filter((t) => !t.deleted), tripSort),
+    [allTrips, tripSort],
+  )
   const createTrip = useStore((s) => s.createTrip)
   const allPlans = useStore((s) => s.data.plans)
   const allPhotos = useStore((s) => s.data.photos)
@@ -61,6 +43,7 @@ export default function TripsPage() {
   const [open, setOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [joinOpen, setJoinOpen] = useState(false)
+  const [sortOpen, setSortOpen] = useState(false)
   const newTripDirty = JSON.stringify(form) !== JSON.stringify(blankForm)
 
   /*
@@ -127,7 +110,42 @@ export default function TripsPage() {
         <button className="btn btn-sm" onClick={() => setJoinOpen(true)}>
           ＋ 加入旅程
         </button>
+        {/* 帶著目前的排序名稱：純圖示看不出「現在是哪一種」，會變成要點開才知道。 */}
+        <button
+          className="btn btn-sm trip-sort-btn"
+          onClick={() => setSortOpen(true)}
+          aria-label={`旅程排序，目前為${tripSortLabel(tripSort)}`}
+        >
+          <SortIcon size={14} />
+          <span>{tripSortLabel(tripSort)}</span>
+        </button>
       </div>
+
+      {/* 選一個就生效並關閉，所以是 picker 不是編輯型彈窗：沒有草稿，也就沒有取消／儲存。 */}
+      {sortOpen && (
+        <Modal title="旅程排序" onCancel={() => setSortOpen(false)} variant="picker">
+          <div className="picker-body">
+            <div className="picker-list">
+              {TRIP_SORTS.map((option) => (
+                <button
+                  key={option.key}
+                  className="picker-row"
+                  data-current={option.key === tripSort || undefined}
+                  onClick={() => {
+                    setTripSort(option.key)
+                    setSortOpen(false)
+                  }}
+                >
+                  <span className="picker-row-head">
+                    <span className="picker-row-name">{option.label}</span>
+                  </span>
+                  <span className="dim" style={{ fontSize: 12 }}>{option.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {joinOpen && <JoinTripModal onClose={() => setJoinOpen(false)} />}
 

@@ -14,6 +14,7 @@ import {
   type Trip,
 } from '../types'
 import { newId } from '../lib/id'
+import type { TripSort } from '../lib/tripSort'
 import { addDays, dayCount, eachDay, todayISO } from '../lib/date'
 import { templateRowsFor } from '../lib/dayTemplate'
 import { applyTemplate, quickItemBy } from '../lib/presets'
@@ -137,6 +138,8 @@ interface State {
   setReviewHue: (tripId: string, author: string, hue?: number) => void
   /** 介面配色；跟 reviewHues 一樣是這台裝置自己的偏好，不上傳。 */
   setTheme: (theme: 'dark' | 'light') => void
+  /** 首頁旅程列表的排序方式；同樣是本機偏好。 */
+  setTripSort: (sort: TripSort) => void
   /** 卡片上「還可刷」要看哪一條規則；ruleId 傳 undefined 就回到自動挑最緊的。 */
   setRewardRuleFocus: (methodId: string, ruleId?: string) => void
   /** 行程列的每筆金額顯示與否，全趟一起開關。同樣是本機偏好。 */
@@ -393,6 +396,12 @@ export const useStore = create<State>((setState, getState) => {
 
     setTheme: (theme) => {
       const settings = { ...getState().settings, theme }
+      setState({ settings })
+      void saveSettings(settings)
+    },
+
+    setTripSort: (sort) => {
+      const settings = { ...getState().settings, tripSort: sort }
       setState({ settings })
       void saveSettings(settings)
     },

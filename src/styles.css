@@ -3112,3 +3112,11 @@ body.modal-open { overflow: hidden; }
 .channel-used { flex: none; font-size: 12px; }
 .channel-merge { flex: none; font-size: 12px; color: var(--note-ink); }
 .channel-hint { margin: 2px 0 0; font-size: 12px; }
+
+/* 首頁的旅程排序鍵：推到「新增／加入旅程」那一列的右緣，圖示與目前排序名稱並排。 */
+.trip-sort-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}

@@ -3,6 +3,7 @@ import { emptyData, type AppData, type Item, type Review } from '../types'
 import { normalizeStoredDate, normalizeStoredTime } from '../lib/date'
 import { normalizeItemNotes } from '../lib/itemNotes'
 import { normalizeItemCostGroups } from '../lib/costGroups'
+import type { TripSort } from '../lib/tripSort'
 
 const DATA_KEY = 'travelapp:data'
 const SETTINGS_KEY = 'travelapp:settings'
@@ -28,6 +29,12 @@ export interface Settings {
   reviewHues?: Record<string, Record<string, number>>
   /** 介面配色。undefined 等同 'dark'，所以舊資料不必遷移。 */
   theme?: 'dark' | 'light'
+  /**
+   * 首頁旅程列表的排序方式。undefined 等同 'smart'，舊資料不必遷移。
+   * 跟 theme 一樣是這台裝置自己的閱讀偏好，不上傳 —— 排序要跨人同步毫無價值，
+   * 還得處理「兩個人同時改排序」這種沒有意義的衝突。
+   */
+  tripSort?: TripSort
   /**
    * 支付方式卡片上的「還可刷」要照哪一條回饋規則算，methodId → ruleId。
    * 沒指定就自動挑最緊的那條。規則怎麼算會因人而異（有人只看國外消費、
