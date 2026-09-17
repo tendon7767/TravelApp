@@ -172,14 +172,18 @@ function NoteCard({ note, onEdit }: { note: Note; onEdit: () => void }) {
       ))}
 
       {!isPacking && note.links.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+        <ul className="note-link-list">
           {note.links.map((link) => (
-            <a key={link.id} className="chip chip-wrap" href={link.url} target="_blank" rel="noreferrer">
-              {link.kind === 'map' ? <MapPinIcon size={13} /> : <LinkIcon size={13} />}
-              {link.label || link.url}
-            </a>
+            <li key={link.id}>
+              <a className="note-link" href={link.url} target="_blank" rel="noreferrer">
+                <span className="note-link-icon" aria-hidden="true">
+                  {link.kind === 'map' ? <MapPinIcon size={14} /> : <LinkIcon size={14} />}
+                </span>
+                <span>{link.label || link.url}</span>
+              </a>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   )
