@@ -3143,3 +3143,24 @@ body.modal-open { overflow: hidden; }
   align-items: center;
   gap: 5px;
 }
+
+/*
+ * 首頁旅程列表的分隔線：「現在」落在排序裡的哪個位置，字講的是線以下那截的狀態。
+ * 有自己的高度，跟上下兩列的底色分開，一眼看得出是兩群。
+ */
+.trip-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 14px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.trip-divider::before,
+.trip-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}

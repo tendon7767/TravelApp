@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { draftTrip, useStore } from '../store/useStore'
 import { dayCount, shortDate } from '../lib/date'
-import { DEFAULT_TRIP_SORT, TRIP_SORTS, sortTrips, tripSortLabel } from '../lib/tripSort'
+import { DEFAULT_TRIP_SORT, TRIP_SORTS, sortTrips, tripDivider, tripSortLabel } from '../lib/tripSort'
+import { useNowClock } from '../lib/useNowClock'
 import SortIcon from '../components/SortIcon'
 import SettingsModal from '../components/SettingsModal'
 import AppVersion from '../components/AppVersion'
@@ -22,10 +23,13 @@ export default function TripsPage() {
   // 排序方式是本機偏好，不上傳；比較邏輯全在 lib/tripSort。
   const tripSort = useStore((s) => s.settings.tripSort) ?? DEFAULT_TRIP_SORT
   const setTripSort = useStore((s) => s.setTripSort)
+  // 吃時鐘的 today 而不是每次自己讀：app 開著過午夜，結束的那趟才會自己往下掉、線跟著移。
+  const { today } = useNowClock()
   const trips = useMemo(
-    () => sortTrips(allTrips.filter((t) => !t.deleted), tripSort),
-    [allTrips, tripSort],
+    () => sortTrips(allTrips.filter((t) => !t.deleted), tripSort, today),
+    [allTrips, tripSort, today],
   )
+  const divider = useMemo(() => tripDivider(trips, tripSort, today), [trips, tripSort, today])
   const createTrip = useStore((s) => s.createTrip)
   const allPlans = useStore((s) => s.data.plans)
   const allPhotos = useStore((s) => s.data.photos)
@@ -172,8 +176,13 @@ export default function TripsPage() {
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {trips.map((t) => (
+        <Fragment key={t.id}>
+        {divider?.beforeId === t.id && (
+          <div className="trip-divider" role="separator">
+            <span>{divider.label}</span>
+          </div>
+        )}
         <div
-          key={t.id}
           className="row"
           data-on={t.id === activeTrip?.id}
           style={{ alignItems: 'center' }}
@@ -204,6 +213,7 @@ export default function TripsPage() {
             ) : null
           })()}
         </div>
+        </Fragment>
       ))}
       </div>
 
