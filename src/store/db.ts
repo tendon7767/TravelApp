@@ -42,6 +42,13 @@ export interface Settings {
    */
   rewardRuleFocus?: Record<string, string>
   /**
+   * 回饋頁支付方式卡片的順序，tripId → 支付方式 id 依序排。清單裡沒有的
+   * （之後才新增的、同行者同步進來的）接在最後，彼此維持原本的陣列順序。
+   * 同樣是閱讀偏好不上傳 —— 要同步就得在後端 SCHEMA 加欄位、處理兩人同時排序的衝突，
+   * 換來的只是別人手機上的卡片順序。
+   */
+  paymentOrder?: Record<string, string[]>
+  /**
    * 行程列右邊的每筆金額是否收起來。undefined 等同顯示，舊資料不必遷移。
    * 收起來時日期列的當日總計還在，要看細項再點總計打開。
    */

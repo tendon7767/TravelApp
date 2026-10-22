@@ -142,6 +142,8 @@ interface State {
   setTripSort: (sort: TripSort) => void
   /** 卡片上「還可刷」要看哪一條規則；ruleId 傳 undefined 就回到自動挑最緊的。 */
   setRewardRuleFocus: (methodId: string, ruleId?: string) => void
+  /** 回饋頁支付方式的順序，傳整趟的 id 依序排好；同樣是本機偏好。 */
+  setPaymentOrder: (tripId: string, ids: string[]) => void
   /** 行程列的每筆金額顯示與否，全趟一起開關。同樣是本機偏好。 */
   toggleItemMoney: () => void
   setActive: (tripId?: string, planId?: string) => void
@@ -417,6 +419,13 @@ export const useStore = create<State>((setState, getState) => {
       if (ruleId === undefined) delete current[methodId]
       else current[methodId] = ruleId
       const settings = { ...getState().settings, rewardRuleFocus: current }
+      setState({ settings })
+      void saveSettings(settings)
+    },
+
+    setPaymentOrder: (tripId, ids) => {
+      const current = getState().settings.paymentOrder ?? {}
+      const settings = { ...getState().settings, paymentOrder: { ...current, [tripId]: ids } }
       setState({ settings })
       void saveSettings(settings)
     },

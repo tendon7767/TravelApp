@@ -9,6 +9,7 @@ import { channelsOf, sameChannel } from '../lib/channels'
 import PaymentEditor from './PaymentEditor'
 import SwipePager from './SwipePager'
 import PencilIcon from './PencilIcon'
+import ChevronIcon from './ChevronIcon'
 import CheckIcon from './CheckIcon'
 import Modal from './Modal'
 
@@ -26,6 +27,8 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
   const updatePayment = useStore((s) => s.updatePayment)
   const removePayment = useStore((s) => s.removePayment)
   const copyPaymentsFrom = useStore((s) => s.copyPaymentsFrom)
+  const paymentOrder = useStore((s) => s.settings.paymentOrder?.[trip.id])
+  const setPaymentOrder = useStore((s) => s.setPaymentOrder)
   const [editingDraft, setEditingDraft] = useState<MethodResult['method'] | null>(null)
   const [editingNew, setEditingNew] = useState(false)
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null)
@@ -34,10 +37,14 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
   const [copyResult, setCopyResult] = useState<string>('')
 
   const isActual = plan?.kind === 'actual'
-  const methods = useMemo(
-    () => allPayments.filter((p) => p.tripId === trip.id && !p.deleted),
-    [allPayments, trip.id],
-  )
+  const methods = useMemo(() => {
+    const list = allPayments.filter((p) => p.tripId === trip.id && !p.deleted)
+    if (!paymentOrder?.length) return list
+    // 沒排過的都拿同一個名次，sort 是穩定的，所以它們接在最後、彼此維持原本的順序。
+    const rank = new Map(paymentOrder.map((id, index) => [id, index]))
+    const rankOf = (id: string) => rank.get(id) ?? paymentOrder.length
+    return list.sort((a, b) => rankOf(a.id) - rankOf(b.id))
+  }, [allPayments, trip.id, paymentOrder])
   const editorDirty = useMemo(() => {
     if (!editingDraft) return false
     const stored = methods.find((method) => method.id === editingDraft.id)
@@ -95,6 +102,19 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
   const activeOwner = ownerFilter && owners.includes(ownerFilter) ? ownerFilter : owners[0]
   const ownerIndex = Math.max(0, owners.indexOf(activeOwner))
   const disabled = methods.filter((m) => !m.enabled)
+  /*
+   * 上下移是跟同一頁（同一位持有人）的鄰居對調，在整趟的順序裡就是這兩張交換位置。
+   * 別人的卡與「這趟沒帶」的那幾張原地不動，各持有人佔的位置也沒變，
+   * 所以持有人膠囊的順序不會因為排了一張卡就跳掉。
+   */
+  const moveMethod = (id: string, neighborId: string) => {
+    const ids = methods.map((m) => m.id)
+    const a = ids.indexOf(id)
+    const b = ids.indexOf(neighborId)
+    if (a < 0 || b < 0) return
+    ;[ids[a], ids[b]] = [ids[b], ids[a]]
+    setPaymentOrder(trip.id, ids)
+  }
   const openEditor = (method: MethodResult['method'], isNew = false) => {
     setEditingDraft({ ...method, rules: method.rules.map((r) => ({ ...r })) })
     setEditingNew(isNew)
@@ -230,13 +250,20 @@ export default function RewardsTab({ trip, plan, onSelect }: Props) {
           <>
             {/* 上面的持有人膠囊已經說明現在看的是誰，不再重複一條持有人橫條。 */}
             <div className="method-cards">
-              {(byOwner[i]?.[1] ?? []).map((res) => (
+              {(byOwner[i]?.[1] ?? []).map((res, index, list) => (
                 <MethodCard
                   key={res.method.id}
                   res={res}
                   planning={!isActual}
                   onEdit={() => openEditor(res.method)}
                   onSelect={onSelect}
+                  movable={list.length > 1}
+                  onMoveUp={index > 0 ? () => moveMethod(res.method.id, list[index - 1].method.id) : undefined}
+                  onMoveDown={
+                    index < list.length - 1
+                      ? () => moveMethod(res.method.id, list[index + 1].method.id)
+                      : undefined
+                  }
                 />
               ))}
             </div>
@@ -288,12 +315,20 @@ function MethodCard({
   planning,
   onEdit,
   onSelect,
+  movable,
+  onMoveUp,
+  onMoveDown,
 }: {
   res: MethodResult
   /** 規劃版：卡片長得一樣，但沒有消費紀錄可看，明細入口關掉。 */
   planning: boolean
   onEdit: () => void
   onSelect: (id: string) => void
+  /** 這一頁只有一張卡時上下鍵整組不出現，兩顆都灰著只是雜訊。 */
+  movable: boolean
+  /** undefined＝已經在最上面／最下面，那顆灰掉。 */
+  onMoveUp?: () => void
+  onMoveDown?: () => void
 }) {
   const [detailOpen, setDetailOpen] = useState(false)
   const [channelsOpen, setChannelsOpen] = useState<RewardRule | null>(null)
@@ -360,6 +395,8 @@ function MethodCard({
         tabIndex={planning ? undefined : 0}
         onClick={openDetail}
         onKeyDown={(event) => {
+          // 卡片裡的按鈕按 Enter 也會冒泡上來，不擋的話會被這裡 preventDefault 吃掉、改開明細。
+          if (event.target !== event.currentTarget) return
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
             openDetail()
@@ -373,16 +410,44 @@ function MethodCard({
             {res.method.kind === 'card' ? '信用卡' : '電子支付'}
           </span>
         </span>
-        <button
-          className="icon-btn method-band-edit"
-          onClick={(event) => {
-            event.stopPropagation()
-            onEdit()
-          }}
-          aria-label={`編輯 ${methodLabel(res.method.name, res.method.owner)}`}
-        >
-          <PencilIcon />
-        </button>
+        <span className="method-band-tools">
+          {movable && (
+            <>
+              <button
+                className="icon-btn method-band-btn"
+                disabled={!onMoveUp}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onMoveUp?.()
+                }}
+                aria-label={`上移 ${methodLabel(res.method.name, res.method.owner)}`}
+              >
+                <ChevronIcon dir="up" />
+              </button>
+              <button
+                className="icon-btn method-band-btn"
+                disabled={!onMoveDown}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onMoveDown?.()
+                }}
+                aria-label={`下移 ${methodLabel(res.method.name, res.method.owner)}`}
+              >
+                <ChevronIcon dir="down" />
+              </button>
+            </>
+          )}
+          <button
+            className="icon-btn method-band-btn"
+            onClick={(event) => {
+              event.stopPropagation()
+              onEdit()
+            }}
+            aria-label={`編輯 ${methodLabel(res.method.name, res.method.owner)}`}
+          >
+            <PencilIcon />
+          </button>
+        </span>
       </div>
       <div className="method-card-body">
 

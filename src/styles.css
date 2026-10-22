@@ -1742,9 +1742,17 @@ body[data-actual='true'] {
 }
 .method-band-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
 .method-band-kind { font-size: 11px; opacity: 0.78; margin-left: 6px; }
-/* 色帶上的鉛筆要用色帶的前景色，不能跟著亮色主題的圖示規則變淡。 */
-.method-band-edit { color: inherit; opacity: 0.9; }
-:root[data-theme='light'] .method-band-edit { color: inherit; }
+/*
+ * 色帶右邊那排：上移、下移、鉛筆。三顆並排的話 .icon-btn 往外撐 10px 的點擊區會互相疊到，
+ * 所以改成按鈕本身就是點擊區，上下用負外距吃回去（色帶高度不變），
+ * 右邊多伸出去的那截剛好抵掉按鈕的留白，鉛筆的圖示留在原本的位置。
+ * 選擇器多掛一層 .method-band：.icon-btn 寫在檔案後面，同權重的話顏色與點擊區會被它蓋回去。
+ */
+.method-band-tools { display: flex; flex: none; margin: -6px -8px -6px 0; }
+/* 色帶上的圖示要用色帶的前景色，不能跟著一般圖示或亮色主題的規則變淡。 */
+.method-band .method-band-btn { width: 32px; height: 32px; color: inherit; opacity: 0.9; }
+.method-band .method-band-btn::after { inset: -4px 0; }
+.method-band .method-band-btn:disabled { opacity: 0.3; }
 .method-card-body { padding: 10px 12px 12px; }
 
 /*
