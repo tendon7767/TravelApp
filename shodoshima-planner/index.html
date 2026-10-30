@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>小豆島行程拖曳板</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">SHODOSHIMA · 2026 NOV 5–7</p>
+      <h1>小豆島行程拖曳板</h1>
+      <p class="subtitle">把景點拖進日期，停留時間與大概車程會自動排入。紅色代表撞到固定行程或休業。</p>
+    </div>
+    <div class="actions">
+      <button id="copyBtn" class="primary">複製目前行程</button>
+      <button id="resetBtn">恢復預設</button>
+    </div>
+  </header>
+
+  <section class="legend" aria-label="說明">
+    <span><i class="dot must"></i>一定要去</span>
+    <span><i class="dot optional"></i>想去</span>
+    <span><i class="dot fixed"></i>固定不可動</span>
+    <span class="formula">車程＝直線距離 × 道路係數；山路另加緩衝，僅供排行程</span>
+  </section>
+
+  <main class="board">
+    <section class="column pool"><div class="column-head"><div><small>候選清單</small><h2>未安排</h2></div><b id="poolCount"></b></div><div class="dropzone" id="pool"></div></section>
+    <section class="column"><div class="column-head"><div><small>THU</small><h2>11 / 5</h2></div><b id="d1Summary"></b></div><div class="dropzone" id="d1"></div></section>
+    <section class="column"><div class="column-head"><div><small>FRI</small><h2>11 / 6</h2></div><b id="d2Summary"></b></div><div class="dropzone" id="d2"></div></section>
+    <section class="column"><div class="column-head"><div><small>SAT</small><h2>11 / 7</h2></div><b id="d3Summary"></b></div><div class="dropzone" id="d3"></div></section>
+  </main>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <footer>時間可直接在卡片內修改；排序與時間會自動保存在這台裝置。</footer>
+  <script src="app.js"></script>
+</body>
+</html>

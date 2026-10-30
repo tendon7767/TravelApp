@@ -1,0 +1,348 @@
+# AGENTS.md
+
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+
+## 開發指令
+
+Node.js 裝在 `~/.local/node`，不是系統路徑，每個新 shell 都要先設定：
+
+```bash
+export PATH="$HOME/.local/node/bin:$PATH"
+```
+
+| 指令 | 用途 |
+| --- | --- |
+| `npm run dev` | 本機開發（Vite，port 5173）。也可用 preview 工具的 `travelapp-dev` 設定啟動 |
+| `npm run build` | `tsc -b && vite build`，型別錯誤會擋住建置 |
+| `npm run lint` | oxlint |
+| `npm run preview` | 預覽建置產物 |
+
+`.Codex/launch.json` 的 `runtimeExecutable` 寫成 `node`（靠 PATH 找），不寫任何一台機器的絕對路徑，
+Windows 與 mac 才共用得了同一份設定。**preview 啟動器是直接 spawn 行程，不一定經過登入 shell**，
+所以上面那條 `export` 對它未必生效；node 不在系統路徑的機器要把它接到 PATH 上的目錄，只需做一次：
+
+```bash
+sudo ln -sf "$HOME/.local/node/bin/node" /usr/local/bin/node
+```
+
+沒有測試框架，沒有測試檔。驗證改動的方式是 `npm run build` 加上在 preview 裡實際操作。
+
+後端 `apps-script/Code.gs` 無法從本機執行或測試，只能貼到 Apps Script 專案裡部署。
+
+## 這是什麼
+
+給單一使用者與同行者用的旅遊規劃 PWA。React 19 + TypeScript + Vite + zustand + react-router 7。資料存在瀏覽器 IndexedDB，離線完全可用；同步的後端是使用者自己的 Google Apps Script 部署，一趟旅程對應一份 Google 試算表。沒有伺服器、沒有登入、沒有帳號系統 —— 身分只是 `settings.memberName` 這個暱稱字串。
+
+介面文字與程式碼註解都是繁體中文，新增的請照做。
+
+## 資料流
+
+```
+IndexedDB (idb-keyval)  ←→  zustand store  ←→  React
+                              ↓ pull / push
+                    Apps Script Web App  →  Google 試算表 + Drive
+```
+
+- **[src/store/useStore.ts](src/store/useStore.ts)** 是整個 app 唯一的 store，也是最大的檔案。所有寫入都走 `mutate()`，它會遞增 `localRev` 並以 250ms debounce 寫進 IndexedDB。
+- **`localRev` 只在本機編輯時遞增**，同步拉回來的資料不算。UI 靠它判斷「該推上去了」；若拉取也遞增就會無限自我觸發。改動 store 時務必維持這個性質。
+- **[src/store/db.ts](src/store/db.ts)** 負責載入時的資料遷移。舊版存下來的資料一定會出現在真實裝置上，`loadData()` 裡的遷移邏輯不能刪。
+- **[src/sync/](src/sync/)**：`collect.ts` 挑出屬於某趟、且 `updatedAt > lastPushedAt` 的記錄；`client.ts` 負責 HTTP 與合併。
+
+## 同步模型（改動前務必理解）
+
+每筆同步記錄都繼承 `SyncFields`（`id` / `updatedAt` / `updatedBy` / `deleted?`）。要同步的集合列在 `SYNCED_COLLECTIONS`；`settings` 是各裝置自己的，永不上傳。
+
+- **刪除一律是軟刪墓碑**，不是移除陣列元素。刪掉父層（plan、item）時要連帶為子層（items、reviews、photos）建立墓碑，否則同步後會留下孤兒記錄 —— 參考 `removePlan` / `removeItem`。
+  - 例外：`removeTrip` 是「只從這台裝置移除」，直接清資料與本機連結，不建墓碑，雲端試算表完全不動。
+- **衝突解決是逐筆「後寫入者勝」**，比較 `updatedAt`。所以資料結構的切法決定了會不會弄丟東西：`Review`（心得）刻意做成獨立記錄而不是 `Item` 的欄位，因為一人一則、只有作者本人會寫，整筆覆蓋也不會蓋到別人。**新增多人各自編輯的內容時要沿用這個作法。**
+- 本機較新的修改被遠端蓋掉時記進 `sync.overwritten`，由 UI 提示，不讓它默默消失。
+- **順序永遠是 pull → merge → push**。先推的話本機的新修改會在下一次拉取被舊資料覆蓋。
+- 後端 `push` 會拒絕 `updatedAt` 比現有列舊的記錄並回傳 `rejected`；前端收到後立刻再拉一次收斂畫面。
+- 同一趟同時只允許一個 pull→push 流程（`syncFlights`）；`syncVersions` 讓刪除旅程能作廢進行中的請求，因為 fetch 無法可靠取消。
+
+### 不能改的細節
+
+**同步請求必須用 `Content-Type: text/plain`。** Apps Script 的 Web App 不處理 OPTIONS 預檢，只有「簡單請求」才拿得回回應。換成 `application/json` 整條同步會壞掉。
+
+## 日期與時間
+
+Google Sheets 會把看起來像日期的字串自動轉成 Date cell，舊版後端再把它序列化成完整 ISO timestamp，而 iOS Safari 的 `<input type="date">` 只接受 `YYYY-MM-DD`。因此：
+
+- 後端 `SCHEMA` 把 `dates` / `times` 欄位明確寫成純文字。
+- 前端在**三個地方**都做正規化：載入（`db.ts`）、合併遠端（`client.ts` 的 `normalizeRemoteRow`）、推送前（`collect.ts`）。工具函式在 [src/lib/date.ts](src/lib/date.ts)。
+- 合併時若遠端日期無法解析，保留本機值；若是新記錄則整筆拒絕套用。一次 pull 不能把還能用的行程變成空白。
+
+新增日期欄位時，這幾處都要一起處理。
+
+## 照片
+
+只有 `kind === 'actual'` 的行程版本能加照片。流程：[src/photos/process.ts](src/photos/process.ts) 在瀏覽器用 canvas 壓縮並產縮圖 → 存進 IndexedDB 佇列（[queue.ts](src/photos/queue.ts)）→ base64 上傳到 Apps Script → 檔案落在該趟的 Drive 資料夾，metadata 進試算表的 `photos` 分頁。
+
+- **安全性：後端的一般 `push` 只接受既有照片的刪除墓碑，不接受新增或改寫。** 照片列只能由 `uploadPhoto` 建立。否則拿到旅程密鑰的人可以偽造 `fileId`，讓後端去刪帳號裡其他 Drive 檔案。
+- 縮圖靠 service worker 的 CacheFirst 規則（見 [vite.config.ts](vite.config.ts)）離線可看，刪除照片時要一併清快取。
+- 後端能力靠 `ping` 回傳的 `capabilities.photos` 判斷。舊後端會靜默忽略 `photos` 集合，所以偵測到不支援時要保留 `lastPushedAt` 不前進，重新部署後才補得回來。
+
+## 地點分析（AI）
+
+詳細頁頂列的 ✨ 拿這一筆的 Google Map 連結去問 Gemini，結果寫進行程說明與備註。
+
+- **必須有地圖連結才能按。** 沒有座標的話同名的店會分析錯，這是刻意的硬限制，不是可以放寬的驗證。
+- **prompt、輸出 schema、模型全都住在前端**，隨請求送上去，後端 `describePlace` 只負責轉發。
+  這三樣都會反覆調整，留在後端的話每改一次都要走完整的部署流程。
+  [placePrompt.md](src/data/placePrompt.md) **整份原封不動當成 system instruction**，
+  所以裡面不要加任何說明或註解；`PLACE_SCHEMA` 與 `PLACE_MODEL` 在
+  [placeInfo.ts](src/lib/placeInfo.ts)，跟 `PlaceInfo` 型別放在一起才看得出有沒有對不上。
+- **端點刻意留在後端寫死，永遠不要接受前端指定。** 金鑰是放在標頭裡送去那個網址的，
+  讓呼叫端決定送去哪，等於任何拿到邀請連結的人都能把金鑰導去自己的伺服器。
+- **搜尋 grounding 目前關著**（`PLACE_TOOLS` 是空陣列），因為免費層給不起 ——
+  ai.dev/rate-limit 上實測是 `Gemini 3 · Search grounding · 0 / 0`，開著的話每次請求都直接 429
+  （**配額為零跟配額用完回的是同一種錯誤**，所以那個 429 會看起來像「等一下就好」，其實等再久都沒用）。
+  有免費搜尋額度的 Gemini 2 / 2.5 又不支援搜尋與結構化輸出併用（那是 Gemini 3 以後才有的），
+  兩者在免費層裡剛好互斥。綁帳單帳戶就解得開，那時候只要把 `PLACE_TOOLS` 改回去，
+  prompt 裡跟搜尋有關的規則都寫成「查得到才寫」，會自己跟著開關調整。
+- 免費層每日只有 20 次請求（Flash）／500 次（Flash Lite），排一趟旅程很容易撞到。
+- 後端的 `parsePlaceJson` 在直接 parse 失敗時會從第一個 `{` 撈到最後一個 `}` ——
+  開著搜尋時模型偶爾會在 JSON 前後多吐文字。前端逾時是 60 秒，也是為了搜尋留的。
+- **加欄位要三件事一起做**：`placePrompt.md` 那一行、`PlaceInfo` 型別、`PLACE_SCHEMA`，
+  再決定 `formatPlaceInfo` 要把它排在哪。**漏掉 schema 會靜默失敗** —— 那是硬約束，
+  schema 裡沒有的欄位模型根本不會產出，只在 prompt 裡寫等於白寫，不會有任何錯誤訊息。
+  三者都在前端，push 完就生效，不必再為了欄位重新部署後端。
+- **文字排版由 `formatPlaceInfo` 決定，不是讓模型自己排。** 每一筆長得一樣，而且之後想把
+  `stayMinutes` 拉出來變成 `Item` 的真欄位時，prompt 一個字都不用改。
+- **AI 寫的那塊永遠以 `AI資訊` 開頭、永遠在說明的最底下。** 重新分析時靠那一行找到起點整塊換掉，
+  使用者手寫的內容都在它上面，不會被碰到。
+- **行程說明是純文字**（`.detail-copy` 是 `pre-wrap`），沒有 markdown 算繪。所以抬頭的 `▍`、
+  條列的 `·`、上面那條分隔線都是**真的字元**，會存進資料也會出現在編輯欄位裡。
+  分隔線畫在 `AI資訊` 的上面，所以 `mergeGuide` 切舊區塊時要連它與空行一起吃掉 ——
+  只找標記那一行的話，每重跑一次就多疊一條線。
+- **AI 寫的備註刻意不加記號**（跟手寫的長一樣），代價是重新分析時挑不出上一輪的來換，
+  只能用內容比對擋掉一字不差的重複。模型換句話說就會多一條。
+- **分析狀態放 store 不放元件**（`ai.pending` / `ai.errors`，模組層級的 `aiFlights` 跟 `syncFlights` 同一區）。
+  請求要跑好幾秒而使用者按完就走，狀態跟著元件卸載的話回來就看不出還在跑，還會再按一次。
+  失敗訊息「進去看過就從 store 移除」，所以左下角浮標的計數會自己縮到消失；詳細頁自己另外留一份本機副本才不會一閃就沒。
+- 後端能力由 `ping` 的 `capabilities.ai` 判斷。金鑰與模型放 Apps Script 的**指令碼屬性**
+  （`GEMINI_API_KEY` 必填、`GEMINI_MODEL` 選填），不寫進 `Code.gs`。
+
+## Google Map 連結
+
+一筆行程最多一個地圖連結（`links` 裡 `kind === 'map'` 的那筆），它住在**基本資訊**裡：
+沒編輯時是行程名稱右側的一根針（沒連結就整個不出現），編輯時是日期時間底下那一格網址欄位。
+
+- **那一格編輯的是網址，不是顯示名稱。** 標籤在畫面上已經不出現了，留著讓人改一個看不見的
+  東西沒有意義；清空欄位＝刪掉連結，所以那一排除了貼上鍵還留著垃圾桶（一鍵清空）。
+- **按儲存才解析**（`applyMapDraft`），跟先前獨立區塊的行為一樣。網址沒動過就不重跑後端。
+  解析出來的地名由 `appendPlaceName` 接在行程名稱後面，所以基本資訊的 `commitSection`
+  必須把 `title` 與 `links` 一起寫回去 —— 只寫其中一個，另一個會靜默消失。
+- **地圖的標籤以「貼上的文字」為準，後端展開只是備援；一般網頁相反。**
+  手機分享出來的那一行是 Google 地圖自己給的地名，最準。後端只能從展開後的網址猜，
+  而那一段對某些地點就是整串地址（實測「草間彌生『赤南瓜』」回來的是門牌與郵遞區號）。
+  網頁連結沒有可貼的名字，那裡才是頁面標題優先。
+  **這個順序反過來排過一版，那是錯的** —— 當時誤以為地址是貼上的文字帶進來的。
+- **貼上要自己接手**（`takeMapPaste`，`onPaste` 與貼上鍵共用）：`<input>` 的值不能有換行，
+  分享出來的「網址／地名／地址」三行貼進去會被**黏成一串**（不是換成空白），地名整個黏死在
+  網址尾巴上，連結指到不存在的短碼、標籤只剩地址。所以在還看得到換行的當下就拆好：
+  欄位只留乾淨的網址，地名收進 `mapNameDraft` 等儲存時用。`makeLink` 抓網址的字元集也
+  只收網址合法的 ASCII（不是 `\S+`），黏成一串時才切得開。
+- 兩層防線的第二層是 [maps.ts](src/lib/maps.ts) 的 `placeNameOf`，由可靠到不可靠：
+  **中點**（`地名 · 地址`，Google 的頁面標題就長這樣）、第一個「以數字開頭的詞」之前
+  （切完是空的 `7-ELEVEN`、或後面那截太短 `星巴克 101門市` 就整串保留）。
+  數字那一刀切完，前面若還有逗號，逗號後那截也是地址（`…New Okayama port, 甲 5165-24…`
+  的「甲」）—— 只在確定後面接著地址時才吃逗號，一般情況的逗號不動。
+  最後一律修掉字尾的分隔符，不然切在逗號前面會留一顆孤零零的逗號。純啟發式，
+  漏了只是標籤長一點，使用者自己改得掉。
+  **桌機不會踩到這裡**：從網址列複製的長網址本地就拆得出乾淨地名，不必問後端。
+  只有手機的短網址要展開，而展開後的 `/maps/place/` 那段與頁面標題才會混著地址 ——
+  所以「電腦試都沒問題、手機不對」是這一段的正常症狀，不是什麼行動裝置專屬的 API 差異。
+
+## 快選預設值
+
+新增行程只走快選（[ItineraryTab.tsx](src/components/ItineraryTab.tsx) 的兩層選單），
+帶進去的預設值全部住在 [itineraryPresets.json](src/data/itineraryPresets.json)，
+改完存檔就生效不必動程式碼。[presets.ts](src/lib/presets.ts) 只負責接型別、處理繼承與套用。
+
+- **預設值是「骨架」不是「提問」。** 寫成 `訂位代號：` 這種待填欄位，使用者點進去接著打字就好；
+  寫成「要訂位嗎？」的話他得先把整句刪掉才能寫答案。不入資料的提示型 UI 討論過但否決了 ——
+  看不到就等於沒提醒到。
+- **費用與備註的門檻不一樣。** 0 元的骨架費用列全站都當作不存在（`formatTotals` 濾掉 0、
+  `hasCost` 也是 false，不會誤觸「缺類型」），留著不礙眼，門檻可以低；空備註會一直看得見，
+  所以只留「漏了會出事」的那幾條。判準是**命中率 × 這個快選一趟會被建幾次** ——
+  同樣的命中率，掛在午餐（一趟建八次）上的成本是掛在飛機（兩次）上的四倍。
+  景點的門票、租車還車渡輪的欄位、餐飲的「要訂位嗎？」都是這樣被拿掉的。
+- **繼承規則是「有寫這個鍵就以它為準，沒寫才沿用類型層級」**，`預設費用` 與 `預設說明`
+  共用 `has()` 那條判斷，所以寫 `null` 是「這個快選不要帶」，跟「沒寫」不同義。
+  `預設說明` 的空陣列也當成不要帶 —— 沒有任何一行的說明沒有意義。
+- `預設備註` 的每則可以是字串，或 `{ 文字, 總覽 }`；`總覽: true` 會直接顯示在行程列上。
+  只給交通工具用（飛機、渡輪的「幾點從哪到哪」），那是唯一值得佔用行程列的一行。
+- `applyTemplate` **只補空欄位，永不覆蓋**。所以帶了骨架費用之後，事後在詳細頁改類型
+  就不會再套新類型的預設（`costs.length === 0` 那個條件），這是刻意的。
+- JSON 裡的 `單位`（人／晚／趟）**目前完全沒有被讀取**，`CostLine` 也沒有這個欄位。
+  留著是為了哪天要接上，別誤以為它有生效。
+
+## 配色主題
+
+深色是預設，亮色是 `settings.theme` 選出來的（純本機偏好，不上傳）。旗標寫在 `<html>` 上而不是 `.app` 上，因為彈窗是 `createPortal` 到 `body` 的，掛在 `.app` 上蓋不到它們；同理 `TripPage` 也把 `data-actual` 補寫一份到 `body`，實際版的配色才跟得到浮層。
+
+- **改亮色不要動深色。** 深色的值留在 `:root`，亮色一律寫成 `:root[data-theme='light']` 的覆寫。改完務必確認深色的算繪結果沒變。
+- **兩個 `prefers-color-scheme: dark` 區塊都要排除亮色**（`:root:not([data-theme='light'])`）。不排除的話，選亮色的人在深色系統的裝置上，實際版與心得配色會被系統拉回深色。
+- **深色規劃版的 `--text` 與 `--accent` 是同一個值**（`#f0f6fc`）。所以過去要表達「強調色」時寫哪個都看不出差別，亮色把它們分開才會現形（黑色的日期膠囊、黑色的選中分頁）。要強調色就寫 `--accent`／`--accent-contrast`，不要寫 `--text`／`--bg`。**但反過來也不成立** —— 實際版深色的 `--accent` 是藍色 `#60a5fa`，想要「跟內文同色」就得明寫 `--text`，不能靠 accent 碰巧等於它。四個象限（亮／深 × 規劃／實際）都要各看一次。
+- **`--surface-2` 的語意隨主題翻轉。** 深色它比 `--surface` 亮，是「浮起來的那一層」；亮色它是全畫面最深的色塊，是「凹陷」。用它之前先想要的是哪一種，要浮起的地方（可點的方塊、區塊抬頭）在亮色下得另外覆寫。
+- **內層色塊要「退後」是往 `--surface` 靠，不是往 `--bg` 靠。** `--surface` 夾在 `--bg` 與 `--surface-2` 中間，往 `--bg` 混一混在深色下會直接撞上區塊自己的底色（AI 資訊那塊原本算出來是 `#161a21`，`--surface` 是 `#161b22`），看起來不是退到背景，是在區塊上挖一個沒有邊界的洞，再淡一階還會比區塊更黑。亮色因為 `--surface` 是全畫面最亮的白，往 `--bg` 走剛好正確，所以這個坑只在深色現形。要退後就在 `--surface` 與 `--surface-2` 之間取值（`color-mix(in srgb, var(--surface-2) 55%, var(--surface))`），四個象限都成立。行程說明的 AI 區與費用明細現在共用這一階：**同一個底色 = 同一種東西（一塊資料）**，手打的說明才是帶主題色、站在最前面的那一階。
+- **顏色用既有 token 組出來，不要寫死色值。** 例如淡一階的主題底色寫 `color-mix(in srgb, var(--accent-bg) 45%, var(--surface))` —— 實際版與深色都會自己跟著換，不必為每個情境各寫一條。
+- **按鈕一律不帶陰影與光暈。** 填色與框線已經夠把主要按鈕跟旁邊的次要按鈕分開。卡片也不投影。
+  整份 `styles.css` 剩下的 `box-shadow` 只有頂列與導航列的分層（亮色專用），以及三處 `inset` 的
+  左緣色條與內描邊——那些是記號不是陰影。
+- **`styles.css` 沒有任何型別保護。** class 從 CSS 裡消失、TSX 照樣輸出那個 class，`npm run build` 與 `npm run lint` 都不會報錯，只有看畫面才會發現。整段替換 CSS 時特別小心切到隔壁的區塊。
+
+## 詞彙表
+
+使用者用這些簡稱指介面元件，看到就直接對應，不要反問是哪一個。新的叫法談定了就補進這張表，並在 [UI-MAP.md](UI-MAP.md)（給人看的樹狀圖，他用 `cat UI-MAP.md` 叫出來回憶叫法）補上對應的一行。
+
+| 說法 | 是什麼 |
+| --- | --- |
+| 頂列 | `.topbar`。旅程頁是兩行（旅程名＋匯率／同步），點旅程名開編輯旅程彈窗 |
+| 導航列 | `.tabbar`（[TabBar.tsx](src/components/TabBar.tsx)）。首頁／行程／回饋／筆記，旅程頁與首頁共用 |
+| 首頁 | 旅程列表那一頁（[TripsPage.tsx](src/pages/TripsPage.tsx)） |
+| 橫條、膠囊 | `.daystrip` 與裡面的 `.daypill`。三種：日期、持有人、筆記 |
+| 膠囊底 | 選中那顆膠囊的底色層 `.daypill[data-on]::before`。**實**＝落定、**淡**＝拖曳中（[stripIndicator.ts](src/lib/stripIndicator.ts)） |
+| 三格、軌道 | 左右撥分頁的 `.pager-track`：上一格／這一格／下一格（[SwipePager.tsx](src/components/SwipePager.tsx)） |
+| 行程列 | 行程列表裡的一筆 `.row`；點開的是**詳細頁** `.pane-detail`（[ItemDetail.tsx](src/components/ItemDetail.tsx)） |
+| 心得模式 | 行程列表的另一種樣子，網址 `mode=review`（[ReviewTab.tsx](src/components/ReviewTab.tsx)），只有實際版有 |
+| 規劃版／實際版 | `plan.kind`。配色與回饋計算都看它 |
+| 彈窗、蓋板 | `Modal` 與它的 `.backdrop`。彈窗有 sheet（底部升起）與 picker（置中選一個）兩種 |
+| 旅程設定 | 點頂列旅程名開的那個彈窗（`TripSettings`）。裡面全部即時生效，底部是「關閉」 |
+| 編輯旅程 | 旅程設定裡按「編輯」開的那一層，只有基本資訊那幾格（名稱、日期、外幣、匯率） |
+| 取消／儲存 | 編輯型彈窗底部是 `.sheetactions`，詳細頁底部是 `.editor-actions`；詳細頁的單區塊與編輯全部都用這組文字 |
+| 關閉 | 總覽型彈窗底部那一條（`.sheet-close-wide`）。整條都可以點 |
+
+## 彈窗的共通規則
+
+所有彈窗共用 [Modal.tsx](src/components/Modal.tsx)，下面每一條都是全部一起適用的。
+**只改其中一個就是把它們拆開，不要這樣做。**
+
+彈窗分兩種，差別只在「有沒有草稿」：
+
+- **編輯型**（新增／編輯旅程、加入旅程、支付方式、筆記）：內容是草稿，底部是取消／儲存。
+- **總覽型**（設定、旅程設定）：**每一格都是點了立刻生效**，沒有草稿，底部是一條「關閉」。
+  真的需要草稿的東西（旅程的基本資訊）就自己開一個編輯型彈窗，草稿的生死關在那裡面。
+  這樣使用者不必猜「按關閉會還原掉什麼」——答案永遠是什麼都不會。
+
+- **高度上限是「上緣切齊頂列的下緣」**：`calc(100% - var(--topbar-h) - var(--kb))`。背後永遠看得到完整一條頂列，
+  那條就是點了會關掉的地方。`--topbar-h` 是量出來的，`TripPage` 與 `TripsPage` **各自都要量**——
+  只有一頁量的話，從另一頁開的彈窗會用到上次留下的舊值。picker 例外，維持置中與七成高。
+- **點蓋板等於按取消**，有未儲存的修改就跳確認，不會默默丟掉。關閉的 ✕ 一律留在標題列。
+- **總覽型底部那條「關閉」，整條就是那顆按鈕**（`.sheet-close-wide`，膠囊只是裡面置中的 `span`），
+  所以點哪裡都關得掉。不要改成外層 div 加 `onClick` 再包一顆按鈕——那是巢狀點擊區，得靠
+  `stopPropagation` 收尾。前提是這條**只有這一個動作**，哪天想在那排加第二顆就得整條重想。
+  `<button>` 的寬度是縮到內容大小的（`display: flex` 也救不了），要自己 `width: calc(100% + 28px)`
+  把 `.sheetbody` 的左右內距補回來。picker 不長這條：它四邊留邊、蓋板好點，高度上限又只有七成。
+- **彈窗可以疊**（旅程設定裡再開編輯旅程）。`Modal` 用一個模組層級的堆疊管兩件事：`body` 的捲動鎖
+  要等**最後一個**關掉才解除（內層卸載時直接解鎖的話，外層還開著但底下的頁面已經能捲了），
+  Esc 只有**最上層**那個吃（兩層都在 `document` 上聽，按一次會整疊一起關）。卸載時是從堆疊裡
+  挑掉自己而不是 `pop()`——內外層的卸載順序沒有保證。
+- **底部按鈕列住在 `.sheetbody` 這個捲動區裡**，靠 `position: sticky; bottom: 0` 假裝釘在底部；
+  鍵盤升起時（`:root[data-kb]`，旗標在 [keyboard.ts](src/lib/keyboard.ts) 跟著 `--kb` 一起寫）改成 `static`，
+  它就跟著內容捲走，要按到「儲存」得先捲到最底——誤按的那一下不會發生在鍵盤上緣。
+  切換只動 `position`，DOM 不搬，鍵盤動畫途中不會閃幀。
+  - **按鈕列與內容之間的留白只能給按鈕列自己的 `margin-top`。** 還給 `.sheetbody` 的 `padding-bottom`
+    會把釘住的位置往上推，就不貼底了；而按鈕列的負 `margin-bottom` 也抵消不掉父層的 `padding-bottom`
+    ——負外距只縮內容的高度，父層的內距照樣留在下面。兩種寫法都試過，都不對。
+- **Enter 一律只收鍵盤，不送出。** `Modal` 統一處理，並在掛載時替欄位蓋上 `enterkeyhint="done"`。
+  欄位自己要用 Enter 做別的事（筆記的「開下一行」）就 `preventDefault()` 退出這條規則。
+- **完成鍵的字**：標題帶「新增」的用「新增」、帶「加入」的用「加入」，其餘一律「儲存」。
+- **該填的沒填、或什麼都沒改就 disable**，不要按了沒反應。新增看必要欄位有沒有填，編輯看 `dirty`。
+  **但格式錯誤不要 disable**——加入旅程貼了半條連結的人只會看到按鈕壞掉，那種要留給錯誤訊息說。
+  必填標記刻意不加（影響版面），所以 disable 的理由必須是畫面上看得出來的（空欄位本身、日期那行的紅字）。
+  **灰掉要看得出來是灰的**：`.btn:disabled` 是全站規則。先前只有 `.editor-actions` 底下那顆有樣式，
+  彈窗底部那顆看起來能按、點了沒反應，比不給按更糟。
+- **欄位的說明收在標題旁的 ⓘ，點一下就地展開**（設定頁）。不要做長按叫浮泡：標題是 `<label>`，
+  長按結束那一下會 focus 到欄位、在手機上把鍵盤叫出來，還得跟 iOS 自己的選取與複製手勢搶；
+  更根本的是看不見的入口沒人會去按。也不要做浮層——彈窗內容區是擋掉橫向的捲動層，
+  浮層只要比欄位寬一點就會被切掉。
+- **內容上緣的留白在 `.sheetbody`**，不要每個彈窗各自寫 inline style。
+
+## 版面與互動的雷區
+
+這幾條都踩過，共同點是「本機看起來正常、真機才炸」或「當下沒事、之後某次改動才引爆」。
+
+- **捲動層一律要擋掉橫向。** `overflow-y: auto` 會讓沒指定的 `overflow-x` 從 `visible` 被算成 `auto`，內容只要寬出去一點點，整個版面就能左右拖動並回彈，看起來像壞掉。新增捲動容器時照抄 `.scroll / .page-scroll / .pane-scroll / .itinerary-scroll` 那組的 `overflow-x: hidden` + `touch-action: pan-y`。唯一該橫捲的 `.daystrip` 是它們的兄弟不是子孫，不受影響。
+- **量到的高度寫成 CSS 變數，不要在 CSS 裡硬寫數字。** `--topbar-h` / `--tabbar-h`（`TripPage`）、`--dayhead-h` / `--reviewrow-h`（`ReviewTab`）都是量出來的，因為它們隨字型、縮放與內容換行而變。
+- **量高度要先同步寫一次，再交給 `ResizeObserver` 管後續變化。** 它的回呼掛在瀏覽器的算繪步驟上，**分頁在背景時不會送達** —— 只靠它的話初值永遠停在 fallback，而且是靜默的，畫面只是位置怪怪的不會報錯。
+- **iOS 鍵盤升起時版面視窗不會縮，只有可視視窗縮。** 畫面底部那段被鍵盤蓋住，在流內的底部按鈕列就消失了。`--kb`（[src/lib/keyboard.ts](src/lib/keyboard.ts)）量的就是這段：蓋板用它調 `inset`（`.pane-detail`），流內版面用它加 `padding-bottom`（`.review-view`），彈窗則是整張往上讓、按鈕列改成跟著內容捲（見上面「彈窗的共通規則」）。同一支檔案還會寫一個 `data-kb` 旗標到 `<html>` 上，因為 CSS 沒辦法拿長度當條件。Android 的版面視窗會跟著縮，`--kb` 算出來是 0，同一條規則自動失效，不用寫兩套。
+- **使用者輸入的文字都要 `overflow-wrap: anywhere`。** 沒有空白的長字串（英文店名、訂位代號、貼上來的網址）預設不斷行；`min-width: 0` 只讓它縮不讓它斷，照樣頂破版面。
+- **彈窗不能寫在可點元素的 JSX 裡面。** `Modal` 是 `createPortal` 到 `body` 的，但 **React 的合成事件沿的是 React 樹不是 DOM 樹** —— 掛在可點卡片裡面的話，點背景關掉的那一個點擊會接著冒泡到卡片的 `onClick`，當場又把它打開，看起來就是「點外面沒反應」。把 `<Modal>` 放到那個元素外面（用 Fragment 包），不要靠 `stopPropagation` 治症狀。
+- **文字欄位一律 `type="search"`，那不是因為它們是搜尋框。** Android Chrome 會在鍵盤上方掛一條聯絡人／地址的自動填入建議列，而 **Chrome 刻意忽略 `autocomplete="off"`**（太多網站拿它把自動填入整個關掉），改 `id`／`name` 也沒用 —— 實測下來只有「這是搜尋欄」這個訊號擋得住。代價有兩個，都已經處理：桌機的搜尋欄會多一顆清除的 ✕（用 `::-webkit-search-cancel-button` 關掉），Enter 鍵的字樣會變成「搜尋」（每一格補 `enterKeyHint="done"`，真正的搜尋面板除外）。新增文字欄位時照抄，不要「修正」回 `type="text"`。數值欄位（`NumberField`）維持 `text` + `inputMode="decimal"`，那裡本來就不會被認成地址。
+- **只有兩個選項就不要用 `<select>`。** iOS 會彈出整頁滾輪，為了兩個選項太重，而且選完才知道自己選了什麼。攤開成 `.seg` 那組二選一按鈕。選項多到攤不開時（例如選支付方式）改用 `variant="picker"` 的彈窗，不要退回原生選單。
+- **收尾寫在 `useLayoutEffect`，不要寫在動畫結束的 `setTimeout` 裡。** 在同一個 `setTimeout` 裡「一邊把位移清掉、一邊 `setState`」，DOM 的寫入立刻生效，React 的重繪卻不保證在同一幀 —— 中間會繪出「位置已經歸位、內容還是舊的」那一幀。做法是：計時器只負責把狀態往前推（`onIndex` / `jumpTo`），位移與旗標留在原地，收尾放進以那個狀態為依賴的 `useLayoutEffect`，它保證跑在瀏覽器繪之前（[SwipePager.tsx](src/components/SwipePager.tsx)、[ItineraryTab.tsx](src/components/ItineraryTab.tsx)）。**這一類「閃一幀舊畫面」踩過三次**：右滑返回墊在底下那層的 `z-index`（定位元素會蓋在非定位內容上面，`z-index: 0` 在位移歸零那一瞬整個跳到最前，要用負值）、分頁左右撥的軌道歸位、膠囊底彈回舊的那一顆。看到「切換的瞬間閃一下」先想這條。
+- **條件算繪的元素要用 callback ref。** 物件 ref 配 `useEffect(..., [])` 的話，效果跑的時候 `current` 還是 `null`，之後元素出現也不會再跑一次 —— 監聽永遠掛不上，而且完全靜默。詳細頁的右滑手勢踩過這個，症狀是「內層沒反應、反而外層被拖走」。
+- **`sticky` 的活動範圍是它的容器。** 心得的作者名牌會沿著自己那則氣泡滑，容器就是那一行；
+  把別的東西（例如按鈕列）也塞進同一個容器，名牌就會一路滑到那截，尖角指到空氣。
+- **`scrollHeight` 不含框線，但全站是 `border-box`。** 拿它去寫 `height`（自動長高的 textarea）
+  會少掉上下框線那一截，同樣的內容看起來比隔壁矮一圈。框線寬度要從 `getComputedStyle` 讀回來加上去，
+  不要寫死數字。
+- **程式呼叫的 `focus()` 會被判成 `:focus-visible`。** 所以「只給鍵盤使用者看的那圈 outline」在
+  自動聚焦的欄位上一定會出現，而且 outline 是繞著整個外框畫的，會壓過尖角之類接進來的東西。
+  自動聚焦的地方不要靠 `:focus-visible` 做裝飾。
+- **同一個東西的兩個狀態要無縫切換，四件事都得一樣**：內距、框線寬度（`border-box` 是往內吃的，
+  沒框的那邊要補一條透明的）、斷行規則（`overflow-wrap`）、以及捲軸佔不佔寬度。差任何一項，
+  切換的瞬間整段文字就重排。心得的氣泡與輸入框就是這樣對齊的。
+- **捲動區裡的東西變矮，`scrollTop` 會被夾在新的最大值上**，整個畫面當場跳一段。切換前記下那一列的
+  位置、切換後在 `useLayoutEffect` 裡補回去；補不回來的（已經在最底）就在尾端補上剛好差額的空白，
+  結束時收掉（[ReviewTab.tsx](src/components/ReviewTab.tsx) 的 `anchorRow`）。
+- **CSS 自訂屬性不能拿自己的值重算。** `--x: color-mix(..., var(--x), ...)` 是循環參照，整條宣告失效
+  且不會報錯。要「基於原值算一個新值」就換一個名字放新值，原值留著別動。
+- **後代選擇器配 `:first-child` 很脆。** `.a .b:first-child` 只要 `.b` 之後被多包了一層，它就永遠是
+  自己那層的第一個，規則整個跑掉（心得一進編輯就往上跳 8px 是這樣來的）。要限定「這一區的第一個」
+  就用直接子代 `>`。
+- **巢狀點擊區要 `stopPropagation()`。** 整列是 `role="button"` 而列裡又有按鈕或連結時（`.row-action`、`.review-write-hint`）不擋冒泡會兩層一起觸發。小圖示的點擊區用 `::after` 撐開而不是把元素本身放大，版面才不受影響 —— 但別撐出容器右緣，那就變成上面第一條的橫向拖動。
+
+## 其他值得知道的
+
+- **回饋計算只認 `kind === 'actual'` 的版本**（[src/lib/rewards.ts](src/lib/rewards.ts)）。一張卡可有多組同時累積的規則；消費上限不獨立儲存，它恆等於 `rewardCap / rate`。
+- **「還可刷」看哪一條規則由 `focusedRule()` 決定**（[src/lib/rewards.ts](src/lib/rewards.ts)），回饋頁與選擇支付方式的選單共用它，否則同一張卡在兩個畫面會報出不同的數字。預設擇優挑回饋率最高的那條，使用者點過某條規則就存進 `settings.rewardRuleFocus`。「停用與否」問的是另一件事（這張還有沒有任何回饋可拿），跟看哪條規則無關。
+- **現金與其他借 `paymentMethodId` 存保留字** `'cash'` / `'other'`。它們不是支付方式記錄（沒有規則、不該出現在回饋頁），但仍要能標在花費上。`computeMethod` 是用 id 比對挑出自己的花費，保留字永遠比不中 = 沒有回饋，正好是要的行為，所以資料結構與同步層都不必為它們改。
+- **橫向手勢在旅程頁裡是「換一格」，不是返回。** 判定與門檻集中在 [useHorizontalSwipe.ts](src/lib/useHorizontalSwipe.ts)，上面長出兩個用法：`useSwipeBack`（只有詳細頁還在用，往右滑關閉）與 `useSwipeSteps`（行程換日、回饋換持有人、筆記換筆記）。離開一趟旅程改走導航列的「首頁」那一格；`.tabbar` 由旅程頁與旅程列表共用（[TabBar.tsx](src/components/TabBar.tsx)），在列表頁時另外三格指向 `settings.activeTripId` 那一趟。最左緣 24px 仍讓給 iOS 自己的返回手勢 —— 這個 App 的網址參數都用 `replace` 寫入，歷史不累積，系統手勢會直接離開整個旅程頁。關閉一律走 `requestNavigation()`，未儲存的修改才攔得到。
+- **詳細頁捲到盡頭再拖一次，就滑進上一筆／下一筆**（[useEdgeSwipeSteps.ts](src/lib/useEdgeSwipeSteps.ts)）。方向判定與阻尼共用左右撥那一份，但**「拖多遠才算數」自己一組**：螢幕高的 30%（左右撥是 18%）、甩動要 110px 與 0.5 px/ms（左右撥是 36px 與 0.3）。左右撥換日一趟做幾十次，門檻本來就該低；上下換行程一趟十幾次，而且起手勢跟捲動完全重疊 —— 誤觸成本高、正常觸發頻率低，所以高一截。手感要微調就只動那三個常數。跟橫向那支的結構差異還有兩處，都是垂直才有的問題：**盡頭只在 touchstart 判定**（從中間一路捲到底、手不放就接著換頁的話，快速捲動的尾巴每次都會誤觸；放開再拖一次才算），以及**鎖定後要 `preventDefault`**（所以是 `passive: false`，並在 `.detail-scroll` 補 `overscroll-behavior: contain`）—— 垂直是瀏覽器自己的地盤，不擋它會在盡頭做橡皮筋，跟我們畫的位移疊在一起。順序是整趟排成一條線（日期、時間），跨日接得下去；編輯中或有未存修改就整個停用，打字時很容易誤觸，跳確認彈窗比不動更煩。
+- **換頁的兩個更新不保證合併成一次算繪。** 網址那次是 react-router 送的、收掉浮層是我們自己送的，
+  中間會多出一次算繪；那一次若重算鄰居是誰，畫面會先跳回舊的那筆再跳到新的 —— 這就是
+  「定位時閃一下」。所以 `detailStep` **記著 from/to 兩端的 id**，不即時去算 prev/next，
+  中間那次算出來就跟前一次一模一樣；等新網址真的到了，再用 `useLayoutEffect`（繪之前）收掉。
+  層是**用行程 id 當 key** 的，收掉時鄰居只是從 `data-side="next"` 變成 `"current"`，
+  同一個 DOM、同一個元件實例，不重建就不會有「心得草稿重載、照片重新掛上」那一幀。
+- **層本身不上底色**（捲動區自己是不透明的，遮蔽靠它就夠）。層再補一層不透明的話有兩個壞處：
+  當前這張會把墊在底下的上一張整個蓋掉（讓開了也只看到一片背景），而蓋上來的那張會在
+  隱形頂列的位置多出一塊純色，定位的瞬間又忽然消失。
+- **`--kb` 那段距離要層自己讓開**（`.detail-layer { bottom: var(--kb) }`）。手機版的
+  `.pane-detail` 是用 `padding-bottom: var(--kb)` 把按鈕列推到鍵盤上緣的，但**絕對定位的
+  容器是父層的內距框**，`inset: 0` 的層會直接長到內距裡去，按鈕列又回到鍵盤底下。
+- **上下滑入時頂列不跟著走，只有 `.detail-scroll` 在動。** 它是這一頁的框；跟著滑走的話
+  換頁瞬間得彈回原位，那一下就是看得見的閃動。鄰居那層的頂列是 `visibility: hidden`
+  而不是 `display: none` —— 位置要留著，它的內容才會停在換頁後的同一個位置。
+  收尾的計時器也要比 CSS 的 0.2s 多一點（240ms）：同一個數字時偶爾會在動畫還差幾 px
+  就換內容，一樣是閃一下。
+- **模型是一疊卡片：之後的行程疊在上面，之前的行程墊在下面。** 往**下一筆**時當前這張不動，下一張從畫面下緣蓋上來（`translateY(calc(100% + shift))`，z-index 疊在捲動區之上、頂列之下）；往**上一筆**時當前這張 `translateY(shift)` 往下讓開，露出靜止墊在底下的上一張。兩種運動共用同一個 `--detail-shift`，差別只在誰在動、誰疊在上面。**當前那張不要跟著下一筆一起上移** —— 那感覺是「這一則被推走了、還沒讀完」，不是「我正在捲到下一則」。鄰居要顯示真的內容，所以拖曳期間才把第二個 `ItemDetail` 掛出來（`pointer-events: none`、回呼接空的），放開就卸載。收尾時鄰居已經停在最終位置，所以換 `sel` 與位移歸零可以在同一次更新裡做完（`setTimeout` 的回呼是自動批次的），中間不會繪出「位置歸位、內容還是舊的」那一幀。`.detail-head` 的 z-index 刻意不動——它跟 `.detail-scroll` 同層的話，DOM 在後面的捲動區會蓋到頂列上面。
+- **「列表跟著選中那筆換日」只能在選中的那筆換了時跳一次**（[ItineraryTab.tsx](src/components/ItineraryTab.tsx) 的 `jumpedFor`）。桌機是列表與詳細頁並排、列表捲得動，只要寫成「`activeDay` 跟選中的日子不同就跳回去」，使用者一捲那條列表就被釘住彈回來。
+- **換日的手勢與 `useDayScroller` 的鎖是綁在一起的。** 平滑捲動還在跑的時候手指再放下去（連續左右撥就是這樣），`scrollProps` 的 `onTouchStart` 會把鎖清掉，途中的中間值就開始把選中的日子改掉 —— 手還在螢幕上、膠囊自己在跳，而且那一撥算出來的目的地是跳動中的某一天。所以 `focusDay` 之後有一段 `PROGRAMMATIC_MS` 不接受解鎖，`useDaySwipe` 判定成橫向時再呼叫 `holdDay()` 補一次。換日一律走 [useDaySwipe.ts](src/lib/useDaySwipe.ts)，行程列表與心得模式共用。
+- **左右撥的時候不要搬整個畫面。** 行程頁的「日」是同一條長捲動裡的位置不是一頁，所以那裡只讓膠囊底（`.daypill[data-on]::before`，位移 `--pill-shift`、寬度 `--pill-w`）滑向目的地，落地才觸發捲動；回饋與筆記是真的分頁，用 [SwipePager.tsx](src/components/SwipePager.tsx) 的三格軌道（上一格／這一格／下一格），內容跟著手指進出。膠囊底的位移與寬度要一起算，膠囊字數不同寬，只搬位移的話落地會突然抽寬。旁邊那兩格會記住各自上次的捲動位置，撥進來才不會跳。
+- **介面文字講「消費」不講「刷卡」。** 支付方式包含電子支付，「刷卡明細」「已刷 N 筆」對悠遊付、LINE Pay 這類根本不成立。同理，泛稱時用「支付方式」而不是「卡片」。
+- **邀請連結就是通行證**：`#/join?u=<後端網址>&s=<試算表 ID>&k=<密鑰>`。密鑰存在試算表的 `_meta` 分頁，撤銷方式是去改那一列。
+- **本機儲存隨時可能被清空，所以邀請連結要備份到雲端。** `tripLinks`（試算表 ID + 密鑰）跟旅程資料在同一個 IndexedDB，瀏覽器清除是整個 origin 一起清，鑰匙會跟資料一起消失。因此同步時會呼叫後端 `saveInvite`，把連結寫進該趟試算表的「邀請連結」分頁 —— 使用者手上唯一還在的線索就是雲端硬碟裡那份試算表。連結字串由前端算（後端不知道前端網域），存進 `tripLinks[].inviteBackupUrl` 避免每次同步重送；能力由 `ping` 的 `capabilities.invite` 判斷。
+- 啟動時呼叫 `navigator.storage.persist()`（[src/lib/storage.ts](src/lib/storage.ts)）。Android Chrome 拿到後就豁免容量淘汰；iOS Safari 沒有實作這個 API，分頁模式下七天沒互動仍會被清，只有加到主畫面的 PWA 不受影響。
+- **中文輸入法**：所有「按 Enter 送出」的地方都要用 [src/lib/keys.ts](src/lib/keys.ts) 的 `isSubmitEnter`。注音選字階段的 Enter 是確認選字，不是送出。
+- **樣式集中在單一檔案** [src/styles.css](src/styles.css)，沒有 CSS-in-JS 或模組化。
+- **對話裡的「膠囊底」** 指的就是橫條上選中那顆膠囊的底色層。實色是落定、淡色（`--accent-bg`）是拖曳中。
+- **心得有兩個介面，共用同一批 `Review` 記錄**：詳細行程頁的心得區塊，以及行程列表的心得模式（[ReviewTab.tsx](src/components/ReviewTab.tsx)，網址參數 `mode=review`，只在實際版出現）。日期橫條與捲動連動由 `useDayScroller` / `DayStrip` 共用 —— 那段對 sticky 與 rect 相減很敏感，要用就共用，不要複製。
+- **心得模式是「一則一則、離開就存」，沒有取消也沒有儲存鍵。** 心得是寫給自己的、一人一則，整筆覆蓋不會蓋到別人，所以不值得為「要不要留」多問一次。離開編輯有三個觸發點，全都指向同一個 `finishEdit`，而它是冪等的：輸入框失焦（主要）、點到編輯區以外（iOS 收鍵盤那一下未必送得出 blur）、切到背景。
+  - **代價是沒有回頭路，所以存檔時要把被蓋掉的那一版留在本機**（`travelapp:review-history:<planId>`，每則只留最近一版，永不同步），編輯時給一顆「還原上一版」——它只把文字放回輸入框、不直接寫入，所以還原本身也能反悔。上一版是空的就不給那顆：那不是還原，是把剛寫好的清掉。
+  - 編輯中的樣子刻意還是一顆氣泡（名牌與尖角都留著，只有底色淡一階、多一圈框）。換成一般表單欄位的話，那一則會突然跟四周長得毫不相干。
+  - 工具列上的按鈕（「還原上一版」）要在 `pointerdown` 就 `preventDefault`，否則按它會先讓輸入框失焦、當場存檔收起來，那一下點擊就落空。
+- **純本機的偏好放 `settings`，不要為了它動同步層。** `settings` 從不上傳，加 optional 欄位連遷移都不用寫（舊資料讀進來就是 `undefined`）。心得配色 `reviewHues` 就是這樣做的：為了顏色進同步層，就得處理「兩個人同時改配色」這種毫無價值的衝突。
+
+## 部署
+
+- 前端：push 到 `main` 觸發 [.github/workflows/deploy.yml](.github/workflows/deploy.yml)，建置時用 `GITHUB_PAGES_BASE` 帶入 repo 名稱當 base。
+  - **請使用者在手機上驗證前，先要他按一次設定裡的「檢查更新」。** service worker 雖然是 autoUpdate，
+    但畫面上已經載入的那份 JS 不會被換掉，放著不管要冷啟動兩次才吃得到新版（見 [update.ts](src/lib/update.ts)）。
+    「手機上跟修之前一模一樣」有一半機會只是還在跑舊快取，先排除掉再查程式。
+- 後端：**改完 `Code.gs` 必須「部署 → 管理部署作業 → 編輯 → 版本選新版本 → 部署」。直接存檔不會更新線上版本**，這是最常見的坑。改動後端行為時同步更新 `BACKEND_VERSION`；用瀏覽器直接開部署網址就能看到目前線上是哪一版。
+
+使用者端的完整設定步驟在 [SETUP.md](SETUP.md)。README.md 仍是 Vite 樣板，沒有專案資訊。
